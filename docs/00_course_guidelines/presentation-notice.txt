@@ -1,0 +1,17 @@
+Each group will present their project proposal live in front of their section. Please adhere to the following guidelines:
+
+* Time Duration: Exactly 5 minutes per group. Strict time keeping will be enforced.
+* Presenter: Only 1 student from each group needs to present on behalf of the team.
+* Language: Presentations can be delivered in either English or Bangla.
+* Suggested Presentation Outline (3–4 slides max):
+
+1. Title & Group Details: Project name, group members, and section/subsections.
+2. Base Paper Overview: Brief summary of the selected paper and domain.
+3. Problem Statement & Scope: What problem are you solving and how do you plan to approach it (application, extension, or exploratory work)?
+4. Expected Methodology: Outline of the numerical or simulation methods to be implemented.
+
+Schedule (Week 8):
+
+* Saturday (15 August 2026)= C1+C2
+* Sunday (16 August 2026)= B1+B2
+* Monday (17 August 2026)= A1+A2

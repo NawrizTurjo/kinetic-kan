@@ -1,0 +1,19 @@
+Introduction to Numerical Analysis, approximations, round-off errors,
+truncation errors; Visualization and plotting; Root finding: bisection
+method, false position method, Newton-Raphson method, Bairstow’s
+method; Solution of systems of equations: Gauss elimination method,
+Gauss-Jordan elimination method, LU decomposition; Eigenvalue
+decomposition: power method, QRmethod: Optimization: golden-section
+search, Newton’s method, gradient methods, constrained optimization;
+Curve fitting, interpolation and approximation: least squares regression,
+linear interpolation, Lagrange polynomial interpolation, Newton’s
+polynomial interpolation, spline interpolation; Numerical integration
+and differentiation: Newton-Cotes integration, trapezoidal rule, Simpson’s
+rule, Romberg’s integration, Richardson’s extrapolation; Solution of
+ordinary differential equations: Euler’s method, Runge-Kutta methods,
+finite difference methods; Modeling with linear and differential equations;
+Introductiontosimulationandmodeling,Discreteeventsimulationmodels;
+Steps in a simulation study; Model validation and verification; Random
+numbergeneration; MonteCarlomethods: Metropolis-Hastingsalgorithm.
+
+

@@ -1,0 +1,141 @@
+# =============================================================================
+# Byte-compiled / Optimized / DLL files (Python)
+# =============================================================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+artifacts/
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# =============================================================================
+# Virtual Environments
+# =============================================================================
+venv/
+.venv/
+env/
+.env
+ENV/
+env.bak/
+venv.bak/
+
+# =============================================================================
+# PyTorch / Deep Learning Model Checkpoints & Large Weights
+# =============================================================================
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.onnx
+checkpoints/
+saved_models/
+wandb/
+runs/
+lightning_logs/
+.tensorboard/
+
+# =============================================================================
+# Intermediate / Raw Data & Numerical Cache
+# =============================================================================
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.parquet
+datasets/raw/
+data/raw/
+
+# =============================================================================
+# Testing & Code Quality Tools
+# =============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+htmlcov/
+.hypothesis/
+.tox/
+.nox/
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# =============================================================================
+# Jupyter Notebooks
+# =============================================================================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# =============================================================================
+# LaTeX Compilation Artifacts (excluding final presentation PDFs)
+# =============================================================================
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.run.xml
+_minted*
+
+# =============================================================================
+# IDE & Operating System Specific
+# =============================================================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+# =============================================================================
+# Local Scratch & Temporary Files
+# =============================================================================
+scratch/
+tmp/
+temp/
+.temp/
+

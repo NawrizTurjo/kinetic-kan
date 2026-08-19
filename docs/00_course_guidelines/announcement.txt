@@ -1,0 +1,25 @@
+
+Course Project Guidelines & Instructions
+
+1. Group Formation Rules
+
+   Group Size: Each group must consist of exactly 5 students.
+
+   Cross-Subsection Grouping: Allowed. Students from different subsections within the same section (e.g., A1 and A2) can form a group.
+
+   Cross-Section Grouping: Strictly Prohibited. Students from different sections (e.g., Section A and Section B) cannot form a group together.
+2. Base Paper Selection & Project Scope
+
+Every group must select a published base paper (journal or conference paper). The base paper can belong to any domain.
+
+To help guide your work, here are a few suggested directions you may consider for your project (these are recommendations to inspire your topic, not rigid constraints):
+
+    Cross-Domain Application: Apply numerical methods, simulation models, or data fitting/optimization algorithms covered in or related to the course (e.g., Monte Carlo methods, root-finding, interpolation, systems of equations) to solve a problem in a different application field.
+
+    Methodological Extension: Take an existing paper in numerical analysis or simulation & modeling and extend its work (e.g., improving computational efficiency, relaxing assumptions, adapting the algorithm to a novel formulation, or enhancing stability).
+
+    Exploratory & Comparative Study: Conduct an in-depth exploratory project (e.g., benchmarking multiple numerical/simulation approaches against complex real-world datasets or theoretical modeling benchmarks).
+
+Course Project Information Submission Link(one submission from each group): https://forms.gle/9Fird9oo8Ls2a3v36
+
+Deadline for Information Submission: 15 August, 2026 (2:00 PM)
