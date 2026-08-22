@@ -46,23 +46,6 @@ This project performs a comprehensive, two-part investigation:
 
 ```text
 kinetic-kan/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                  # Multi-OS & Multi-Python CI pipeline
-│       ├── sciml_benchmarks.yml    # Automated SciML benchmark suite
-│       └── code_quality.yml        # Ruff linting, Mypy type-checking & Black formatting
-│
-├── configs/                        # Hyperparameter manifests & experiment configs
-│   ├── base_config.yaml            # Default training, optimizer & seed settings
-│   ├── solver_ablation.yaml        # Solver order sweeps (p=1..5) & tolerance settings
-│   └── stiffness_sweep.yaml        # Damping ratios μ & Jacobian stiffness configurations
-│
-├── datasets/                       # Dynamic system trajectory generators & loaders
-│   ├── lotka_volterra.py           # 2D Predator-Prey ground truth generator (RK4)
-│   ├── damped_pendulum.py          # Variable damping non-linear pendulum generator
-│   ├── lorenz.py                   # 3D Chaotic Lorenz attractor dataset
-│   └── real_epidemic.py            # Empirical COVID-19 / Regional Dengue time-series loader
-│
 ├── docs/                           # Master project documentation, proposals & blueprints
 │   ├── 00_course_guidelines/       # Official syllabus & course notices
 │   ├── 01_literature_and_ideas/    # Literature survey, candidate paper audits & notes
@@ -71,29 +54,37 @@ kinetic-kan/
 │   ├── 04_project_blueprint/       # Master technical deep dive & execution blueprints
 │   └── README.md                   # Documentation index & team charter
 │
-├── models/                         # Core neural & numerical architectures
-│   ├── ode_solvers.py              # Standalone Euler, RK2, RK4, and Adaptive integrators
-│   ├── kan_layers.py               # Gaussian RBF, B-spline, Lagrange, Chebyshev & Hybrid Basis
-│   ├── kan_ode.py                  # Continuous-time KAN-ODE Vector Field & Pipeline
-│   └── mlp_ode.py                  # Baseline MLP-Neural ODE for 10x speedup comparison
+├── implementation/                 # Active, modular PyTorch KAN-ODE implementation
+│   ├── kan/                        # Kolmogorov-Arnold Network Core Layers
+│   │   ├── basis.py                # RBF, B-spline, Chebyshev, Lagrange, IQF, RSWAF & Hybrid
+│   │   ├── layer.py                # KDense layer (residual + base linear + basis activations)
+│   │   └── model.py                # Multi-layer continuous vector field KAN
+│   │
+│   ├── ode/                        # Numerical ODE Solvers & Continuous Integrators
+│   │   ├── solvers.py              # Tsit5, RK4, DOPRI5, Euler, Heun, Midpoint
+│   │   └── neural_ode.py           # Continuous-time NeuralODE trajectory integrator wrapper
+│   │
+│   ├── data/                       # Dynamic System Generators & Empirical Loaders
+│   │   ├── lotka_volterra.py       # 2D Predator-Prey ground truth generator (RK4)
+│   │   ├── damped_pendulum.py      # Non-linear pendulum with variable damping (μ-stiffness)
+│   │   ├── lorenz.py               # 3D Chaotic Lorenz attractor dataset
+│   │   └── real_epidemic.py        # Empirical COVID-19 / Dengue time-series loader
+│   │
+│   ├── utils/                      # Metrics, Regularizers & Publication Plotting
+│   │   ├── regularization.py       # L1 sparsity & entropy penalty regularizers
+│   │   ├── metrics.py              # MSE, NFE tracker, parameter counter, Lipschitz bounds
+│   │   └── plotting.py             # Phase portraits, streamplots, loss curves & 3D renders
+│   │
+│   ├── results/                    # Validated experimental artifacts & checkpoint stores
+│   │   ├── kanode_rbf_tsit5/       # Validated 10,000-epoch baseline run artifacts
+│   │   └── quick_benchmarks/       # Preliminary activation and solver comparison runs
+│   │
+│   ├── train.py                    # Main KAN-ODE training loop with gradient norm logging
+│   ├── evaluate.py                 # Checkpoint evaluation, metric extraction & trajectory plotting
+│   ├── test_facility.py            # Automated ablation benchmark suite (--mode solvers/activations)
+│   └── README.md                   # Implementation quickstart guide & modularity documentation
 │
-├── experiments/                    # Reproducible benchmark & novelty experiment scripts
-│   ├── 01_reproduce_baseline.py    # Verify 10x convergence on Lotka-Volterra (KAN vs MLP)
-│   ├── 02_solver_ablation.py       # Part 1: Solver order (p=1..5) & step-size (Δt) sweep
-│   ├── 03_basis_ablation.py        # Part 1: RBF vs B-spline vs Lagrange vs Chebyshev
-│   ├── 04_gradient_dynamics.py     # Part 2: Gradient norm (||∇L||_2) stability logging
-│   ├── 05_hybrid_basis_eval.py     # Part 2: Learnable Softmax Hybrid Basis validation
-│   ├── 06_stiffness_phase_map.py   # Part 2: Damped pendulum μ-stiffness stability heatmap
-│   ├── 07_sindy_benchmark.py       # Part 2: PySINDy vs. KAN-ODE equation discovery under noise
-│   ├── 08_adjoint_profiling.py     # Part 2: Continuous Adjoint vs. Direct Autograd profiling
-│   └── 09_lorenz_chaos_eval.py     # Part 2: 3D Lorenz attractor geometry & Lyapunov testing
-│
-├── utils/                          # Metrics, symbolic extractors & plotting tools
-│   ├── metrics.py                  # MSE, NFE tracker, parameter counter, Lipschitz bound
-│   ├── symbolic_prune.py           # L1 edge pruning & symbolic equation extractor
-│   └── plotting.py                 # Publication-quality phase portraits, streamplots & heatmaps
-│
-├── tests/                          # Production-grade PyTest suite
+├── tests/                          # Production-grade PyTest validation suite
 │   ├── test_solvers.py             # Numerical order verification O(h^p) & energy conservation
 │   ├── test_kan_layers.py          # Autograd gradcheck, partition of unity & NaN immunity
 │   ├── test_pipeline.py            # End-to-end forward/backward & overfit sanity check
@@ -103,12 +94,12 @@ kinetic-kan/
 ├── pyproject.toml                  # Tool configs (pytest, ruff, mypy, coverage)
 ├── requirements.txt                # Pinned dependency manifest
 ├── LICENSE                         # MIT License
-└── README.md                       # Project Root README (This file)
+└── README.md                       # Master GitHub README with badges, team roster and quickstart
 ```
 
 ---
 
-## ⚡ Quickstart & Installation
+## ⚡ Quickstart & Commands Reference
 
 ### 1. Environment Setup
 
@@ -130,16 +121,29 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. Run Test Suite
+### 2. Baseline Model Training (10,000 Epochs)
 
 ```bash
-pytest tests/ -v
+cd implementation
+python train.py --basis rbf --solver tsit5 --epochs 10000 --lr 5e-4
 ```
 
-### 3. Run Baseline Reproduction (Lotka-Volterra 10x Speedup)
+### 3. Checkpoint Evaluation & Metrics
 
 ```bash
-python experiments/01_reproduce_baseline.py
+cd implementation
+python evaluate.py --checkpoint results/kanode_rbf_tsit5/best_model.pt
+```
+
+### 4. Running Automated Ablation Benchmarks
+
+```bash
+cd implementation
+# Solver order ablation sweep
+python test_facility.py --mode solvers --epochs 10000
+
+# Basis function ablation sweep
+python test_facility.py --mode activations --epochs 10000
 ```
 
 ---
@@ -151,7 +155,7 @@ All comprehensive documentation, research plans, and slides are located in the [
 * 📖 **Master Project Implementation Plan:** [`docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md`](./docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md)
 * 🔬 **Mathematical Deep Dive & Research Blueprint:** [`docs/04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md`](./docs/04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md)
 * 📊 **Presentation Scope vs. Final Plan Comparison:** [`docs/04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md`](./docs/04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md)
-* 📽️ **Proposal Presentation Slide Deck:** [`docs/03_presentation/slide.pdf`](./docs/03_presentation/slide.pdf) ([Source `.tex`](./docs/03_presentation/slide.tex))
+* 📽️ **Proposal Presentation Slide Deck:** [`docs/03_presentation/KAN-ODE.pdf`](./docs/03_presentation/KAN-ODE.pdf) ([Source `.tex`](./docs/03_presentation/KAN-ODE.tex))
 * 📑 **Candidate Paper Audits & DOIs:** [`docs/01_literature_and_ideas/base_paper_links.md`](./docs/01_literature_and_ideas/base_paper_links.md)
 
 ---

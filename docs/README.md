@@ -49,8 +49,8 @@ docs/ (kinetic-kan)
 │   └── KAN_ODE_Project_Proposal.pptx    # Standard proposal deck
 │
 ├── 03_presentation/                 # Compiled LaTeX Beamer presentation decks
-│   ├── slide.tex                    # Standard 5-slide course proposal deck
-│   └── slide.pdf                    # Compiled PDF for proposal presentation
+│   ├── KAN-ODE.tex                  # Standard course proposal deck
+│   └── KAN-ODE.pdf                  # Compiled PDF for proposal presentation
 │
 ├── 04_project_blueprint/            # Master implementation plans & publication blueprint
 │   ├── KAN_ODE_Project_Deep_Dive_FINAL.md # Complete technical deep-dive & equations
@@ -70,7 +70,7 @@ docs/ (kinetic-kan)
 * **Master Technical Blueprint & Math Foundations:**👉 [`04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md`](./04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md)
 * **Presentation Scope vs. Final Plan Comparison:**👉 [`04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md`](./04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md)
 * **Proposal Presentation Slides (LaTeX Beamer):**
-  👉 [`03_presentation/slide.pdf`](./03_presentation/slide.pdf) ([Source `.tex`](./03_presentation/slide.tex))
+  👉 [`03_presentation/KAN-ODE.pdf`](./03_presentation/KAN-ODE.pdf) ([Source `.tex`](./03_presentation/KAN-ODE.tex))
 
 ---
 

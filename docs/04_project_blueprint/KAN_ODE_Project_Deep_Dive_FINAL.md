@@ -646,11 +646,11 @@ def run_kan_ode_experiment(solver='rk4', basis='hybrid', epochs=2000, lr=1e-2, s
 
 ### 8.2 Parallel Development & GitHub Branching Strategy
 To ensure zero blocking and prevent merge conflicts, all 5 members develop on isolated feature branches using decoupled file interfaces:
-* **Member 1 (2105032 - Nawriz Ahmed Turjo):** `feat/m1-kan-architecture` (`models/kan_layers.py`, `tests/test_kan_layers.py`, `experiments/03_*.py`, `experiments/05_*.py`)
-* **Member 2 (2105033 - Abhishek Roy):** `feat/m2-numerical-solvers` (`models/ode_solvers.py`, `tests/test_solvers.py`, `experiments/02_*.py`, `experiments/08_*.py`)
-* **Member 3 (2105043 - Monjur Hossain Khan):** `feat/m3-sciml-pipeline` (`datasets/lotka_volterra.py`, `models/kan_ode.py`, `tests/test_pipeline.py`, `experiments/01_*.py`, `experiments/04_*.py`)
-* **Member 4 (2105048 - Shams Hossain Simanto):** `feat/m4-stability-sindy` (`models/mlp_ode.py`, `utils/metrics.py`, `datasets/damped_pendulum.py`, `experiments/06_*.py`, `experiments/07_*.py`)
-* **Member 5 (2105055 - Abrar Jahin):** `feat/m5-chaos-visuals` (`utils/plotting.py`, `datasets/lorenz.py`, `datasets/real_epidemic.py`, `experiments/09_*.py`, `paper_draft/`)
+* **Member 1 (2105032 - Nawriz Ahmed Turjo):** `feat/m1-kan-architecture` (`implementation/kan/basis.py`, `tests/test_kan_layers.py`, `experiments/03_*.py`, `experiments/05_*.py`)
+* **Member 2 (2105033 - Abhishek Roy):** `feat/m2-numerical-solvers` (`implementation/ode/solvers.py`, `tests/test_solvers.py`, `experiments/02_*.py`, `experiments/08_*.py`)
+* **Member 3 (2105043 - Monjur Hossain Khan):** `feat/m3-sciml-pipeline` (`implementation/train.py`, `tests/test_pipeline.py`, `experiments/01_*.py`, `experiments/04_*.py`)
+* **Member 4 (2105048 - Shams Hossain Simanto):** `feat/m4-stability-sindy` (`implementation/data/damped_pendulum.py`, `utils/metrics.py`, `experiments/06_*.py`, `experiments/07_*.py`)
+* **Member 5 (2105055 - Abrar Jahin):** `feat/m5-chaos-visuals` (`implementation/data/lorenz.py`, `data/real_epidemic.py`, `utils/plotting.py`, `experiments/09_*.py`, `paper_draft/`)
 
 ---
 

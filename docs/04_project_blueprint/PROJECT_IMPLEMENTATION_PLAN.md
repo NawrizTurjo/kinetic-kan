@@ -17,14 +17,20 @@
 │ • Official Base Repo: https://github.com/DENG-MIT/KAN-ODEs (MIT Deng Lab)                              │
 │ • Base Language Split: Core paper experiments in Julia (DifferentialEquations.jl); minimal PyTorch demo │
 │ • Base PyTorch State: Single monolithic script using Gaussian RBF & default autograd ODE solver        │
-│ • Critical Gaps in Official Repo:                                                                      │
-│   1. No standalone hand-coded numerical ODE solvers (Euler, RK2, RK4, Dopri5).                         │
-│   2. No gradient norm trajectory tracking (||∇L||_2) during backpropagation.                           │
-│   3. No B-spline (Cox-de Boor), Lagrange, Chebyshev, or Hybrid Basis implementations.                 │
-│   4. No stiffness analysis (damped pendulum μ-sweep) or chaotic attractor benchmarks (3D Lorenz).       │
-│   5. No symbolic comparison against SINDy or Adjoint vs. Autograd memory/speed profiling.             │
-│ • Our Strategy: Reference official repo for ground-truth data format, but build our entire research    │
-│   suite from scratch in a modular, publication-ready Python/PyTorch repository.                        │
+│                                                                                                        │
+│ • CURRENT IMPLEMENTATION STATUS (Built & Validated by Member 2 - Abhishek Roy):                        │
+│   ├── ✅ Active Modular Engine: Built in 'implementation/' (kan/, ode/, data/, utils/)                 │
+│   ├── ✅ Core Base Reproduction: Tested & verified (RBF + Tsit5 @ 10,000 epochs, ~40+ min CPU run)    │
+│   ├── ✅ Baseline Visuals: Generated loss curves, phase space & trajectory plots in 'results/'         │
+│   ├── ✅ Draft Solvers & Bases: Solvers (Euler, Heun, RK4, Dopri5, Tsit5) & Bases (RBF, RSWAF, IQF)   │
+│   └── ✅ Automated Benchmark Facility: 'test_facility.py' with solver & activation modes               │
+│                                                                                                        │
+│ • REMAINING TEAM WORKSTREAMS TO COMPLETE:                                                              │
+│   1. Fix B-splines Cox-de Boor (k=3) & implement Chebyshev / Lagrange polynomial bases (Member 1).    │
+│   2. Execute full 10k-epoch solver sweeps & Adjoint vs. Autograd memory profiling (Member 2).          │
+│   3. Instrument Gradient Norm (||∇L||_2) dynamics & long-term extrapolation analysis (Member 3).       │
+│   4. Parameter-matched MLP-ODE baseline, Damped Pendulum stiffness map & PySINDy benchmark (Member 4). │
+│   5. 3D Chaotic Lorenz attractor, real-world epidemic fit & publication LaTeX synthesis (Member 5).    │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -32,28 +38,10 @@
 
 # 2. Production Directory & File Structure
 
-Create the project repository with the following clean, professional layout:
+The project codebase is organized into a modular, production-grade layout under `implementation/`:
 
 ```text
 kinetic-kan/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                  # Multi-OS (Ubuntu, Win, Mac) & Multi-Python (3.10-3.12) CI
-│       ├── sciml_benchmarks.yml    # Automated SciML benchmark suite & artifact generator
-│       └── code_quality.yml        # Ruff linting, Mypy type-checking & Black formatting
-│
-├── configs/
-│   ├── base_config.yaml            # Default training, optimizer, and seed configs
-│   ├── solver_ablation.yaml        # Hyperparameters for solver order sweeps
-│   └── stiffness_sweep.yaml        # Damping ratios and solver tolerances
-│
-├── datasets/
-│   ├── __init__.py
-│   ├── lotka_volterra.py           # 2D Predator-Prey ground truth generator (RK4)
-│   ├── damped_pendulum.py          # Non-linear pendulum with variable damping (μ-stiffness)
-│   ├── lorenz.py                   # 3D Chaotic Lorenz attractor dataset
-│   └── real_epidemic.py            # Empirical COVID-19 / Dengue time-series loader
-│
 ├── docs/                           # Master project documentation, proposals & blueprints
 │   ├── 00_course_guidelines/       # Official syllabus & course notices
 │   ├── 01_literature_and_ideas/    # Literature survey, candidate paper audits & notes
@@ -62,32 +50,37 @@ kinetic-kan/
 │   ├── 04_project_blueprint/       # Master technical deep dive & execution blueprints
 │   └── README.md                   # Documentation index & team charter
 │
-├── models/
-│   ├── __init__.py
-│   ├── ode_solvers.py              # Standalone Euler, RK2, RK4, and Adaptive integrators
-│   ├── kan_layers.py               # Gaussian RBF, B-spline, Lagrange, Chebyshev & Hybrid Basis
-│   ├── kan_ode.py                  # Continuous-time KAN-ODE Vector Field & Pipeline
-│   └── mlp_ode.py                  # Baseline MLP-Neural ODE for 10x speedup comparison
+├── implementation/                 # Active, modular PyTorch KAN-ODE implementation
+│   ├── kan/                        # Kolmogorov-Arnold Network Core Layers
+│   │   ├── basis.py                # RBF, B-spline, Chebyshev, Lagrange, IQF, RSWAF & Hybrid
+│   │   ├── layer.py                # KDense layer (residual + base linear + basis activations)
+│   │   └── model.py                # Multi-layer continuous vector field KAN
+│   │
+│   ├── ode/                        # Numerical ODE Solvers & Continuous Integrators
+│   │   ├── solvers.py              # Tsit5, RK4, DOPRI5, Euler, Heun, Midpoint
+│   │   └── neural_ode.py           # Continuous-time NeuralODE trajectory integrator wrapper
+│   │
+│   ├── data/                       # Dynamic System Generators & Empirical Loaders
+│   │   ├── lotka_volterra.py       # 2D Predator-Prey ground truth generator (RK4)
+│   │   ├── damped_pendulum.py      # Non-linear pendulum with variable damping (μ-stiffness)
+│   │   ├── lorenz.py               # 3D Chaotic Lorenz attractor dataset
+│   │   └── real_epidemic.py        # Empirical COVID-19 / Dengue time-series loader
+│   │
+│   ├── utils/                      # Metrics, Regularizers & Publication Plotting
+│   │   ├── regularization.py       # L1 sparsity & entropy penalty regularizers
+│   │   ├── metrics.py              # MSE, NFE tracker, parameter counter, Lipschitz bounds
+│   │   └── plotting.py             # Phase portraits, streamplots, loss curves & 3D renders
+│   │
+│   ├── results/                    # Validated experimental artifacts & checkpoint stores
+│   │   ├── kanode_rbf_tsit5/       # Validated 10,000-epoch baseline run artifacts
+│   │   └── quick_benchmarks/       # Preliminary activation and solver comparison runs
+│   │
+│   ├── train.py                    # Main KAN-ODE training loop with gradient norm logging
+│   ├── evaluate.py                 # Checkpoint evaluation, metric extraction & trajectory plotting
+│   ├── test_facility.py            # Automated ablation benchmark suite (--mode solvers/activations)
+│   └── README.md                   # Implementation quickstart guide & modularity documentation
 │
-├── experiments/
-│   ├── 01_reproduce_baseline.py    # Verify 10x convergence on Lotka-Volterra (KAN vs MLP)
-│   ├── 02_solver_ablation.py       # Part 1: Solver order (p=1..5) & step-size (Δt) sweep
-│   ├── 03_basis_ablation.py        # Part 1: RBF vs B-spline vs Lagrange vs Chebyshev
-│   ├── 04_gradient_dynamics.py     # Part 2: Gradient norm (||∇L||_2) stability logging
-│   ├── 05_hybrid_basis_eval.py     # Part 2: Learnable Softmax Hybrid Basis validation
-│   ├── 06_stiffness_phase_map.py   # Part 2: Damped pendulum μ-stiffness stability heatmap
-│   ├── 07_sindy_benchmark.py       # Part 2: PySINDy vs. KAN-ODE equation discovery under noise
-│   ├── 08_adjoint_profiling.py     # Part 2: Continuous Adjoint vs. Direct Autograd profiling
-│   └── 09_lorenz_chaos_eval.py     # Part 2: 3D Lorenz attractor geometry & Lyapunov testing
-│
-├── utils/
-│   ├── __init__.py
-│   ├── metrics.py                  # MSE, NFE tracker, parameter counter, Lipschitz bound
-│   ├── symbolic_prune.py           # L1 edge pruning & symbolic equation extractor
-│   └── plotting.py                 # Publication-quality phase portraits, streamplots & heatmaps
-│
-├── tests/
-│   ├── __init__.py
+├── tests/                          # Production-grade PyTest validation suite
 │   ├── test_solvers.py             # Numerical order verification O(h^p) & energy conservation
 │   ├── test_kan_layers.py          # Autograd gradcheck, partition of unity & NaN immunity
 │   ├── test_pipeline.py            # End-to-end forward/backward & overfit sanity check
@@ -97,7 +90,7 @@ kinetic-kan/
 ├── pyproject.toml                  # Tool configs (pytest, ruff, mypy, coverage)
 ├── requirements.txt                # Pinned dependency manifest
 ├── LICENSE                         # MIT License
-└── README.md                       # Posh GitHub README with badges and quickstart
+└── README.md                       # Master GitHub README with badges, team roster and quickstart
 ```
 
 ---
@@ -145,11 +138,12 @@ pip install -r requirements.txt
 ├───────────────┬──────────────────────────────────┬─────────────────────────────┬────────────────────────────────┬──────────────┤
 │ Phase         │ Milestone Objective              │ Key Deliverables            │ Assigned Team Leads            │ Duration     │
 ├───────────────┼──────────────────────────────────┼─────────────────────────────┼────────────────────────────────┼──────────────┤
-│ **Phase 1**   │ Core Engine & Working Baseline   │ Solvers, KAN Layers, LV,    │ **ALL 5 MEMBERS IN PARALLEL**  │ **Days 1–3** │
-│               │                                  │ MLP Baseline, Plotting Core │ M1, M2, M3, M4, M5             │              │
+│ **Phase 1**   │ Core Engine, Bugfixes & Baseline │ Working KAN-ODE (M2 ✅),     │ **ALL 5 MEMBERS IN PARALLEL**  │ **Days 1–3** │
+│               │ Modules Completed in Parallel    │ B-Splines (M1), MLP (M4)    │ M1, M2, M3, M4, M5             │              │
+│               │                                  │ Lorenz (M5), Gradients (M3) │                                │              │
 ├───────────────┼──────────────────────────────────┼─────────────────────────────┼────────────────────────────────┼──────────────┤
 │ **Phase 2**   │ Part 1: Systematic Benchmarking  │ Tables 1 & 2 (Solvers/Bases)│ **ALL 5 MEMBERS IN PARALLEL**  │ **Days 4–6** │
-│               │                                  │ Extrapolation, Noise, Plots │ M1, M2, M3, M4, M5             │              │
+│               │ (10,000-Epoch Production Sweeps) │ Extrapolation, Noise, Plots │ M1, M2, M3, M4, M5             │              │
 ├───────────────┼──────────────────────────────────┼─────────────────────────────┼────────────────────────────────┼──────────────┤
 │ **Phase 3**   │ Part 2: Novel Research Suite     │ Tables 3, 4, 5 & Heatmaps   │ M1 (Hybrid), M2 (Adjoint),     │ **Days 7–9** │
 │               │                                  │ (Novelties 1 to 6)          │ M3 (Gradients), M4 (Stiff/SINDY│              │
@@ -161,50 +155,53 @@ pip install -r requirements.txt
 
 ---
 
-### 🚀 Phase 1: Core Engine & Working Baseline (Days 1–3)
+### 🚀 Phase 1: Core Engine, Modules & Working Baseline (Days 1–3)
 
-#### Goal: Every team member builds their isolated module on Days 1–2; integrate and verify the 10x speedup baseline on Day 3.
+#### Goal: Leverage Member 2's completed base engine in `implementation/`; all members build their parallel modules and integrate by Day 3.
 
-- **Task 1.1: Standalone Numerical ODE Solvers (`models/ode_solvers.py`)** — 👤 **Member 2: Abhishek Roy (2105033)**
-  - Implement `ExplicitEulerIntegrator` ($p=1$), `RK2Integrator` (Heun, $p=2$), `RK4Integrator` (Classical, $p=4$), and adaptive Dopri5 wrapper.
-  - Implement `tests/test_solvers.py` to verify analytical convergence slope $\log(\text{error}) / \log(h) \approx p$ on $y' = -y$.
+- **Task 1.1: Core Engine, ODE Solvers & Base Pipeline (`implementation/ode/`, `kan/`, `train.py`)** — 👤 **Member 2: Abhishek Roy (2105033)**
+  - **[STATUS: COMPLETED ✅]** Implemented native PyTorch `Tsit5` adaptive Runge-Kutta integrator, draft step solvers (`Euler`, `Heun`, `Midpoint`, `RK4`, `DOPRI5`), `KDense` layer, `lotka_volterra.py` dataset, training loop (`train.py`), evaluation script (`evaluate.py`), and automated test facility (`test_facility.py`).
+  - **[STATUS: COMPLETED ✅]** Successfully trained and validated 10,000-epoch baseline on Lotka-Volterra (~40+ min CPU run) with trajectory and phase-space artifacts in `results/kanode_rbf_tsit5/`.
+  - **[NEXT STEP]** Add unit tests in `tests/test_solvers.py` verifying convergence orders $p=1, 2, 4, 5$ on analytical test ODEs ($y' = -y$).
 
-- **Task 1.2: KAN Edge Activation Layer (`models/kan_layers.py`)** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
-  - Implement `KANEdgeLayer` with: (a) SiLU residual base, (b) Gaussian RBF basis, (c) Cubic B-spline basis (Cox-de Boor), and (d) Chebyshev basis.
-  - Implement `tests/test_kan_layers.py` to verify forward pass shapes `[B, Out]` and backward autograd gradient flow without NaNs.
+- **Task 1.2: Complete Cox-de Boor B-Splines & Polynomial Bases (`implementation/kan/basis.py`)** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
+  - Fix the draft B-spline implementation in `kan/basis.py` (resolving integer division / float tensor dimension error in Cox-de Boor recursion for $k=3$).
+  - Implement **Chebyshev Polynomials of the First Kind ($T_n(x)$)**, **Lagrange Polynomials**, and **Newton's Divided Differences** basis functions.
+  - Implement `tests/test_kan_layers.py` to verify partition of unity, output tensor shapes `[B, Out]`, and backward autograd gradient flow without NaNs across all basis types.
 
-- **Task 1.3: Ground Truth Generator & KAN-ODE Vector Field (`datasets/lotka_volterra.py`, `models/kan_ode.py`)** — 👤 **Member 3: Monjur Hossain Khan (2105043)**
-  - High-precision RK4 simulation ($\Delta t = 0.001$, sub-sampled to $N_t = 100$ on $t \in [0, 5]$).
-  - Connect $2$-layer continuous-time KAN Vector Field with solver wrapper and loss function ($\mathcal{L} = \text{MSE} + \lambda_1 \|\mathbf{w}\|_1$).
+- **Task 1.3: Baseline Reproduction & Gradient Norm Tracking (`implementation/train.py`)** — 👤 **Member 3: Monjur Hossain Khan (2105043)**
+  - Instrument `train.py` with continuous Gradient Norm ($\|\nabla_\theta \mathcal{L}\|_2$) trajectory logging across all training epochs.
+  - Benchmark KAN-ODE convergence speed and verify loss decay milestones ($\text{MSE} \le 10^{-4}$) against the base paper benchmark.
 
-- **Task 1.4: Parameter-Matched MLP Baseline & Metrics Tracker (`models/mlp_ode.py`, `utils/metrics.py`, `datasets/damped_pendulum.py`)** — 👤 **Member 4: Shams Hossain Simanto (2105048)**
-  - Build `MLP_ODE` baseline with equal parameter count ($252$ params) for fair $10\times$ speedup comparison.
-  - Implement `utils/metrics.py` (MSE, NFE counter, parameter counter, Lipschitz bound calculator).
-  - Generate baseline non-linear Damped Pendulum dataset.
+- **Task 1.4: Parameter-Matched MLP Baseline & Damped Pendulum Dataset (`implementation/data/damped_pendulum.py`, `kan/mlp.py`)** — 👤 **Member 4: Shams Hossain Simanto (2105048)**
+  - Build `MLP_ODE` baseline model with equal parameter count ($252$ parameters) for the official $10\times$ speedup comparison against KAN-ODE ($240$ parameters).
+  - Implement `implementation/utils/metrics.py` (MSE, NFE counter, parameter counter, Lipschitz bound calculator).
+  - Implement non-linear Damped Pendulum dataset generator (`data/damped_pendulum.py`) with variable damping coefficient $\mu$.
 
-- **Task 1.5: Visualization Engine & Extended Dataset Loaders (`utils/plotting.py`, `datasets/lorenz.py`, `datasets/real_epidemic.py`)** — 👤 **Member 5: Abrar Jahin (2105055)**
-  - Build `utils/plotting.py` (publication-quality phase portrait renderers, loss trajectory plotters, vector field streamline plots).
-  - Build 3D Chaotic Lorenz attractor dataset generator and real epidemiological infection data loader.
+- **Task 1.5: 3D Lorenz Attractor, Real Epidemic Loader & Plotting Suite (`implementation/data/`, `utils/plotting.py`)** — 👤 **Member 5: Abrar Jahin (2105055)**
+  - Implement 3D Chaotic Lorenz attractor dataset generator (`data/lorenz.py`, $\sigma=10, \rho=28, \beta=8/3$).
+  - Implement empirical COVID-19 / Regional Dengue infection dataset loader (`data/real_epidemic.py`).
+  - Upgrade `utils/plotting.py` with publication-ready phase portrait renderers with streamlines, loss curve overlays, and 3D trajectory plotters.
 
 - **Day 3 Milestone Check (All Hands):** — 👤 **Lead: Member 3 (Monjur) & All Members**
-  - Run `python experiments/01_reproduce_baseline.py` $\to$ verify KAN-ODE reaches $\text{MSE} < 10^{-4}$ in $< 2000$ epochs ($< 1$ min on CPU), outperforming MLP-ODE by $10\times$. Phase portraits exported by M5, metrics verified by M4.
+  - Verify baseline KAN-ODE vs. MLP-ODE $10\times$ convergence speedup on Lotka-Volterra. Verify that all basis functions (`rbf`, `bspline`, `chebyshev`, `lagrange`) and solvers (`euler`, `heun`, `rk4`, `dopri5`, `tsit5`) execute cleanly in `test_facility.py`.
 
 ---
 
 ### 🔬 Phase 2: Part 1 Systematic Benchmarking (Days 4–6)
 
-#### Goal: Execute all 5 core benchmarking workstreams in parallel to cover the entire CSE 402 syllabus.
+#### Goal: Execute all 5 core benchmarking sweeps in parallel across the full 10,000-epoch budget.
 
-- **Task 2.1: Solver Order Ablation & Discretization Step-Size Sweep (`experiments/02_solver_ablation.py`)** — 👤 **Member 2: Abhishek Roy (2105033)**
-  - Sweep Forward Euler ($p=1$), Heun RK2 ($p=2$), Classical RK4 ($p=4$), and Adaptive Dopri5 across $\Delta t \in \{0.20, 0.10, 0.05, 0.01\}$.
-  - Measure: Final Train MSE, Extrapolation MSE, NFE per step, and wall-clock speed $\to$ Generate **Table 1**.
+- **Task 2.1: Solver Order Ablation & Discretization Step-Size Sweep (`implementation/test_facility.py`)** — 👤 **Member 2: Abhishek Roy (2105033)**
+  - Run full 10,000-epoch benchmark sweeps across Forward Euler ($p=1$), Heun RK2 ($p=2$), Classical RK4 ($p=4$), DOPRI5, and Tsit5 across step sizes $\Delta t \in \{0.20, 0.10, 0.05, 0.01\}$.
+  - Measure: Final Train MSE, Extrapolation MSE ($t > 3.5$), Number of Function Evaluations (NFE), and Wall-clock speed $\to$ Generate **Table 1**.
 
-- **Task 2.2: Basis Function Representation Ablation (`experiments/03_basis_ablation.py`)** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
-  - Train identical KAN-ODE models with: (1) Gaussian RBF ($G=5$), (2) Cubic B-Splines ($G=5, k=3$), (3) Lagrange ($N=4$), and (4) Chebyshev ($N=4$).
-  - Measure: Parameter count, convergence epochs to $10^{-4}$ MSE, and boundary stability $\to$ Generate **Table 2**.
+- **Task 2.2: Basis Function Representation Ablation (`implementation/test_facility.py`)** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
+  - Train identical KAN-ODE models across all basis functions: (1) Gaussian RBF, (2) Cubic B-Splines ($k=3$), (3) Chebyshev Polynomials ($N=4$), (4) Lagrange Polynomials ($N=4$), (5) RSWAF, and (6) IQF.
+  - Measure: Parameter count, convergence epochs to $10^{-4}$ MSE, extrapolation stability, and boundary stability $\to$ Generate **Table 2**.
 
 - **Task 2.3: Extrapolation Horizon & Convergence Rate Analysis** — 👤 **Member 3: Monjur Hossain Khan (2105043)**
-  - Evaluate long-term trajectory extrapolation ($t \in [5, 15]$) on Lotka-Volterra across all models.
+  - Evaluate long-term trajectory extrapolation ($t_{\text{train}} \in [0, 3.5]$, $t_{\text{extrap}} \in [3.5, 14.0]$ and beyond to $t=28.0$) on Lotka-Volterra.
   - Benchmark KAN-ODE vs. MLP-ODE loss decay slopes under strictly identical epoch budgets.
 
 - **Task 2.4: Noise Robustness Sweep & Damped Pendulum Benchmark** — 👤 **Member 4: Shams Hossain Simanto (2105048)**
@@ -224,14 +221,14 @@ pip install -r requirements.txt
 
 - **Task 3.1: Gradient Norm Dynamics (`experiments/04_gradient_dynamics.py`) [Novelty 1]** — 👤 **Member 3: Monjur Hossain Khan (2105043)**
   - In the training loop, log $\|\nabla_\theta \mathcal{L}\|_2 = \sqrt{\sum_i \|\nabla_{\theta_i} \mathcal{L}\|_2^2}$ at every single epoch.
-  - Plot Gradient Norm Trajectory across Euler, RK2, and RK4. Prove lower-order solvers inject high-frequency gradient noise.
+  - Plot Gradient Norm Trajectory across Euler, RK2, RK4, and Tsit5. Prove lower-order solvers inject high-frequency gradient noise.
 
-- **Task 3.2: Learnable Softmax Hybrid Basis Layer (`experiments/05_hybrid_basis_eval.py`) [Novelty 2]** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
-  - Train the learnable Hybrid Basis Layer ($\alpha \text{Spline} + \beta \text{RBF}$) on Lotka-Volterra and Damped Pendulum.
+- **Task 3.2: Learnable Softmax Hybrid Basis Layer (`implementation/kan/basis.py`, `experiments/05_hybrid_basis_eval.py`) [Novelty 2]** — 👤 **Member 1: Nawriz Ahmed Turjo (2105032)**
+  - Implement and train the learnable Hybrid Basis Layer ($\alpha \text{Spline} + \beta \text{RBF}$) on Lotka-Volterra and Damped Pendulum.
   - Track evolution of blend weights $\alpha(t)$ and $\beta(t)$ during training; prove faster convergence over pure bases.
 
 - **Task 3.3: Stiffness-Solver Stability Phase Map (`experiments/06_stiffness_phase_map.py`) [Novelty 3]** — 👤 **Member 4: Shams Hossain Simanto (2105048)**
-  - Sweep damping ratio $\mu \in \{0.1, 0.5, 1.0, 2.0, 5.0, 8.0\}$ on Damped Pendulum across Euler, RK2, RK4 and $\Delta t$.
+  - Sweep damping ratio $\mu \in \{0.1, 0.5, 1.0, 2.0, 5.0, 8.0\}$ on Damped Pendulum across Euler, RK2, RK4, and Tsit5 with $\Delta t$.
   - Output **Table 5** and a 2D colored stability matrix heatmap (Stable vs. Exploded).
 
 - **Task 3.4: SINDy Baseline Comparison under Noise (`experiments/07_sindy_benchmark.py`) [Novelty 4]** — 👤 **Member 4: Shams Hossain Simanto (2105048)**
@@ -268,29 +265,32 @@ pip install -r requirements.txt
 │                                   SEQUENTIAL DEVELOPMENT DEPENDENCY GRAPH                              │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                        │
-│  STAGE 0: PARALLEL FOUNDATIONS (Days 1–2) — ALL 5 MEMBERS WORK SIMULTANEOUSLY                          │
-│  ├── Member 1: models/kan_layers.py & tests/test_kan_layers.py ────────┐                               │
-│  ├── Member 2: models/ode_solvers.py & tests/test_solvers.py ──────────┼────────┐                      │
-│  ├── Member 3: datasets/lotka_volterra.py & models/kan_ode.py ─────────┼────────┼────────┐             │
-│  ├── Member 4: models/mlp_ode.py, utils/metrics.py, pendulum.py ───────┼────────┼────────┼──────┐      │
-│  └── Member 5: utils/plotting.py, datasets/lorenz.py, epidemic.py ─────┼────────┼────────┼──────┼────┐ │
-│                                                                        │        │        │      │    │ │
-│  STAGE 1: INTEGRATION & BASELINE MILESTONE (Day 3)                     │        │        │      │    │ │
-│  └── ALL: experiments/01_reproduce_baseline.py (10x speedup verified) ◄┴────────┴────────┴──────┴────┘ │
+│  STAGE 0: CORE BASELINE ENGINE (COMPLETED BY MEMBER 2 ✅)                                               │
+│  ├── implementation/ode/solvers.py & neural_ode.py (Tsit5 & solver skeletons)                          │
+│  ├── implementation/kan/basis.py, layer.py, model.py (RBF KAN foundation)                              │
+│  ├── implementation/data/lotka_volterra.py & train.py, evaluate.py, test_facility.py                  │
+│  └── results/kanode_rbf_tsit5/ (Validated 10,000-epoch baseline artifacts)                             │
 │                                                                                                        │
-│  STAGE 2: PARALLEL BENCHMARKS (Days 4–6)                                                               │
-│  ├── Member 1: experiments/03_basis_ablation.py (Table 2: Basis Functions)                             │
-│  ├── Member 2: experiments/02_solver_ablation.py (Table 1: Solvers & Step-Sizes)                       │
-│  ├── Member 3: Extrapolation Horizon & NFE Efficiency Benchmarking                                     │
-│  ├── Member 4: Observational Noise Sweeps (σ ≤ 0.10) & Damped Pendulum Baseline                        │
-│  └── Member 5: Automated Table Collation (CSV), Multi-Panel Figures & Report Draft                     │
+│  STAGE 1: PARALLEL FOUNDATIONAL EXTENSIONS (Days 1–3)                                                  │
+│  ├── Member 1: Fix B-splines (k=3), add Chebyshev/Lagrange bases & tests/test_kan_layers.py             │
+│  ├── Member 2: Numerical convergence tests (tests/test_solvers.py) & solver verification               │
+│  ├── Member 3: Baseline convergence analysis & Gradient Norm tracking in train.py                      │
+│  ├── Member 4: MLP-ODE baseline (252 params), utils/metrics.py, data/damped_pendulum.py               │
+│  └── Member 5: data/lorenz.py (3D Attractor), data/real_epidemic.py, utils/plotting.py upgrade         │
 │                                                                                                        │
-│  STAGE 3: NOVEL RESEARCH CONTRIBUTIONS (Days 7–9)                                                      │
-│  ├── Member 1: experiments/05_hybrid_basis_eval.py (Learnable Hybrid Basis)                            │
-│  ├── Member 2: experiments/08_adjoint_profiling.py (Table 4: Adjoint vs Autograd)                      │
-│  ├── Member 3: experiments/04_gradient_dynamics.py (Gradient Norm Tracking)                            │
-│  ├── Member 4: experiments/06_stiffness_phase_map.py (Table 5) & exp/07_sindy_benchmark.py (Table 3)   │
-│  └── Member 5: experiments/09_lorenz_chaos_eval.py (3D Chaotic Attractor & Real Data Fit)              │
+│  STAGE 2: 10,000-EPOCH PRODUCTION BENCHMARKS (Days 4–6)                                                │
+│  ├── Member 1: Basis Function Ablation (Table 2: RBF vs B-splines vs Chebyshev vs Lagrange)            │
+│  ├── Member 2: Solver Order & Step-Size Ablation (Table 1: Euler, Heun, RK4, Dopri5, Tsit5)            │
+│  ├── Member 3: Extrapolation Horizon (t ∈ [3.5, 14.0]) & Loss Decay Slope Benchmarking                 │
+│  ├── Member 4: Observational Noise Sweeps (σ ≤ 0.10) & Damped Pendulum Baseline Run                    │
+│  └── Member 5: Automated Table Collation (CSV), Multi-Panel Figures & Phase 1–2 Report Draft           │
+│                                                                                                        │
+│  STAGE 3: NOVEL RESEARCH SUITE (Days 7–9)                                                              │
+│  ├── Member 1: Softmax Learnable Hybrid Basis Layer (Novelty 2)                                        │
+│  ├── Member 2: Continuous Adjoint vs Direct Autograd Memory Profiling (Novelty 5 -> Table 4)           │
+│  ├── Member 3: Gradient Norm Trajectory Dynamics (Novelty 1)                                           │
+│  ├── Member 4: Stiffness Phase Map (Novelty 3 -> Table 5) & SINDy Benchmark (Novelty 4 -> Table 3)    │
+│  └── Member 5: 3D Chaotic Lorenz Attractor Evaluation (Novelty 6) & Real Data Fit                      │
 │                                                                                                        │
 │  STAGE 4: SYNTHESIS & PAPER ASSEMBLY (Days 10–12)                                                      │
 │  └── ALL MEMBERS: Multi-Seed Data Collation (N=5), 300 DPI Figures & Final LaTeX Paper Assembly        │
@@ -309,17 +309,17 @@ pip install -r requirements.txt
 ├───────┬──────────────────────────────────┬─────────────────────────────────────────────────────────────┤
 │ Step  │ File to Build                    │ Technical Purpose & Implementation Details                  │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 1.1   │ `models/kan_layers.py`           │ Implement `KANEdgeLayer` with: (a) base SiLU residual,      │
-│       │                                  │ (b) Gaussian RBF, (c) Cubic B-spline, (d) Chebyshev basis. │
+│ 1.1   │ `implementation/kan/basis.py`    │ Fix Cox-de Boor B-splines (k=3) & implement Chebyshev,      │
+│       │                                  │ Lagrange, and Newton polynomial basis functions.            │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
 │ 1.2   │ `tests/test_kan_layers.py`       │ Verify forward pass shapes [B, Out] and backward autograd   │
 │       │                                  │ gradient flow across all basis types without NaN/Inf.       │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 1.3   │ `experiments/03_basis_ablation.py`│ Phase 2: Compare RBF vs B-spline vs Lagrange vs Chebyshev on│
-│       │                                  │ Lotka-Volterra; log epochs to 10⁻⁴ MSE (Table 2).          │
+│ 1.3   │ Basis Ablation (Table 2)         │ Phase 2: Compare RBF vs B-spline vs Chebyshev vs Lagrange   │
+│       │                                  │ via `test_facility.py --mode activations --epochs 10000`.   │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 1.4   │ `experiments/05_hybrid_basis_eval.py`│ Phase 3: Train Learnable Hybrid Basis; track blend weights  │
-│       │                                  │ α(t), β(t) and verify convergence speedup over pure bases.  │
+│ 1.4   │ Learnable Hybrid Basis           │ Phase 3: Implement Softmax Hybrid Basis (α·Spline + β·RBF); │
+│       │ (`experiments/05_hybrid_*.py`)   │ track blend weights α(t), β(t) and verify convergence gain. │
 └───────┴──────────────────────────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -335,17 +335,17 @@ pip install -r requirements.txt
 ├───────┬──────────────────────────────────┬─────────────────────────────────────────────────────────────┤
 │ Step  │ File to Build                    │ Technical Purpose & Implementation Details                  │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 2.1   │ `models/ode_solvers.py`          │ Code `ExplicitEulerIntegrator` (p=1), `RK2Integrator` (p=2),│
-│       │                                  │ `RK4Integrator` (p=4), and adaptive Dormand-Prince wrapper. │
+│ 2.1   │ `implementation/ode/solvers.py`  │ [COMPLETED ✅] Implemented Tsit5, RK4, Dopri5, Euler, Heun. │
+│       │ & `neural_ode.py`, `train.py`    │ [COMPLETED ✅] 10,000-epoch baseline validated in results/. │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
 │ 2.2   │ `tests/test_solvers.py`          │ Unit test solvers on analytical ODE (y'=-y) to verify that  │
-│       │                                  │ log(error)/log(h) convergence slope matches order p (1, 2, 4)│
+│       │                                  │ log(error)/log(h) convergence slope matches order p (1,2,4,5│
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 2.3   │ `experiments/02_solver_ablation.py`│ Phase 2: Solver order (p=1..5) & step-size (Δt) sweep;      │
-│       │                                  │ generate Table 1 metrics (Train/Extrap MSE, NFE, Speed).   │
+│ 2.3   │ Solver Ablation (Table 1)        │ Phase 2: Solver order (p=1..5) & step-size (Δt) sweep       │
+│       │                                  │ via `test_facility.py --mode solvers --epochs 10000`.       │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 2.4   │ `experiments/08_adjoint_profiling.py`│ Phase 3: Benchmark `odeint_adjoint` (O(1) memory) vs direct │
-│       │                                  │ autograd backprop (O(Nt) memory) across d∈{2,8} (Table 4). │
+│ 2.4   │ Adjoint vs Autograd Profiling    │ Phase 3: Benchmark `odeint_adjoint` (O(1) memory) vs direct │
+│       │ (`experiments/08_adjoint_*.py`)  │ autograd backprop (O(Nt) memory) across d∈{2,8} (Table 4). │
 └───────┴──────────────────────────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -361,16 +361,16 @@ pip install -r requirements.txt
 ├───────┬──────────────────────────────────┬─────────────────────────────────────────────────────────────┤
 │ Step  │ File to Build                    │ Technical Purpose & Implementation Details                  │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 3.1   │ `datasets/lotka_volterra.py` &   │ Phase 1: Ground truth generator (high-precision RK4, Nt=100)│
-│       │ `models/kan_ode.py`              │ and continuous-time KAN-ODE Vector Field wrapper.           │
+│ 3.1   │ `implementation/train.py`        │ Phase 1: Instrument training loop with continuous Gradient  │
+│       │ (Gradient Norm Tracker)          │ Norm (||∇L||_2) tracking and logging across epochs.         │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 3.2   │ `experiments/01_reproduce_baseline.py`│ Phase 1: Verify base paper claim: KAN-ODE reaches          │
+│ 3.2   │ Baseline Reproduction Verify     │ Phase 1: Verify base paper claim: KAN-ODE reaches           │
 │       │                                  │ MSE ≤ 10⁻⁴ in 10⁴ epochs vs MLP-ODE (10x speedup).          │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 3.3   │ Extrapolation & NFE Analysis     │ Phase 2: Evaluate extrapolation stability (t ∈ [5, 15]) and │
-│       │                                  │ loss decay slopes under equal compute budgets.              │
+│ 3.3   │ Extrapolation & NFE Analysis     │ Phase 2: Evaluate extrapolation stability (t ∈ [3.5, 14.0]) │
+│       │                                  │ and loss decay slopes under equal compute budgets.          │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 3.4   │ `experiments/04_gradient_dynamics.py`│ Phase 3: Log ||∇L||_2 at every epoch across Euler, RK2, RK4;│
+│ 3.4   │ `experiments/04_gradient_*.py`   │ Phase 3: Log ||∇L||_2 at every epoch across Euler, RK2, RK4;│
 │       │                                  │ prove low-order solvers inject high-frequency gradient noise│
 └───────┴──────────────────────────────────┴─────────────────────────────────────────────────────────────┘
 ```
@@ -393,10 +393,10 @@ pip install -r requirements.txt
 │ 4.2   │ Noise Sweeps & Pendulum Baseline │ Phase 2: Evaluate observational noise (σ ≤ 0.10) on LV and  │
 │       │                                  │ run baseline KAN-ODE on Damped Pendulum dataset.            │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 4.3   │ `experiments/06_stiffness_phase_map.py`│ Phase 3: Sweep damping μ ∈ [0.1, 8.0] across Euler/RK2/RK4; │
+│ 4.3   │ `experiments/06_stiffness_*.py`  │ Phase 3: Sweep damping μ ∈ [0.1, 8.0] across Euler/RK2/RK4; │
 │       │                                  │ generate 2D Stiffness vs Δt stability heatmap (Table 5).    │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 4.4   │ `experiments/07_sindy_benchmark.py`│ Phase 3: Fit PySINDy on noisy trajectories (σ∈{0, 0.05, 0.1});│
+│ 4.4   │ `experiments/07_sindy_*.py`      │ Phase 3: Fit PySINDy on noisy trajectories (σ∈{0, 0.05, 0.1});│
 │       │                                  │ benchmark recovery accuracy against KAN-ODE (Table 3).      │
 └───────┴──────────────────────────────────┴─────────────────────────────────────────────────────────────┘
 ```
@@ -413,13 +413,13 @@ pip install -r requirements.txt
 ├───────┬──────────────────────────────────┬─────────────────────────────────────────────────────────────┤
 │ Step  │ File to Build                    │ Technical Purpose & Implementation Details                  │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 5.1   │ `utils/plotting.py`,             │ Phase 1: Publication plot engine (phase portraits, streams),│
-│       │ `datasets/lorenz.py`, `epidemic.py`│ 3D Chaotic Lorenz attractor and real epidemic data loader.  │
+│ 5.1   │ `implementation/data/lorenz.py`  │ Phase 1: 3D Chaotic Lorenz attractor generator, real        │
+│       │ `real_epidemic.py`, `plotting.py`│ epidemic data loader, and publication plotting engine.      │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
 │ 5.2   │ Automated Collation & Figures    │ Phase 2: Build CSV results table exporter, render multi-    │
 │       │                                  │ panel benchmark figures, and draft Phase 1–2 report section.│
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ 5.3   │ `experiments/09_lorenz_chaos_eval.py`│ Phase 3: Train 3D KAN-ODE on Lorenz attractor; evaluate     │
+│ 5.3   │ `experiments/09_lorenz_*.py`     │ Phase 3: Train 3D KAN-ODE on Lorenz attractor; evaluate     │
 │       │                                  │ strange attractor butterfly geometry & real data fitting.   │
 ├───────┼──────────────────────────────────┼─────────────────────────────────────────────────────────────┤
 │ 5.4   │ `paper_draft/` & LaTeX Synthesis │ Phase 4: Aggregate multi-seed (N=5) tables & 300 DPI figures│
@@ -431,32 +431,32 @@ pip install -r requirements.txt
 
 # 6. Parallel Execution Architecture & Zero-Conflict Modularity Protocol
 
-To enable all 5 team members to work simultaneously with **zero waiting time** and **zero Git merge conflicts**, the repository enforces a strict decoupling and modularity architecture.
+To enable all 5 team members to work simultaneously with **zero waiting time** and **zero Git merge conflicts**, the repository enforces a strict decoupling and modularity architecture based around `implementation/`:
 
-````
+```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                               PARALLEL EXECUTION & DECOUPLING ARCHITECTURE                             │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                        │
 │    DAY 1 (INTERFACE HANDSHAKE): Freeze function signatures on 'main' branch                            │
-│    ├── ode_solvers.py   ->  def integrator(func, y0, t_span) -> Tensor [B, Nt, D]                      │
-│    ├── kan_layers.py    ->  class KANEdgeLayer(in_features, out_features, basis_type)                  │
-│    ├── lotka_volterra.py->  def generate_lotka_volterra(steps=100, noise=0.0) -> (t_span, traj)        │
-│    ├── mlp_ode.py       ->  class MLP_ODE(in_features, hidden_features, out_features)                  │
-│    └── plotting.py      ->  def plot_phase_portrait(true_traj, pred_traj, title, save_path)            │
+│    ├── ode/solvers.py   ->  def step_*(func, t, y, dt) -> Tensor [B, D]                                │
+│    ├── kan/basis.py     ->  def *(x, grid, h) -> Tensor [B, in_features, grid_len]                    │
+│    ├── data/*.py        ->  def generate_*(steps, noise) -> (t_train, y_train, t_full, y_full)         │
+│    └── utils/plotting.py->  def plot_*(...)                                                            │
 │                                                                                                        │
 │                                           │                                                            │
 │         ┌────────────────────┬────────────┼────────────────────┬───────────────────┐                   │
 │         ▼                    ▼            ▼                    ▼                   ▼                   │
 │  [feat/m1-kan]        [feat/m2-solvers]  [feat/m3-pipeline]   [feat/m4-stability] [feat/m5-chaos]      │
 │  Member 1 (Turjo)     Member 2 (Abhishek)Member 3 (Monjur)    Member 4 (Simanto)  Member 5 (Abrar)     │
-│  kan_layers.py        ode_solvers.py     kan_ode.py           mlp_ode.py          plotting.py          │
-│  test_kan_layers.py   test_solvers.py    test_pipeline.py     metrics.py          datasets/lorenz.py   │
-│  exp/03, exp/05       exp/02, exp/08     exp/01, exp/04       pendulum.py, exp/06 datasets/epidemic.py │
-│                                                               exp/07              exp/09, LaTeX Draft  │
+│  kan/basis.py         ode/solvers.py     train.py             data/pendulum.py    data/lorenz.py       │
+│  test_kan_layers.py   test_solvers.py    exp/04_gradient      kan/mlp.py          data/epidemic.py     │
+│  exp/03_basis, exp/05 exp/02_solver, 08  test_pipeline.py     exp/06_stiff, 07    plotting.py, exp/09  │
 │                                                                                                        │
 │    DAY 10 (SYNTHESIS): Automated CI merges all PRs cleanly into 'main' with zero collision             │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ### 🌿 6.1 GitHub Branching Strategy & Workflow Rules
@@ -465,11 +465,11 @@ Every member develops exclusively within their isolated feature branch:
 
 | Member | Student ID & Name | Dedicated Git Branch | Primary Files Owned & Developed |
 | :---: | :--- | :--- | :--- |
-| **M1** | **2105032** — Nawriz Ahmed Turjo | `feat/m1-kan-architecture` | `models/kan_layers.py`, `tests/test_kan_layers.py`, `experiments/03_*.py`, `experiments/05_*.py` |
-| **M2** | **2105033** — Abhishek Roy | `feat/m2-numerical-solvers` | `models/ode_solvers.py`, `tests/test_solvers.py`, `experiments/02_*.py`, `experiments/08_*.py` |
-| **M3** | **2105043** — Monjur Hossain Khan | `feat/m3-sciml-pipeline` | `datasets/lotka_volterra.py`, `models/kan_ode.py`, `tests/test_pipeline.py`, `experiments/01_*.py`, `experiments/04_*.py` |
-| **M4** | **2105048** — Shams Hossain Simanto | `feat/m4-stability-sindy` | `models/mlp_ode.py`, `utils/metrics.py`, `datasets/damped_pendulum.py`, `experiments/06_*.py`, `experiments/07_*.py` |
-| **M5** | **2105055** — Abrar Jahin | `feat/m5-chaos-visuals` | `utils/plotting.py`, `datasets/lorenz.py`, `datasets/real_epidemic.py`, `experiments/09_*.py`, `paper_draft/` |
+| **M1** | **2105032** — Nawriz Ahmed Turjo | `feat/m1-kan-architecture` | `implementation/kan/basis.py`, `tests/test_kan_layers.py`, `experiments/03_*.py`, `experiments/05_*.py` |
+| **M2** | **2105033** — Abhishek Roy | `feat/m2-numerical-solvers` | `implementation/ode/solvers.py`, `tests/test_solvers.py`, `experiments/02_*.py`, `experiments/08_*.py` |
+| **M3** | **2105043** — Monjur Hossain Khan | `feat/m3-sciml-pipeline` | `implementation/train.py`, `tests/test_pipeline.py`, `experiments/01_*.py`, `experiments/04_*.py` |
+| **M4** | **2105048** — Shams Hossain Simanto | `feat/m4-stability-sindy` | `implementation/data/damped_pendulum.py`, `utils/metrics.py`, `experiments/06_*.py`, `experiments/07_*.py` |
+| **M5** | **2105055** — Abrar Jahin | `feat/m5-chaos-visuals` | `implementation/data/lorenz.py`, `data/real_epidemic.py`, `utils/plotting.py`, `experiments/09_*.py`, `paper_draft/` |
 
 #### Git Execution Protocol Cheatsheet:
 

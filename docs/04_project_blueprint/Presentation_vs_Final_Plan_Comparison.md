@@ -35,7 +35,7 @@ The **Presentation** served as our proposal pitch to the course instructors (hig
 
 ## 2. What We Pitched in the Presentation (The Core Proposal)
 
-The presentation ([`slide.pdf`](../03_presentation/slide.pdf)) focused on **three core design decisions** of the base MIT paper and proposed stress-testing them:
+The presentation ([`KAN-ODE.pdf`](../03_presentation/KAN-ODE.pdf)) focused on **three core design decisions** of the base MIT paper and proposed stress-testing them:
 
 1. **Base Paper Foundations (MIT 2024):**
    - Concept of KAN-ODEs: learning continuous vector fields $\dot{\mathbf{u}} = \mathbf{f}_\theta(\mathbf{u})$ with learnable 1D edge curves.
@@ -133,5 +133,5 @@ In the final formalized plan, everything from the presentation becomes **Part 1 
 
 *Reference Files:*
 
-- Proposal Presentation Deck: [`slide.tex`](../03_presentation/slide.tex)
+- Proposal Presentation Deck: [`KAN-ODE.tex`](../03_presentation/KAN-ODE.tex)
 - Complete Final Project Blueprint: [`KAN_ODE_Project_Deep_Dive_FINAL.md`](./KAN_ODE_Project_Deep_Dive_FINAL.md)
