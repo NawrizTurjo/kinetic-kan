@@ -1,0 +1,30 @@
+{
+    "Basis: RBF": {
+        "basis": "rbf",
+        "solver": "tsit5",
+        "train_mse": 0.32553255558013916,
+        "test_mse": 2.1251301765441895,
+        "time_sec": 85.18015336990356,
+        "status": "success"
+    },
+    "Basis: RSWAF": {
+        "basis": "rswaf",
+        "solver": "tsit5",
+        "train_mse": 0.35010209679603577,
+        "test_mse": 1.942440390586853,
+        "time_sec": 80.40946388244629,
+        "status": "success"
+    },
+    "Basis: IQF": {
+        "basis": "iqf",
+        "solver": "tsit5",
+        "train_mse": 0.40223851799964905,
+        "test_mse": 1.9693876504898071,
+        "time_sec": 84.92468166351318,
+        "status": "success"
+    },
+    "Basis: BSPLINE": {
+        "status": "failed",
+        "error": "'float' object cannot be interpreted as an integer"
+    }
+}

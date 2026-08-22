@@ -1,0 +1,34 @@
+{
+    "Solver: TSIT5": {
+        "basis": "rbf",
+        "solver": "tsit5",
+        "train_mse": 0.32553255558013916,
+        "test_mse": 2.1251301765441895,
+        "time_sec": 67.99326848983765,
+        "status": "success"
+    },
+    "Solver: RK4": {
+        "basis": "rbf",
+        "solver": "rk4",
+        "train_mse": 0.32471731305122375,
+        "test_mse": 2.1264665126800537,
+        "time_sec": 40.559776306152344,
+        "status": "success"
+    },
+    "Solver: DOPRI5": {
+        "basis": "rbf",
+        "solver": "dopri5",
+        "train_mse": 0.32469940185546875,
+        "test_mse": 2.126664876937866,
+        "time_sec": 78.66676640510559,
+        "status": "success"
+    },
+    "Solver: EULER": {
+        "basis": "rbf",
+        "solver": "euler",
+        "train_mse": 0.3066941201686859,
+        "test_mse": 2.1310081481933594,
+        "time_sec": 11.06347942352295,
+        "status": "success"
+    }
+}
