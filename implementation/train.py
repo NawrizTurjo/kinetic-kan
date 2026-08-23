@@ -311,6 +311,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir", type=str, default="results/run_experiment", help="Directory to save checkpoints and plots")
     parser.add_argument("--print_freq", type=int, default=200, help="Epoch print frequency")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cpu or cuda)")
     
     args = parser.parse_args()
     
@@ -330,4 +331,5 @@ if __name__ == "__main__":
         save_dir=args.save_dir,
         print_freq=args.print_freq,
         seed=args.seed,
+        device=args.device,
     )
