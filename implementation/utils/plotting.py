@@ -157,3 +157,33 @@ def plot_benchmark_comparison(
     if show:
         plt.show()
     plt.close()
+
+
+def plot_gradient_norm_dynamics(
+    grad_norms: List[float],
+    title: str = "Gradient Norm Dynamics",
+    save_path: Optional[str] = None,
+    show: bool = False,
+):
+    """
+    Plot L2 Gradient Norm ||nabla_theta L||_2 dynamics over training epochs on log-linear scale.
+    """
+    plt.figure(figsize=(8, 4.5), dpi=150)
+    epochs = np.arange(1, len(grad_norms) + 1)
+    
+    plt.semilogy(epochs, grad_norms, color="#9467bd", linewidth=1.8, label=r"Gradient Norm $\|\nabla_\theta \mathcal{L}\|_2$")
+    
+    plt.title(title, fontsize=13, fontweight="bold", pad=10)
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel(r"$\|\nabla_\theta \mathcal{L}\|_2$ (Log Scale)", fontsize=12)
+    plt.grid(True, which="both", linestyle="--", alpha=0.5)
+    plt.legend(frameon=True, fontsize=11)
+    plt.tight_layout()
+    
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close()
+

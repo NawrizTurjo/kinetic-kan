@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+import json
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -9,7 +10,21 @@ from tqdm import tqdm
 from kan import KAN, MLP_ODE, count_parameters
 from ode import NeuralODE
 from data import generate_lotka_volterra_data
-from utils import compute_kan_regularization, plot_trajectory_comparison, plot_phase_space, plot_loss_curves
+from utils import (
+    compute_kan_regularization,
+    plot_trajectory_comparison,
+    plot_phase_space,
+    plot_loss_curves,
+    plot_gradient_norm_dynamics,
+    compute_mse,
+    compute_rmse,
+    compute_mae,
+    compute_r2_score,
+    compute_relative_l2_error,
+    compute_gradient_norm,
+    estimate_lipschitz_bound,
+    track_nfe,
+)
 
 
 def train_kan_ode(
@@ -44,7 +59,7 @@ def train_kan_ode(
     device="cpu",
 ):
     """
-    Train a KAN-ODE or MLP-ODE on Lotka-Volterra dynamics.
+    Train a KAN-ODE or MLP-ODE on Lotka-Volterra dynamics with continuous gradient norm logging.
     """
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device(device)
@@ -94,6 +109,7 @@ def train_kan_ode(
     
     train_losses = []
     test_losses = []
+    grad_norms = []
     best_test_loss = float("inf")
     best_state_dict = None
     
@@ -105,7 +121,7 @@ def train_kan_ode(
     
     start_time = time.time()
     
-    pbar = tqdm(range(1, num_epochs + 1), desc="Training", unit="epoch", ncols=120)
+    pbar = tqdm(range(1, num_epochs + 1), desc="Training", unit="epoch", ncols=125)
     for epoch in pbar:
         optimizer.zero_grad()
         
@@ -122,6 +138,11 @@ def train_kan_ode(
         total_loss = mse_train + reg_loss
         
         total_loss.backward()
+        
+        # Continuous Gradient Norm Logging ||nabla_theta L||_2
+        gnorm = compute_gradient_norm(model)
+        grad_norms.append(gnorm)
+        
         optimizer.step()
         
         train_loss_val = mse_train.item()
@@ -144,6 +165,7 @@ def train_kan_ode(
                 "epoch": epoch,
                 "train_mse": train_loss_val,
                 "test_mse": test_loss_val,
+                "grad_norm": gnorm,
                 "config": {
                     "model_type": model_type,
                     "layers_hidden": layers_hidden if model_type == "kan" else mlp_layers,
@@ -156,10 +178,11 @@ def train_kan_ode(
             }
             torch.save(best_state_dict, os.path.join(save_dir, "best_model.pt"))
         
-        # Update tqdm progress bar with live loss info
+        # Update tqdm progress bar with live loss and gradient norm info
         pbar.set_postfix({
             "train": f"{train_loss_val:.3e}",
             "test": f"{test_loss_val:.3e}",
+            "gnorm": f"{gnorm:.2e}",
             "best": f"{best_test_loss:.3e}",
         })
             
@@ -179,8 +202,46 @@ def train_kan_ode(
     y_full_np = y_full.cpu().numpy()
     t_full_np = t_full.cpu().numpy()
     
-    # Generate output plots
+    # Compute Comprehensive SciML Metrics
+    test_rmse = compute_rmse(y_full_np, final_pred)
+    test_mae = compute_mae(y_full_np, final_pred)
+    test_r2 = compute_r2_score(y_full_np, final_pred)
+    rel_l2 = compute_relative_l2_error(y_full_np, final_pred)
+    lipschitz_est = estimate_lipschitz_bound(model, x_domain=y_train)
+    total_nfe = track_nfe(solver, num_steps=len(t_full) - 1, substeps=substeps)
+    
+    metrics_summary = {
+        "model_type": model_type,
+        "parameters": total_p,
+        "solver": solver,
+        "basis_func": basis_func if model_type == "kan" else "none",
+        "best_test_mse": best_test_loss,
+        "final_train_mse": train_losses[-1],
+        "test_rmse": test_rmse,
+        "test_mae": test_mae,
+        "test_r2_score": test_r2,
+        "relative_l2_error": rel_l2,
+        "estimated_lipschitz_bound": lipschitz_est,
+        "total_nfe": total_nfe,
+        "training_time_seconds": total_time,
+    }
+    
+    # Save metrics JSON
+    with open(os.path.join(save_dir, "metrics.json"), "w") as f:
+        json.dump(metrics_summary, f, indent=4)
+        
+    # Save training history JSON
+    history = {
+        "train_losses": train_losses,
+        "test_losses": test_losses,
+        "grad_norms": grad_norms,
+    }
+    with open(os.path.join(save_dir, "training_history.json"), "w") as f:
+        json.dump(history, f)
+        
+    # Generate Output Plots
     plot_label = f"MLP-ODE ({base_act.upper()})" if model_type.lower() == "mlp" else f"KAN-ODE ({basis_func.upper()})"
+    
     plot_trajectory_comparison(
         t_full=t_full_np,
         y_true=y_full_np,
@@ -205,16 +266,24 @@ def train_kan_ode(
         save_path=os.path.join(save_dir, "loss_curves.png"),
     )
     
-    print(f"Results and plots saved to '{save_dir}'.")
+    plot_gradient_norm_dynamics(
+        grad_norms=grad_norms,
+        title=f"{plot_label} Gradient Norm Dynamics (||∇_θ L||_2)",
+        save_path=os.path.join(save_dir, "gradient_norm_dynamics.png"),
+    )
+    
+    print(f"Results, metrics, and plots saved to '{save_dir}'.")
     
     return {
         "model": model,
         "node": node,
         "train_losses": train_losses,
         "test_losses": test_losses,
+        "grad_norms": grad_norms,
         "best_test_mse": best_test_loss,
         "final_train_mse": train_losses[-1],
         "final_test_mse": test_losses[-1],
+        "metrics": metrics_summary,
         "pred_trajectory": final_pred,
     }
 
