@@ -178,3 +178,35 @@ class TestKDenseAndKANLayer:
         spline_acts, base_acts = layer.get_activations(x)
         assert spline_acts.shape == (4, 2, 3)
         assert base_acts.shape == (4, 2, 3)
+
+    def test_chebyshev_recurrence_relation(self):
+        """
+        Verify Chebyshev recurrence: T_{n+1}(x) = 2x T_n(x) - T_{n-1}(x) for all degrees.
+        """
+        grid = torch.linspace(-1.0, 1.0, 6)
+        h = (grid[1] - grid[0]).item()
+        x = torch.linspace(-0.95, 0.95, 20).unsqueeze(1) # [20, 1]
+        
+        t_eval = chebyshev_basis(x, grid, h)[:, 0, :] # [20, 6]
+        # Check recurrence for n=1, 2, 3, 4
+        for n in range(1, 5):
+            t_prev = t_eval[:, n - 1]
+            t_curr = t_eval[:, n]
+            t_next = t_eval[:, n + 1]
+            expected_next = 2.0 * x[:, 0] * t_curr - t_prev
+            assert torch.allclose(t_next, expected_next, atol=1e-5), f"Chebyshev recurrence failed at degree {n+1}"
+
+    def test_bspline_partition_of_unity(self):
+        """
+        Verify Cox-de Boor B-splines satisfy partition of unity sum_i B_{i,k}(x) = 1
+        within the core interpolation domain.
+        """
+        grid = torch.linspace(-1.0, 1.0, 9)
+        h = (grid[1] - grid[0]).item()
+        # Inside the internal interval [-0.5, 0.5]
+        x = torch.linspace(-0.5, 0.5, 30).unsqueeze(1)
+        
+        b_eval = bspline_basis(x, grid, h)[:, 0, :]
+        b_sum = b_eval.sum(dim=-1)
+        assert torch.allclose(b_sum, torch.ones_like(b_sum), atol=1e-4), "B-splines failed partition of unity"
+

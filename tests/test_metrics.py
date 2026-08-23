@@ -137,3 +137,17 @@ class TestLipschitzAndEnergyMetrics:
         res_decaying = compute_energy_violation(y_decaying, energy_fn)
         assert res_decaying["max_energy_drift"] > 0.1
         assert res_decaying["e_final"] < res_decaying["e0"]
+
+    def test_r2_score_zero_variance_handling(self):
+        """Verify R^2 score handles constant true vectors without zero division error."""
+        y_const = np.array([2.0, 2.0, 2.0, 2.0])
+        # Perfect prediction on constant vector
+        r2_perfect = compute_r2_score(y_const, y_const)
+        assert np.isclose(r2_perfect, 1.0)
+
+    def test_lipschitz_estimation_on_nonlinear_sine(self):
+        """For non-linear function f(x) = sin(x), Lipschitz constant is 1.0 (since |cos(x)| <= 1)."""
+        sine_fn = lambda x: torch.sin(x)
+        lip = estimate_lipschitz_bound(sine_fn, in_features=1, num_samples=300, domain_bounds=(-np.pi, np.pi))
+        assert 0.8 <= lip <= 1.2
+
