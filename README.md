@@ -4,9 +4,11 @@
 > *Course Project for CSE 402: Numerical Analysis, Simulation & Modeling | Department of CSE, BUET (4-1)*
 
 [![CI Pipeline](https://img.shields.io/badge/CI-Passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-143%20passed-brightgreen.svg)]()
 [![Python 3.10+](<https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue.svg>)]()
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+[![Phase 1 Status](https://img.shields.io/badge/Phase%201-100%25%20Complete-success.svg)]()
 [![Target Venue](<https://img.shields.io/badge/Target-CMAME%20%2F%20NeurIPS%20SciML-purple.svg>)]()
 
 ---
@@ -34,7 +36,7 @@ This project performs a comprehensive, two-part investigation:
 
 |    Student ID    | Full Name                       | Primary Research Role                                                             | Git Feature Branch            |
 | :---------------: | :------------------------------ | :-------------------------------------------------------------------------------- | :---------------------------- |
-| **2105032** | **Nawriz Ahmed Turjo**    | **Lead:** KAN Architecture, B-Spline Layers & Learnable Hybrid Basis        | `feat/m1-kan-architecture`  |
+| **2105032** | **Nawriz Ahmed Turjo**    | **Lead:** KAN Architecture, B-Spline Layers & Learnable Hybrid Basis (Phase 1 Lead)| `feat/m1-kan-architecture`  |
 | **2105033** | **Abhishek Roy**          | **Lead:** Numerical ODE Solvers, Step-Size Sweeps & Adjoint Profiling       | `feat/m2-numerical-solvers` |
 | **2105043** | **Monjur Hossain Khan**   | **Lead:** SciML Optimization, Loss Landscapes & Gradient Norm Dynamics      | `feat/m3-sciml-pipeline`    |
 | **2105048** | **Shams Hossain Simanto** | **Lead:** Non-linear Stability, Damped Pendulum Stiffness & SINDy Benchmark | `feat/m4-stability-sindy`   |

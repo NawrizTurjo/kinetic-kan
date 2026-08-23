@@ -16,11 +16,11 @@
 
 |    Student ID    | Full Name                       | Primary Research Role                                                             |
 | :---------------: | :------------------------------ | :-------------------------------------------------------------------------------- |
-| **2105032** | **Nawriz Ahmed Turjo**    | **Lead:** KAN Architecture, B-Spline Layers & Learnable Hybrid Basis        |
-| **2105033** | **Abhishek Roy**          | **Lead:** Numerical ODE Solvers, Step-Size Sweeps & Adjoint Profiling       |
-| **2105043** | **Monjur Hossain Khan**   | **Lead:** SciML Optimization, Loss Landscapes & Gradient Norm Dynamics      |
-| **2105048** | **Shams Hossain Simanto** | **Lead:** Non-linear Stability, Damped Pendulum Stiffness & SINDy Benchmark |
-| **2105055** | **Abrar Jahin**           | **Lead:** 3D Chaotic Lorenz Dynamics, Real Epidemiological Fit & Synthesis  |
+| **2105032** | **Nawriz Ahmed Turjo**    | **Lead:** KAN Architecture, B-Spline Layers & Phase 1 Foundation Lead       |
+| **2105033** | **Abhishek Roy**          | **Lead:** Initial Engine Scaffold, Adjoint Profiling & Presentation Lead    |
+| **2105043** | **Monjur Hossain Khan**   | **Lead:** Production Solver Sweeps, Extrapolation & Gradient Norm Dynamics |
+| **2105048** | **Shams Hossain Simanto** | **Lead:** Production Basis Sweeps, Damped Pendulum Stiffness & SINDy Benchmark |
+| **2105055** | **Abrar Jahin**           | **Lead:** 3D Chaotic Dynamics, Table Collation, LaTeX Synthesis & Paper Lead|
 
 ---
 
