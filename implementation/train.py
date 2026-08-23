@@ -206,7 +206,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train KAN-ODE on Lotka-Volterra Dynamics")
     parser.add_argument("--layers", type=int, nargs="+", default=[2, 10, 2], help="Hidden layer dimensions (e.g. 2 10 2)")
     parser.add_argument("--grid_len", type=int, default=5, help="Number of grid centers for RBF")
-    parser.add_argument("--basis", type=str, default="rbf", choices=["rbf", "rswaf", "iqf", "bspline"], help="Basis function")
+    parser.add_argument(
+        "--basis",
+        type=str,
+        default="rbf",
+        choices=["rbf", "rswaf", "iqf", "bspline", "chebyshev", "lagrange", "newton"],
+        help="Basis function",
+    )
     parser.add_argument("--solver", type=str, default="tsit5", choices=["tsit5", "rk4", "dopri5", "euler", "midpoint", "heun"], help="ODE Integrator")
     parser.add_argument("--substeps", type=int, default=2, help="Integration substeps per interval")
     parser.add_argument("--act", type=str, default="silu", help="Base linear activation function")

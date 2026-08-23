@@ -75,10 +75,29 @@ class KAN(nn.Module):
                 )
             )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, *args, **kwargs) -> torch.Tensor:
         """
-        Evaluate KAN on input tensor.
+        Evaluate KAN on input state tensor.
+        Handles both autonomous f(x) and non-autonomous f(t, x) / f(x, t) signatures.
         """
+        if "x" in kwargs:
+            x = kwargs["x"]
+        elif "u" in kwargs:
+            x = kwargs["u"]
+        elif "y" in kwargs:
+            x = kwargs["y"]
+        elif len(args) == 1:
+            x = args[0]
+        elif len(args) >= 2:
+            # If called as func(t, y) as common in ODE solvers:
+            # check which argument matches the input dimension
+            if isinstance(args[0], (int, float)) or (isinstance(args[0], torch.Tensor) and args[0].numel() == 1 and args[1].shape[-1] == self.layers_hidden[0]):
+                x = args[1]
+            else:
+                x = args[0]
+        else:
+            raise ValueError("KAN forward requires an input tensor.")
+
         for layer in self.layers:
             x = layer(x)
         return x

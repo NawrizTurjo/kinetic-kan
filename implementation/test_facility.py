@@ -10,7 +10,7 @@ from utils.plotting import plot_benchmark_comparison
 
 
 def run_activation_benchmark(
-    activations=["rbf", "rswaf", "iqf", "bspline"],
+    activations=["rbf", "rswaf", "iqf", "bspline", "chebyshev", "lagrange", "newton"],
     solver="tsit5",
     epochs=1500,
     lr=2e-3,

@@ -24,8 +24,8 @@ def plot_trajectory_comparison(
     plt.plot(t_full, y_true[:, 1], color="#1f77b4", linewidth=2.2, label="Predator (True $y$)")
     
     # Prediction
-    plt.plot(t_full, y_pred[:, 0], color="#2ca02c", linestyle="--", linewidth=2.0, label="Prey (KAN-ODE $\hat{x}$)")
-    plt.plot(t_full, y_pred[:, 1], color="#1f77b4", linestyle="--", linewidth=2.0, label="Predator (KAN-ODE $\hat{y}$)")
+    plt.plot(t_full, y_pred[:, 0], color="#2ca02c", linestyle="--", linewidth=2.0, label=r"Prey (KAN-ODE $\hat{x}$)")
+    plt.plot(t_full, y_pred[:, 1], color="#1f77b4", linestyle="--", linewidth=2.0, label=r"Predator (KAN-ODE $\hat{y}$)")
     
     # Train / Test split marker
     plt.axvline(x=t_split, color="black", linestyle=":", linewidth=1.8, label=f"Train/Test Split ($t={t_split}$)")
