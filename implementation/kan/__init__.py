@@ -11,6 +11,7 @@ from .basis import (
 )
 from .layer import KDense
 from .model import KAN
+from .mlp import MLP_ODE, count_parameters
 
 __all__ = [
     "rbf",
@@ -24,4 +25,6 @@ __all__ = [
     "BASIS_FUNCTIONS",
     "KDense",
     "KAN",
+    "MLP_ODE",
+    "count_parameters",
 ]
