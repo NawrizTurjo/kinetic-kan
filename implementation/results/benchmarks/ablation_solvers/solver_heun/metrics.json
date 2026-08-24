@@ -1,0 +1,15 @@
+{
+    "model_type": "kan",
+    "parameters": 240,
+    "solver": "heun",
+    "basis_func": "rbf",
+    "best_test_mse": 0.2455851435661316,
+    "final_train_mse": 0.018181083723902702,
+    "test_rmse": 0.6920936960075716,
+    "test_mae": 0.431172251701355,
+    "test_r2_score": 0.8355159759521484,
+    "relative_l2_error": 0.2420109361410141,
+    "estimated_lipschitz_bound": 6.442843914031982,
+    "total_nfe": 560,
+    "training_time_seconds": 1057.0535342693329
+}

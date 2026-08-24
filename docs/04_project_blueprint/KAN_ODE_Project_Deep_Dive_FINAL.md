@@ -495,107 +495,6 @@ class KAN_ODE_VectorField(nn.Module):
         h = self.layer1(u)
         dudt = self.layer2(h)
         return dudt
-
-class KAN_ODE_Pipeline(nn.Module):
-    """End-to-End Pipeline coupling Vector Field with Swappable Integrators."""
-    def __init__(self, vector_field, solver_type='rk4'):
-        super().__init__()
-        self.vector_field = vector_field
-        if solver_type == 'euler':
-            self.integrator = ExplicitEulerIntegrator()
-        elif solver_type == 'rk2':
-            self.integrator = RK2Integrator()
-        elif solver_type == 'rk4':
-            self.integrator = RK4Integrator()
-        else:
-            self.integrator = RK4Integrator()
-
-    def forward(self, u0, t_span):
-        return self.integrator(self.vector_field, u0, t_span)
-```
-
-### Module 4: Multi-Domain Ground-Truth Data Generators (`datasets.py`)
-```python
-import numpy as np
-
-def generate_lotka_volterra(alpha=1.5, beta=1.0, gamma=3.0, delta=1.0, u0=[1.0, 1.0], t_max=5.0, steps=100, noise=0.0):
-    t_span = np.linspace(0, t_max, steps)
-    dt = t_span[1] - t_span[0]
-    
-    def f(u):
-        return np.array([alpha * u[0] - beta * u[0] * u[1], delta * u[0] * u[1] - gamma * u[1]])
-    
-    traj = [np.array(u0)]
-    u = np.array(u0)
-    for _ in range(steps - 1):
-        k1 = f(u)
-        k2 = f(u + 0.5 * dt * k1)
-        k3 = f(u + 0.5 * dt * k2)
-        k4 = f(u + dt * k3)
-        u = u + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-        traj.append(u)
-        
-    traj = np.array(traj)
-    if noise > 0:
-        traj += np.random.normal(0, noise, traj.shape)
-    return torch.tensor(t_span, dtype=torch.float32), torch.tensor(traj, dtype=torch.float32).unsqueeze(0)
-
-def generate_lorenz_attractor(sigma=10.0, rho=28.0, beta=8.0/3.0, u0=[1.0, 1.0, 1.0], t_max=10.0, steps=1000):
-    t_span = np.linspace(0, t_max, steps)
-    dt = t_span[1] - t_span[0]
-    
-    def f(u):
-        return np.array([sigma * (u[1] - u[0]), u[0] * (rho - u[2]) - u[1], u[0] * u[1] - beta * u[2]])
-    
-    traj = [np.array(u0)]
-    u = np.array(u0)
-    for _ in range(steps - 1):
-        k1 = f(u)
-        k2 = f(u + 0.5 * dt * k1)
-        k3 = f(u + 0.5 * dt * k2)
-        k4 = f(u + dt * k3)
-        u = u + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-        traj.append(u)
-    return torch.tensor(t_span, dtype=torch.float32), torch.tensor(np.array(traj), dtype=torch.float32).unsqueeze(0)
-```
-
-### Module 5: Training Loop with Gradient Norm Logging (`train_and_ablate.py`)
-```python
-def run_kan_ode_experiment(solver='rk4', basis='hybrid', epochs=2000, lr=1e-2, seed=42):
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    
-    t_span, true_traj = generate_lotka_volterra()
-    u0 = true_traj[:, 0, :]
-    
-    vfield = KAN_ODE_VectorField(state_dim=2, hidden_dim=8, num_knots=5, basis_type=basis)
-    model = KAN_ODE_Pipeline(vfield, solver_type=solver)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    
-    grad_norm_history = []
-    
-    for epoch in range(1, epochs + 1):
-        optimizer.zero_grad()
-        pred_traj = model(u0, t_span)
-        
-        mse_loss = F.mse_loss(pred_traj, true_traj)
-        l1_reg = 1e-4 * sum(torch.sum(torch.abs(p)) for p in model.parameters())
-        total_loss = mse_loss + l1_reg
-        
-        total_loss.backward()
-        
-        # Contribution 1: Gradient Norm Trajectory Logging
-        total_norm = sum(p.grad.norm(2)**2 for p in model.parameters() if p.grad is not None)**0.5
-        grad_norm_history.append(total_norm.item())
-        
-        optimizer.step()
-        
-    return {
-        'model': model,
-        'final_mse': mse_loss.item(),
-        'grad_norms': grad_norm_history,
-        'pred_traj': pred_traj.detach().cpu()
-    }
 ```
 
 ---
@@ -607,9 +506,53 @@ def run_kan_ode_experiment(solver='rk4', basis='hybrid', epochs=2000, lr=1e-2, s
 │                                   5-MEMBER TASK ALLOCATION MATRIX                                      │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                        │
-│ • MEMBER 1 (2105032 - Nawriz Ahmed Turjo) ── LEAD: KAN ARCHITECTURE & HYBRID BASIS DESIGN             │
-│   ├── Tasks: B-spline/RBF/Chebyshev edge layers; Learnable Hybrid Basis; Basis ablation study (Table 2)│
+│ • MEMBER 1 (2105032 - Nawriz Ahmed Turjo) ── LEAD: KAN ARCHITECTURE & PHASE 1 FOUNDATION (COMPLETE ✅) │
+│   ├── Tasks: Built B-spline/Chebyshev/Lagrange bases, MLP baseline, datasets, metrics, test suite (143)|
+│   └── Next: Learnable Softmax Hybrid Basis (Novelty 2) & Codebase Architecture Quality Gate            │
 │                                                                                                        │
+│ • MEMBER 2 (2105033 - Abhishek Roy) ── LEAD: INITIAL ENGINE SCAFFOLD & PRESENTATION LEAD (COMPLETE ✅) │
+│   ├── Tasks: Initial KAN-ODE engine, 10,000-epoch baseline reproduction, presentation slides lead.    │
+│   └── Next: Continuous Adjoint vs Autograd Memory Profiling (Novelty 5 -> Table 4)                     │
+│                                                                                                        │
+│ • MEMBER 3 (2105043 - Monjur Hossain Khan) ── LEAD: PRODUCTION SOLVER SWEEPS & GRADIENT DYNAMICS      │
+│   ├── Tasks: Phase 2 Solver order/step-size sweep (Table 1); Extrapolation analysis; Novelty 1 (||∇L||)|
+│                                                                                                        │
+│ • MEMBER 4 (2105048 - Shams Hossain Simanto) ── LEAD: BASIS SWEEPS, STABILITY & SINDY BENCHMARK        │
+│   ├── Tasks: Phase 2 Basis function sweep (Table 2); Noise robustness; Novelty 3 (Stiffness) & SINDy. │
+│                                                                                                        │
+│ • MEMBER 5 (2105055 - Abrar Jahin) ── LEAD: CHAOTIC DYNAMICS, CSV EXPORTS & FINAL PAPER WRITING       │
+│   ├── Tasks: Multi-system runs (3D Lorenz / SIR); Automated table collation; Novelty 6; LaTeX Paper.   │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 8.1 Four-Phase Project Timeline (Sprint: 7–10 Days | Standard: 2–3 Weeks)
+
+```
+┌───────────────┬────────────────────────────────────────────────────────────────┬──────────────────────┐
+│ Phase         │ Core Milestones & Tasks                                        │ Output Deliverables  │
+├───────────────┼────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ **Phase 1**   │ Complete Engine Foundation (M1 & M2 Completed ✅):             │ 143/143 Unit Tests,  │
+│ (Days 1–3)    │ Basis suites, MLP-ODE, Datasets, Metrics, Plots, Solvers & CI. │ 100% Green CI Matrix │
+├───────────────┼────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ **Phase 2**   │ Part 1 Benchmarking (M3, M4, M5 Leads):                        │ Benchmarking CSVs,   │
+│ (Days 4–6)    │ Solver sweep (M3), Basis sweep (M4), Extrap (M3), Lorenz (M5). │ Table 1 & Table 2    │
+├───────────────┼────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ **Phase 3**   │ Part 2 Novelty (Balanced Team Execution):                      │ Tables 3, 4 & 5,     │
+│ (Days 7–9)    │ Gradients (M3), Stiffness/SINDy (M4), Lorenz (M5), Hybrid (M1) │ 3D Phase Portraits   │
+│               │ & Adjoint Sensitivity (M2).                                    │ & Stability Heatmap  │
+├───────────────┼────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ **Phase 4**   │ Statistical verification (N=5) (M3/M4), Publication figures    │ Publication Draft &  │
+│ (Days 10–12)  │ (M5), Code review (M1), Presentation (M2) & LaTeX Paper (M5). │ Final Project Report │
+└───────────────┴────────────────────────────────────────────────────────────────┴──────────────────────┘
+```
+
+### 8.2 Parallel Development & GitHub Branching Strategy
+To ensure zero blocking and prevent merge conflicts, all 5 members develop on isolated feature branches using decoupled file interfaces:
+* **Member 1 (2105032 - Nawriz Ahmed Turjo):** `feat/m1-kan-architecture` (`implementation/kan/basis.py`, `tests/`, `experiments/05_hybrid_basis_eval.py`)
+* **Member 2 (2105033 - Abhishek Roy):** `feat/m2-numerical-solvers` (`experiments/08_adjoint_profiling.py`, `docs/03_presentation/`)
+* **Member 3 (2105043 - Monjur Hossain Khan):** `feat/m3-sciml-pipeline` (`implementation/test_facility.py`, `experiments/02_extrap_eval.py`, `experiments/04_gradient_dynamics.py`)
+* **Member 4 (2105048 - Shams Hossain Simanto):** `feat/m4-stability-sindy` (`experiments/03_noise_eval.py`, `experiments/06_stiffness_phase_map.py`, `experiments/07_sindy_benchmark.py`)
+* **Member 5 (2105055 - Abrar Jahin):** `feat/m5-chaos-visuals` (`utils/export_tables.py`, `experiments/09_lorenz_chaos_eval.py`, `paper_draft/`)                                     │
 │ • MEMBER 2 (2105033 - Abhishek Roy) ── LEAD: NUMERICAL ODE SOLVERS & ADJOINT PROFILING                │
 │   ├── Tasks: Euler/RK2/RK4/Dopri5 integrators; Solver order/step-size sweep (Table 1); Adjoint profiling│
 │                                                                                                        │

@@ -10,11 +10,12 @@ from utils.plotting import plot_benchmark_comparison
 
 
 def run_activation_benchmark(
-    activations=["rbf", "rswaf", "iqf", "bspline"],
+    activations=["rbf", "bspline", "chebyshev", "lagrange", "newton", "rswaf", "iqf"],
     solver="tsit5",
     epochs=1500,
     lr=2e-3,
     save_dir="results/benchmark_activations",
+    device="cpu",
 ):
     """
     Benchmark different KAN basis / activation functions while keeping ODE solver fixed.
@@ -25,7 +26,7 @@ def run_activation_benchmark(
     print("\n" + "=" * 70)
     print("RUNNING ACTIVATION FUNCTION BENCHMARK ON LOTKA-VOLTERRA")
     print(f"Activations to test: {activations}")
-    print(f"Fixed Solver: {solver.upper()} | Epochs: {epochs} | LR: {lr}")
+    print(f"Fixed Solver: {solver.upper()} | Epochs: {epochs} | LR: {lr} | Device: {device}")
     print("=" * 70)
     
     for act in activations:
@@ -41,6 +42,7 @@ def run_activation_benchmark(
                 lr=lr,
                 save_dir=act_save_dir,
                 print_freq=max(1, epochs // 5),
+                device=device,
             )
             elapsed = time.time() - t0
             
@@ -61,11 +63,12 @@ def run_activation_benchmark(
 
 
 def run_solver_benchmark(
-    solvers=["tsit5", "rk4", "dopri5", "euler"],
+    solvers=["tsit5", "rk4", "dopri5", "midpoint", "heun", "euler"],
     basis_func="rbf",
     epochs=1500,
     lr=2e-3,
     save_dir="results/benchmark_solvers",
+    device="cpu",
 ):
     """
     Benchmark different ODE integrators while keeping KAN basis fixed to Gaussian RBF.
@@ -76,7 +79,7 @@ def run_solver_benchmark(
     print("\n" + "=" * 70)
     print("RUNNING ODE INTEGRATOR BENCHMARK ON LOTKA-VOLTERRA")
     print(f"Solvers to test: {solvers}")
-    print(f"Fixed Basis: {basis_func.upper()} (Gaussian RBF) | Epochs: {epochs} | LR: {lr}")
+    print(f"Fixed Basis: {basis_func.upper()} (Gaussian RBF) | Epochs: {epochs} | LR: {lr} | Device: {device}")
     print("=" * 70)
     
     for s in solvers:
@@ -92,6 +95,7 @@ def run_solver_benchmark(
                 lr=lr,
                 save_dir=solver_save_dir,
                 print_freq=max(1, epochs // 5),
+                device=device,
             )
             elapsed = time.time() - t0
             
@@ -162,6 +166,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=1500, help="Epochs per experiment")
     parser.add_argument("--lr", type=float, default=2e-3, help="Learning rate")
     parser.add_argument("--save_dir", type=str, default="results/benchmarks", help="Output directory")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cpu or cuda)")
     parser.add_argument("--quick", action="store_true", help="Run a fast 300-epoch test")
     
     args = parser.parse_args()
@@ -170,18 +175,20 @@ if __name__ == "__main__":
     
     if args.mode in ["activations", "all"]:
         run_activation_benchmark(
-            activations=["rbf", "rswaf", "iqf", "bspline"],
+            activations=["rbf", "bspline", "chebyshev", "lagrange", "newton", "rswaf", "iqf"],
             solver="tsit5",
             epochs=epochs,
             lr=args.lr,
             save_dir=os.path.join(args.save_dir, "activations"),
+            device=args.device,
         )
         
     if args.mode in ["solvers", "all"]:
         run_solver_benchmark(
-            solvers=["tsit5", "rk4", "dopri5", "euler"],
+            solvers=["tsit5", "rk4", "dopri5", "midpoint", "heun", "euler"],
             basis_func="rbf",
             epochs=epochs,
             lr=args.lr,
             save_dir=os.path.join(args.save_dir, "solvers"),
+            device=args.device,
         )

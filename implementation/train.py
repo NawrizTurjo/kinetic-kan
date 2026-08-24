@@ -1,19 +1,36 @@
 import argparse
 import os
 import time
+import json
 import torch
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 
-from kan import KAN
+from kan import KAN, MLP_ODE, count_parameters
 from ode import NeuralODE
 from data import generate_lotka_volterra_data
-from utils import compute_kan_regularization, plot_trajectory_comparison, plot_phase_space, plot_loss_curves
+from utils import (
+    compute_kan_regularization,
+    plot_trajectory_comparison,
+    plot_phase_space,
+    plot_loss_curves,
+    plot_gradient_norm_dynamics,
+    compute_mse,
+    compute_rmse,
+    compute_mae,
+    compute_r2_score,
+    compute_relative_l2_error,
+    compute_gradient_norm,
+    estimate_lipschitz_bound,
+    track_nfe,
+)
 
 
 def train_kan_ode(
+    model_type="kan",
     layers_hidden=[2, 10, 2],
+    mlp_layers=[2, 14, 8, 8, 2],
     grid_len=5,
     basis_func="rbf",
     normalizer="tanh",
@@ -37,12 +54,12 @@ def train_kan_ode(
     dt=0.1,
     noise_std=0.0,
     seed=42,
-    save_dir="results/run_kanode",
+    save_dir="results/run_experiment",
     print_freq=200,
     device="cpu",
 ):
     """
-    Train a KAN-ODE on Lotka-Volterra dynamics.
+    Train a KAN-ODE or MLP-ODE on Lotka-Volterra dynamics with continuous gradient norm logging.
     """
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device(device)
@@ -61,40 +78,50 @@ def train_kan_ode(
     y_full = data.y_full.to(device)
     y0_init = data.y0.to(device)
     
-    # 2. Build KAN Model & Neural ODE Integrator
-    kan_model = KAN(
-        layers_hidden=layers_hidden,
-        grid_len=grid_len,
-        basis_func=basis_func,
-        normalizer=normalizer,
-        base_act=base_act,
-        use_base_act=use_base_act,
-    ).to(device)
+    # 2. Build Model & Neural ODE Integrator
+    if model_type.lower() == "mlp":
+        model = MLP_ODE(
+            layers_hidden=mlp_layers,
+            activation=base_act,
+        ).to(device)
+        total_p, train_p = count_parameters(model)
+        model_desc = f"MLP-ODE {mlp_layers} ({total_p} params)"
+    else:
+        model = KAN(
+            layers_hidden=layers_hidden,
+            grid_len=grid_len,
+            basis_func=basis_func,
+            normalizer=normalizer,
+            base_act=base_act,
+            use_base_act=use_base_act,
+        ).to(device)
+        total_p, train_p = count_parameters(model)
+        model_desc = f"KAN-ODE {layers_hidden} (grid={grid_len}, basis={basis_func}, {total_p} params)"
     
     node = NeuralODE(
-        func=kan_model,
+        func=model,
         method=solver,
         substeps=substeps,
     ).to(device)
     
     # 3. Optimizer (constant LR matching the paper — no scheduler)
-    optimizer = torch.optim.Adam(kan_model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     
     train_losses = []
     test_losses = []
+    grad_norms = []
     best_test_loss = float("inf")
     best_state_dict = None
     
     print("=" * 70)
-    print(f"Training KAN-ODE on Lotka-Volterra System")
-    print(f"Architecture: {layers_hidden} | Grid: {grid_len} | Basis: {basis_func} | Act: {base_act}")
+    print(f"Training Model: {model_desc}")
     print(f"ODE Solver: {solver} (substeps={substeps}) | LR: {lr} | Epochs: {num_epochs}")
     print(f"Time Horizon: Train [0.0, {t_train_end}] ({len(t_train)} pts) | Full [0.0, {t_end}] ({len(t_full)} pts)")
     print("=" * 70)
     
     start_time = time.time()
     
-    pbar = tqdm(range(1, num_epochs + 1), desc="Training", unit="epoch", ncols=120)
+    pbar = tqdm(range(1, num_epochs + 1), desc="Training", unit="epoch", ncols=125)
     for epoch in pbar:
         optimizer.zero_grad()
         
@@ -102,11 +129,20 @@ def train_kan_ode(
         pred_train = node(y0=y0_init, t=t_train) # [N_train, 2]
         mse_train = F.mse_loss(pred_train, y_train)
         
-        # Add regularization if specified
-        reg_loss = compute_kan_regularization(kan_model, act_reg=act_reg, entropy_reg=entropy_reg)
+        # Add regularization if specified (for KAN models)
+        if isinstance(model, KAN):
+            reg_loss = compute_kan_regularization(model, act_reg=act_reg, entropy_reg=entropy_reg)
+        else:
+            reg_loss = 0.0
+            
         total_loss = mse_train + reg_loss
         
         total_loss.backward()
+        
+        # Continuous Gradient Norm Logging ||nabla_theta L||_2
+        gnorm = compute_gradient_norm(model)
+        grad_norms.append(gnorm)
+        
         optimizer.step()
         
         train_loss_val = mse_train.item()
@@ -125,12 +161,14 @@ def train_kan_ode(
         if test_loss_val < best_test_loss:
             best_test_loss = test_loss_val
             best_state_dict = {
-                "model_state_dict": kan_model.state_dict(),
+                "model_state_dict": model.state_dict(),
                 "epoch": epoch,
                 "train_mse": train_loss_val,
                 "test_mse": test_loss_val,
+                "grad_norm": gnorm,
                 "config": {
-                    "layers_hidden": layers_hidden,
+                    "model_type": model_type,
+                    "layers_hidden": layers_hidden if model_type == "kan" else mlp_layers,
                     "grid_len": grid_len,
                     "basis_func": basis_func,
                     "normalizer": normalizer,
@@ -140,10 +178,11 @@ def train_kan_ode(
             }
             torch.save(best_state_dict, os.path.join(save_dir, "best_model.pt"))
         
-        # Update tqdm progress bar with live loss info
+        # Update tqdm progress bar with live loss and gradient norm info
         pbar.set_postfix({
             "train": f"{train_loss_val:.3e}",
             "test": f"{test_loss_val:.3e}",
+            "gnorm": f"{gnorm:.2e}",
             "best": f"{best_test_loss:.3e}",
         })
             
@@ -151,11 +190,11 @@ def train_kan_ode(
     print(f"\nTraining completed in {total_time:.2f}s! Best Test MSE: {best_test_loss:.4e}")
     
     # Save final model
-    torch.save(kan_model.state_dict(), os.path.join(save_dir, "final_model.pt"))
+    torch.save(model.state_dict(), os.path.join(save_dir, "final_model.pt"))
     
     # Load best model for final evaluation & plotting
     if best_state_dict is not None:
-        kan_model.load_state_dict(best_state_dict["model_state_dict"])
+        model.load_state_dict(best_state_dict["model_state_dict"])
         
     with torch.no_grad():
         final_pred = node(y0=y0_init, t=t_full).cpu().numpy()
@@ -163,13 +202,52 @@ def train_kan_ode(
     y_full_np = y_full.cpu().numpy()
     t_full_np = t_full.cpu().numpy()
     
-    # Generate Plots
+    # Compute Comprehensive SciML Metrics
+    test_rmse = compute_rmse(y_full_np, final_pred)
+    test_mae = compute_mae(y_full_np, final_pred)
+    test_r2 = compute_r2_score(y_full_np, final_pred)
+    rel_l2 = compute_relative_l2_error(y_full_np, final_pred)
+    lipschitz_est = estimate_lipschitz_bound(model, x_domain=y_train)
+    total_nfe = track_nfe(solver, num_steps=len(t_full) - 1, substeps=substeps)
+    
+    metrics_summary = {
+        "model_type": model_type,
+        "parameters": total_p,
+        "solver": solver,
+        "basis_func": basis_func if model_type == "kan" else "none",
+        "best_test_mse": best_test_loss,
+        "final_train_mse": train_losses[-1],
+        "test_rmse": test_rmse,
+        "test_mae": test_mae,
+        "test_r2_score": test_r2,
+        "relative_l2_error": rel_l2,
+        "estimated_lipschitz_bound": lipschitz_est,
+        "total_nfe": total_nfe,
+        "training_time_seconds": total_time,
+    }
+    
+    # Save metrics JSON
+    with open(os.path.join(save_dir, "metrics.json"), "w") as f:
+        json.dump(metrics_summary, f, indent=4)
+        
+    # Save training history JSON
+    history = {
+        "train_losses": train_losses,
+        "test_losses": test_losses,
+        "grad_norms": grad_norms,
+    }
+    with open(os.path.join(save_dir, "training_history.json"), "w") as f:
+        json.dump(history, f)
+        
+    # Generate Output Plots
+    plot_label = f"MLP-ODE ({base_act.upper()})" if model_type.lower() == "mlp" else f"KAN-ODE ({basis_func.upper()})"
+    
     plot_trajectory_comparison(
         t_full=t_full_np,
         y_true=y_full_np,
         y_pred=final_pred,
         t_split=t_train_end,
-        title=f"KAN-ODE ({basis_func.upper()} + {solver.upper()}) on Lotka-Volterra",
+        title=f"{plot_label} + {solver.upper()} on Lotka-Volterra",
         save_path=os.path.join(save_dir, "trajectory_comparison.png"),
     )
     
@@ -177,51 +255,70 @@ def train_kan_ode(
         y_true=y_full_np,
         y_pred=final_pred,
         train_len=len(t_train),
-        title=f"Phase Space: True vs KAN-ODE ({basis_func.upper()})",
+        title=f"Phase Space: True vs {plot_label}",
         save_path=os.path.join(save_dir, "phase_space.png"),
     )
     
     plot_loss_curves(
         train_losses=train_losses,
         test_losses=test_losses,
-        title=f"KAN-ODE Training Dynamics ({basis_func.upper()} + {solver.upper()})",
+        title=f"{plot_label} Training Dynamics (+ {solver.upper()})",
         save_path=os.path.join(save_dir, "loss_curves.png"),
     )
     
-    print(f"Results and plots saved to '{save_dir}'.")
+    plot_gradient_norm_dynamics(
+        grad_norms=grad_norms,
+        title=f"{plot_label} Gradient Norm Dynamics (||∇_θ L||_2)",
+        save_path=os.path.join(save_dir, "gradient_norm_dynamics.png"),
+    )
+    
+    print(f"Results, metrics, and plots saved to '{save_dir}'.")
     
     return {
-        "model": kan_model,
+        "model": model,
         "node": node,
         "train_losses": train_losses,
         "test_losses": test_losses,
+        "grad_norms": grad_norms,
         "best_test_mse": best_test_loss,
         "final_train_mse": train_losses[-1],
         "final_test_mse": test_losses[-1],
+        "metrics": metrics_summary,
         "pred_trajectory": final_pred,
     }
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train KAN-ODE on Lotka-Volterra Dynamics")
-    parser.add_argument("--layers", type=int, nargs="+", default=[2, 10, 2], help="Hidden layer dimensions (e.g. 2 10 2)")
-    parser.add_argument("--grid_len", type=int, default=5, help="Number of grid centers for RBF")
-    parser.add_argument("--basis", type=str, default="rbf", choices=["rbf", "rswaf", "iqf", "bspline"], help="Basis function")
+    parser = argparse.ArgumentParser(description="Train KAN-ODE or MLP-ODE on Lotka-Volterra Dynamics")
+    parser.add_argument("--model", type=str, default="kan", choices=["kan", "mlp"], help="Model architecture ('kan' or 'mlp')")
+    parser.add_argument("--layers", type=int, nargs="+", default=[2, 10, 2], help="KAN Hidden layer dimensions (e.g. 2 10 2)")
+    parser.add_argument("--mlp_layers", type=int, nargs="+", default=[2, 14, 8, 8, 2], help="MLP Layer dimensions (default: 2 14 8 8 2 for 252 params)")
+    parser.add_argument("--grid_len", type=int, default=5, help="Number of grid centers for KAN basis")
+    parser.add_argument(
+        "--basis",
+        type=str,
+        default="rbf",
+        choices=["rbf", "rswaf", "iqf", "bspline", "chebyshev", "lagrange", "newton"],
+        help="KAN Basis function",
+    )
     parser.add_argument("--solver", type=str, default="tsit5", choices=["tsit5", "rk4", "dopri5", "euler", "midpoint", "heun"], help="ODE Integrator")
     parser.add_argument("--substeps", type=int, default=2, help="Integration substeps per interval")
-    parser.add_argument("--act", type=str, default="silu", help="Base linear activation function")
+    parser.add_argument("--act", type=str, default="silu", help="Activation function (silu, tanh, relu)")
     parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate (paper uses 5e-4)")
     parser.add_argument("--epochs", type=int, default=5000, help="Number of training epochs")
     parser.add_argument("--act_reg", type=float, default=0.0, help="L1 regularization weight")
     parser.add_argument("--entropy_reg", type=float, default=0.0, help="Entropy regularization weight")
-    parser.add_argument("--save_dir", type=str, default="results/kanode_rbf_tsit5", help="Directory to save checkpoints and plots")
+    parser.add_argument("--save_dir", type=str, default="results/run_experiment", help="Directory to save checkpoints and plots")
     parser.add_argument("--print_freq", type=int, default=200, help="Epoch print frequency")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cpu or cuda)")
     
     args = parser.parse_args()
     
     train_kan_ode(
+        model_type=args.model,
         layers_hidden=args.layers,
+        mlp_layers=args.mlp_layers,
         grid_len=args.grid_len,
         basis_func=args.basis,
         solver=args.solver,
@@ -234,4 +331,5 @@ if __name__ == "__main__":
         save_dir=args.save_dir,
         print_freq=args.print_freq,
         seed=args.seed,
+        device=args.device,
     )
