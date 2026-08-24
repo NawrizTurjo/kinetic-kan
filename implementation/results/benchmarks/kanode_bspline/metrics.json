@@ -1,0 +1,15 @@
+{
+    "model_type": "kan",
+    "parameters": 240,
+    "solver": "rk4",
+    "basis_func": "bspline",
+    "best_test_mse": 3.236344814300537,
+    "final_train_mse": 0.03557492792606354,
+    "test_rmse": 3.089378582340535,
+    "test_mae": 2.1117866039276123,
+    "test_r2_score": -2.277451276779175,
+    "relative_l2_error": 1.0802921056747437,
+    "estimated_lipschitz_bound": 10.085378646850586,
+    "total_nfe": 1120,
+    "training_time_seconds": 5950.831948757172
+}

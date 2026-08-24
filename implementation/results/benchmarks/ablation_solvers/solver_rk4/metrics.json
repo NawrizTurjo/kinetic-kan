@@ -1,0 +1,15 @@
+{
+    "model_type": "kan",
+    "parameters": 240,
+    "solver": "rk4",
+    "basis_func": "rbf",
+    "best_test_mse": 0.20101298391819,
+    "final_train_mse": 0.017327256500720978,
+    "test_rmse": 0.5528163242585182,
+    "test_mae": 0.345708966255188,
+    "test_r2_score": 0.8950564861297607,
+    "relative_l2_error": 0.1933085173368454,
+    "estimated_lipschitz_bound": 6.403130054473877,
+    "total_nfe": 1120,
+    "training_time_seconds": 1873.033301115036
+}

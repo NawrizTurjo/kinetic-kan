@@ -1,0 +1,15 @@
+{
+    "model_type": "kan",
+    "parameters": 240,
+    "solver": "tsit5",
+    "basis_func": "bspline",
+    "best_test_mse": 3.2363409996032715,
+    "final_train_mse": 0.03743012621998787,
+    "test_rmse": 3.10036816410418,
+    "test_mae": 2.1208417415618896,
+    "test_r2_score": -2.3008100986480713,
+    "relative_l2_error": 1.0841350555419922,
+    "estimated_lipschitz_bound": 10.120003700256348,
+    "total_nfe": 1680,
+    "training_time_seconds": 7804.490072250366
+}

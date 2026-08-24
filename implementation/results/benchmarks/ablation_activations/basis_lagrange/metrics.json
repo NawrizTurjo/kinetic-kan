@@ -1,0 +1,15 @@
+{
+    "model_type": "kan",
+    "parameters": 240,
+    "solver": "tsit5",
+    "basis_func": "lagrange",
+    "best_test_mse": 0.05278711020946503,
+    "final_train_mse": 0.005943676456809044,
+    "test_rmse": 1.354225710046263,
+    "test_mae": 0.7882344126701355,
+    "test_r2_score": 0.3702385425567627,
+    "relative_l2_error": 0.4735449254512787,
+    "estimated_lipschitz_bound": 8.554970741271973,
+    "total_nfe": 1680,
+    "training_time_seconds": 8323.703967571259
+}
