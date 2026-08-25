@@ -2,7 +2,7 @@
 
 Implementation and ablation study based on:
 > **"KAN-ODEs: Kolmogorov–Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics"**  
-> *Z. Koenig, J. Kim, Y. Deng (CMAME / arXiv:2407.04192, 2024, MIT)*
+> *Benjamin C. Koenig, Suyong Kim, Sili Deng (arXiv:2407.04192, 2024, MIT)*
 
 ---
 

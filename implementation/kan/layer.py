@@ -83,9 +83,11 @@ class KDense(nn.Module):
             This acts like a continuous skip-connection that guarantees smooth non-zero gradients 
             even before the localized RBF grid weights have converged.
             
-        init_scale (float, default=1e-5):
+        init_scale (float, default=1.0):
             Multiplicative scaling factor applied to the Xavier/Glorot uniform parameter initialization.
-            Helps prevent exploding gradients during early ODE integration steps.
+            Kept at 1.0 (plain Glorot) so a bare KDense matches what `KAN` builds; the
+            previous 1e-5 standalone default was never reached in practice because `KAN`
+            always passes its own init_scale=1.0 down to every layer.
             
         dtype (torch.dtype, default=torch.float32):
             Data type for tensors and learnable weights.
@@ -100,7 +102,7 @@ class KDense(nn.Module):
         normalizer: Union[str, Callable] = "tanh",
         base_act: Union[str, Callable] = "silu",
         use_base_act: bool = True,
-        init_scale: float = 1e-5,
+        init_scale: float = 1.0,
         dtype: torch.dtype = torch.float32,
     ):
         super(KDense, self).__init__()

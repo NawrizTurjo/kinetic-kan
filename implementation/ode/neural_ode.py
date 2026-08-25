@@ -1,3 +1,5 @@
+import inspect
+
 import torch
 import torch.nn as nn
 from typing import Callable, Optional
@@ -27,13 +29,37 @@ class NeuralODE(nn.Module):
         self.func = func
         self.method = method
         self.substeps = substeps
+        self._accepts_time = self._detect_time_argument(func)
+
+    @staticmethod
+    def _detect_time_argument(func) -> bool:
+        """
+        Decide once, at construction time, whether `func` can be called as f(t, y).
+
+        Previously this was decided per call with a try/except TypeError inside the
+        integration hot loop, which silently reinterpreted any genuine TypeError
+        raised inside the vector field as a calling-convention mismatch. Resolving
+        the signature up front removes that failure-masking path entirely.
+        """
+        call_target = func.forward if isinstance(func, nn.Module) else func
+        try:
+            sig = inspect.signature(call_target)
+        except (TypeError, ValueError):
+            return True  # C-implemented / unintrospectable: assume f(t, y)
+
+        positional = [
+            p for p in sig.parameters.values()
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+        ]
+        if any(p.kind is p.VAR_POSITIONAL for p in sig.parameters.values()):
+            return True  # *args forward (KAN, MLP_ODE) handles both conventions
+        return len(positional) >= 2
 
     def _ode_func(self, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Wrapper handling both f(y) and f(t, y) signature."""
-        try:
+        """Dispatch to f(t, y) or f(y) using the signature resolved in __init__."""
+        if self._accepts_time:
             return self.func(t, y)
-        except TypeError:
-            return self.func(y)
+        return self.func(y)
 
     def forward(
         self,

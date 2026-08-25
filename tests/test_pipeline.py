@@ -139,9 +139,71 @@ class TestSciMLTrainingPipeline:
         assert os.path.exists(os.path.join(temp_run_dir, "training_history.json"))
         assert os.path.exists(os.path.join(temp_run_dir, "gradient_norm_dynamics.png"))
         
-        # Verify metrics JSON content
+        # Verify metrics JSON content: the full run configuration must be recorded so
+        # every reported number is traceable to the run that produced it, and the
+        # error must be split into train / extrapolation / full horizons rather than
+        # reported as a single conflated "test" number.
         with open(os.path.join(temp_run_dir, "metrics.json"), "r") as f:
             metrics_data = json.load(f)
-            assert metrics_data["model_type"] == "kan"
-            assert metrics_data["solver"] == "tsit5"
-            assert "estimated_lipschitz_bound" in metrics_data
+
+        cfg = metrics_data["config"]
+        assert cfg["model_type"] == "kan"
+        assert cfg["solver"] == "tsit5"
+        assert cfg["dataset"] == "lotka_volterra"
+        assert "estimated_lipschitz_bound" in metrics_data
+
+        # Provenance fields required for reproducing a sweep on another machine
+        for key in ("lr", "num_epochs", "substeps", "seed", "noise_std", "dt",
+                    "t_train_end", "torch_version", "git_sha", "data_params"):
+            assert key in cfg, f"metrics.json config is missing '{key}'"
+
+        # Both the best-epoch and final-epoch models must be scored, on all 3 horizons
+        for bucket in ("best", "final"):
+            for split in ("train_mse", "extrap_mse", "full_mse"):
+                assert split in metrics_data[bucket]
+
+        # Model selection must be on training loss, never the extrapolation window
+        assert metrics_data["selection"]["criterion"] == "min_train_mse"
+
+    def test_best_checkpoint_is_not_the_final_model(self, temp_run_dir):
+        """
+        Regression guard: `state_dict()` returns references to the live parameter
+        tensors, so storing it directly makes the "best" checkpoint silently track the
+        optimizer and end up identical to the final model. Train long enough for the
+        loss to be non-monotonic, then assert the saved best checkpoint really is the
+        best epoch and not just the last one.
+        """
+        res = train_kan_ode(
+            model_type="kan",
+            layers_hidden=[2, 6, 2],
+            grid_len=3,
+            basis_func="rbf",
+            solver="euler",
+            substeps=1,
+            num_epochs=40,
+            lr=0.2,  # deliberately large so the loss diverges instead of descending,
+            # which makes best_epoch != final epoch and the alias check non-vacuous
+            save_dir=temp_run_dir,
+            seed=42,
+        )
+
+        train_losses = res["train_losses"]
+        best_epoch = res["best_epoch"]
+
+        # The recorded best epoch must be the true argmin of the training curve
+        assert best_epoch == int(np.argmin(train_losses)) + 1
+
+        ckpt = torch.load(os.path.join(temp_run_dir, "best_model.pt"),
+                          map_location="cpu", weights_only=False)
+        assert ckpt["epoch"] == best_epoch
+        assert np.isclose(ckpt["train_mse"], min(train_losses))
+
+        # And the saved snapshot must not have been mutated by later optimizer steps
+        final = torch.load(os.path.join(temp_run_dir, "final_model.pt"),
+                           map_location="cpu", weights_only=False)
+        if best_epoch != len(train_losses):
+            differs = any(
+                not torch.allclose(ckpt["model_state_dict"][k], final["model_state_dict"][k])
+                for k in ckpt["model_state_dict"]
+            )
+            assert differs, "best checkpoint aliases the final weights"
