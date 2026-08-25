@@ -88,40 +88,63 @@ def iqf(x: torch.Tensor, grid: torch.Tensor, h: float) -> torch.Tensor:
 
 def bspline_basis(x: torch.Tensor, grid: torch.Tensor, h: float = None, k: int = 3) -> torch.Tensor:
     """
-    Cox-de Boor B-Spline basis functions of degree k (default k=3 cubic splines).
-    
+    Cox-de Boor B-Spline basis functions of degree k (default k=3 cubic splines),
+    using a clamped (open uniform) knot vector so the basis forms a partition of
+    unity across the entire domain, including exactly at the boundaries
+    (B_0(z_min) = 1, B_{grid_len-1}(z_max) = 1).
+
     Mathematically:
         B_{i,0}(x) = 1 if t_i <= x < t_{i+1}, else 0
         B_{i,d}(x) = ((x - t_i) / (t_{i+d} - t_i)) * B_{i,d-1}(x)
                    + ((t_{i+d+1} - x) / (t_{i+d+1} - t_{i+1})) * B_{i+1,d-1}(x)
-                   
+
     Args:
         x: Input tensor of shape (*, in_features)
         grid: Base grid knot centers of shape (grid_len,)
-        h: Knot step spacing (float, optional)
+        h: Knot step spacing (unused; kept for the unified basis_fn signature)
         k: Spline polynomial degree (default: 3 = cubic)
-        
+
     Returns:
         Tensor of shape (*, in_features, grid_len)
     """
     grid_len = grid.shape[0]
-    if h is None or h <= 0:
-        h = (grid[-1] - grid[0]).item() / max(grid_len - 1, 1)
-        
-    # Symmetrically pad k knots on the left and k knots on the right
-    # Total knots = grid_len + 2*k
-    left_padding = grid[0] - torch.arange(k, 0, -1, device=grid.device, dtype=grid.dtype) * h
-    right_padding = grid[-1] + torch.arange(1, k + 1, device=grid.device, dtype=grid.dtype) * h
-    knots = torch.cat([left_padding, grid, right_padding])
-    
+    z_min = grid[0]
+    z_max = grid[-1]
+
+    # A degree-k clamped B-spline needs at least k+1 control points to produce
+    # exactly grid_len basis functions; fall back to the highest degree that
+    # grid_len actually supports rather than silently returning the wrong
+    # number of basis functions.
+    k = min(k, max(grid_len - 1, 0))
+
+    # Clamped/open-uniform knot vector: repeat each boundary knot k+1 times so
+    # the first and last basis functions reach exactly 1.0 at the domain edges.
+    # For grid_len basis functions of degree k we need grid_len + k + 1 knots
+    # total (num_basis = num_knots - k - 1), i.e. grid_len - k - 1 interior
+    # knots uniformly spaced strictly between the endpoints.
+    num_interior = max(grid_len - k - 1, 0)
+    if num_interior > 0:
+        interior = torch.linspace(
+            z_min.item(), z_max.item(), num_interior + 2, device=grid.device, dtype=grid.dtype
+        )[1:-1]
+    else:
+        interior = torch.empty(0, device=grid.device, dtype=grid.dtype)
+    left_padding = z_min.repeat(k + 1)
+    right_padding = z_max.repeat(k + 1)
+    knots = torch.cat([left_padding, interior, right_padding])
+
     x_expanded = x.unsqueeze(-1)  # [..., in_features, 1]
-    
+
     # 0th-degree B-splines (piecewise constant intervals)
     is_in_interval = (x_expanded >= knots[:-1]) & (x_expanded < knots[1:])
-    # Include right boundary endpoint
-    is_in_interval[..., -1] = is_in_interval[..., -1] | (x_expanded[..., 0] >= knots[-1])
+    # The interval that should own x == z_max is the last NON-degenerate one
+    # (index -(k+1)); the literal last array slot is a zero-width interval
+    # from the repeated boundary knot and would vanish in the recursion.
+    last_valid_idx = -(k + 1)
+    at_right_edge = x_expanded[..., 0] >= knots[-1]
+    is_in_interval[..., last_valid_idx] = is_in_interval[..., last_valid_idx] | at_right_edge
     bases = is_in_interval.to(x.dtype)
-    
+
     # Cox-de Boor recursion for degrees 1 to k
     for deg in range(1, k + 1):
         num_bases = knots.shape[0] - deg - 1
@@ -129,24 +152,37 @@ def bspline_basis(x: torch.Tensor, grid: torch.Tensor, h: float = None, k: int =
         t_right = knots[deg : deg + num_bases]
         t_next_left = knots[1 : num_bases + 1]
         t_next_right = knots[deg + 1 : deg + num_bases + 1]
-        
+
         denom_left = t_right - t_left
         denom_right = t_next_right - t_next_left
-        
+
+        # Clamp denominators away from zero *before* dividing (not just mask
+        # the result afterward with torch.where): with repeated knots
+        # (degenerate zero-width spans), dividing by the true zero denom
+        # still back-propagates a NaN/Inf gradient through the unused
+        # torch.where branch even though its forward value is masked out.
+        safe_denom_left = torch.where(
+            denom_left > 1e-8, denom_left, torch.ones_like(denom_left)
+        )
+        safe_denom_right = torch.where(
+            denom_right > 1e-8, denom_right, torch.ones_like(denom_right)
+        )
+
         left_term = torch.where(
             denom_left > 1e-8,
-            (x_expanded - t_left) / denom_left * bases[..., :-1],
+            (x_expanded - t_left) / safe_denom_left * bases[..., :-1],
             torch.zeros_like(bases[..., :-1])
         )
         right_term = torch.where(
             denom_right > 1e-8,
-            (t_next_right - x_expanded) / denom_right * bases[..., 1:],
+            (t_next_right - x_expanded) / safe_denom_right * bases[..., 1:],
             torch.zeros_like(bases[..., 1:])
         )
         bases = left_term + right_term
 
-    # Return exactly grid_len basis slices
-    return bases[..., :grid_len]
+    # With a clamped knot vector, the recursion already produces exactly
+    # grid_len basis functions (num_knots - k - 1 = grid_len).
+    return bases
 
 
 # ==============================================================================

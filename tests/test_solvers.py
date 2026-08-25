@@ -36,10 +36,17 @@ class TestSolverOrderOfConvergence:
         from ode.solvers import TSIT5_B, TSIT5_E
         assert len(TSIT5_E) == 7
         assert len(TSIT5_B) == 7
-        # Verify 7th stage FSAL error coefficient is exactly -1/66
-        assert np.isclose(TSIT5_E[6], -1.0 / 66.0, atol=1e-12)
+        # Verify 7th stage FSAL error coefficient is exactly +1/66, matching
+        # torchdiffeq's and SciML's canonical c_error/btilde array (confirmed
+        # against both sources directly) -- NOT -1/66, which was an artifact
+        # of an earlier, incorrect TSIT5_E computation.
+        assert np.isclose(TSIT5_E[6], 1.0 / 66.0, atol=1e-12)
         # Verify 5th-order weights sum to 1.0
         assert np.isclose(np.sum(TSIT5_B), 1.0, atol=1e-12)
+        # Verify the embedded 4th-order weights (b_hat = TSIT5_B - TSIT5_E)
+        # also sum to 1.0, as required for a consistent embedded RK pair.
+        b_hat = [TSIT5_B[i] - TSIT5_E[i] for i in range(7)]
+        assert np.isclose(np.sum(b_hat), 1.0, atol=1e-12)
 
     @pytest.mark.parametrize("method, expected_order, tolerance", [
         ("euler", 1.0, 0.20),
