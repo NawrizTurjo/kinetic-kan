@@ -23,7 +23,12 @@
     Seeds to run per configuration. Default 42. Use 42,1337,2024 for N=3 error bars.
 
 .PARAMETER Only
-    Which sweeps to launch: solvers, activations, models, bspline, stepsize, noise, all.
+    Which sweeps to launch:
+      solvers, activations, models, bspline, stepsize, noise   (Lotka-Volterra tables)
+      mlpfix    converged [2,14,8,8,2]+SiLU MLP baseline for Table 3
+      systems   damped pendulum + SIR            (plan Tasks 2.4 / 2.5)
+      lorenz    3D Lorenz, coarsened grid        (plan Task 2.5; NOT in "all" -- costly)
+      all       everything except lorenz
 
 .PARAMETER Serial
     Run one job at a time. REQUIRED if you intend to report wall-clock timings.
@@ -45,6 +50,9 @@ param(
     [string] $Device        = "cpu",
     [double[]] $Dts         = @(0.20, 0.10, 0.05),
     [double[]] $Sigmas      = @(0.0, 0.01, 0.05, 0.10),
+    [double] $LorenzDt      = 0.02,
+    [double] $LorenzTEnd    = 10.0,
+    [double] $LorenzTTrain  = 4.0,
     [switch] $Serial,
     [switch] $DryRun,
     [switch] $SkipExisting,   # resume: skip runs that already produced metrics.json
@@ -108,6 +116,26 @@ if ($Only -contains "models" -or $Only -contains "all") {
 if ($Only -contains "bspline" -or $Only -contains "all") {
     Add-Job "kanode_bspline" "$SaveDir/kanode_bspline" @("--basis", "bspline", "--solver", "rk4")
 }
+# Converged parameter-matched MLP baseline (paper's [2,50,2]+tanh does not train;
+# see docs/05 section 5). This is the strong baseline Table 3 must be judged against.
+if ($Only -contains "mlpfix" -or $Only -contains "all") {
+    Add-Job "mlpode_baseline_silu" "$SaveDir/mlpode_baseline_silu" `
+        @("--model", "mlp", "--mlp_layers", "2", "14", "8", "8", "2", "--mlp_act", "silu", "--solver", "tsit5")
+}
+
+# Plan Tasks 2.4 (pendulum) and 2.5 (Lorenz, SIR) -- required Phase-2 deliverables.
+# Lorenz defaults (dt=0.01, t_end=20 -> 801 training points) cost ~22x a Lotka-Volterra
+# run, so an explicitly coarsened grid is used for this first pass.
+if ($Only -contains "systems" -or $Only -contains "all") {
+    Add-Job "pendulum" "$SaveDir/pendulum" @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5")
+    Add-Job "sir"      "$SaveDir/sir"      @("--dataset", "sir",             "--basis", "rbf", "--solver", "tsit5")
+}
+if ($Only -contains "lorenz") {
+    Add-Job "lorenz" "$SaveDir/lorenz" `
+        @("--dataset", "lorenz", "--basis", "rbf", "--solver", "tsit5",
+          "--dt", $LorenzDt, "--t_end", $LorenzTEnd, "--t_train_end", $LorenzTTrain)
+}
+
 if ($Only -contains "stepsize" -or $Only -contains "all") {
     foreach ($d in $Dts) {
         $tag = "dt$($d.ToString('0.###', [Globalization.CultureInfo]::InvariantCulture))"
