@@ -127,8 +127,8 @@ if ($Only -contains "mlpfix" -or $Only -contains "all") {
 # Lorenz defaults (dt=0.01, t_end=20 -> 801 training points) cost ~22x a Lotka-Volterra
 # run, so an explicitly coarsened grid is used for this first pass.
 if ($Only -contains "systems" -or $Only -contains "all") {
-    Add-Job "pendulum" "$SaveDir/pendulum" @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5")
-    Add-Job "sir"      "$SaveDir/sir"      @("--dataset", "sir",             "--basis", "rbf", "--solver", "tsit5")
+    Add-Job "pendulum" "$SaveDir/pendulum" @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5", "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0")
+    Add-Job "sir"      "$SaveDir/sir"      @("--dataset", "sir",             "--basis", "rbf", "--solver", "tsit5", "--t_train_end", "50.0", "--layers", "3", "16", "3", "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0")
 }
 if ($Only -contains "lorenz") {
     Add-Job "lorenz" "$SaveDir/lorenz" `

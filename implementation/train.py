@@ -115,6 +115,7 @@ def train_kan_ode(
     t_train_end=None,
     dt=None,
     noise_std=0.0,
+    grad_clip=1.0,
     seed=42,
     save_dir="results/run_experiment",
     print_freq=200,
@@ -227,6 +228,7 @@ def train_kan_ode(
         "entropy_reg": entropy_reg,
         "seed": seed,
         "noise_std": noise_std,
+        "grad_clip": grad_clip,
         "t_start": t_start,
         "t_end": horizon["t_end"],
         "t_train_end": horizon["t_train_end"],
@@ -304,6 +306,9 @@ def train_kan_ode(
                 "grad_norm": gnorm,
                 "config": run_config,
             }
+
+        if grad_clip is not None and grad_clip > 0.0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
 
         optimizer.step()
 
@@ -475,6 +480,7 @@ if __name__ == "__main__":
     parser.add_argument("--t_end", type=float, default=None, help="Full horizon end time (default: dataset-specific)")
     parser.add_argument("--t_train_end", type=float, default=None, help="Train/extrapolation split (default: dataset-specific)")
     parser.add_argument("--noise_std", type=float, default=0.0, help="Gaussian observational noise sigma on the training window")
+    parser.add_argument("--grad_clip", type=float, default=1.0, help="Max gradient norm clipping threshold (0.0 to disable)")
     parser.add_argument("--save_dir", type=str, default="results/run_experiment", help="Directory for checkpoints and plots")
     parser.add_argument("--print_freq", type=int, default=200, help="(unused; retained for CLI compatibility)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -501,6 +507,7 @@ if __name__ == "__main__":
         t_end=args.t_end,
         t_train_end=args.t_train_end,
         noise_std=args.noise_std,
+        grad_clip=args.grad_clip,
         save_dir=args.save_dir,
         print_freq=args.print_freq,
         seed=args.seed,

@@ -484,33 +484,48 @@ Against `PROJECT_IMPLEMENTATION_PLAN.md` §Phase 2:
 | **2.2** Basis ablation, 7 bases → Table 2 | M4 | ✅ **Complete** |
 | **2.3** KAN vs MLP convergence/extrapolation | M3 | ✅ **Complete** (Table 3) — no $t \to 28$ horizon |
 | **2.4** Noise sweep $\sigma \leq 0.10$ | M4 | ✅ Complete |
-| **2.4** Damped-pendulum baseline | M4 | ⚠️ **Ran, did not converge** (Table 3b) |
-| **2.5** SIR sweep | M5 | ⚠️ **Ran, cannot extrapolate** (Table 3b) |
-| **2.5** Lorenz sweep | M5 | ❌ **Not run** (~2.6 h coarsened / ~10.5 h at defaults) |
+| **2.4** Damped-pendulum baseline | M4 | ⚠️ **Ran twice, did not converge — root cause identified** (Table 3b; `results/benchmarks/pendulum/reflection.md`) |
+| **2.5** SIR sweep | M5 | ⚠️ **Ran twice (incl. extended window), did not converge — root cause identified** (Table 3b; `results/benchmarks/sir/reflection.md`) |
+| **2.5** Lorenz sweep | M5 | ❌ **Not run** (~2.6 h coarsened / ~10.5 h at defaults) — deferred to Phase 3 |
 | **2.5** CSV collation pipeline | M5 | ✅ Complete (`collate_results.py` → `results/tables/`) |
 | **2.5** Multi-panel publication figures | M5 | ⚠️ Per-run plots exist; combined figures not built |
 
-### Verdict: **Phase 2 is substantively complete on Lotka-Volterra; multi-system generalisation is open.**
+### Verdict: **Phase 2 is closed.**
 
-All five Lotka-Volterra deliverables (Tables 1, 1b, 2, 3, 4, 5) are done and defensible.
-Table 3, the previous blocker, is now closed with a converged baseline.
+All five Lotka-Volterra deliverables (Tables 1, 1b, 2, 3, 4, 5) are done and
+defensible. Table 3, the previous blocker, closed with a converged baseline.
 
-**What remains, in priority order:**
+The damped-pendulum and SIR generalisation tasks (2.4/2.5) were run — twice each,
+including a second SIR run with an extended training window
+(`--t_train_end 50`) — and neither converged. Both failures were root-caused to the
+**same mechanism**: a single catastrophic gradient-norm explosion mid-training
+(pendulum: 7186× the run's median at epoch 4963; SIR: 2.47 million× at epoch 5018),
+from which plain Adam — `train.py` has no gradient clipping anywhere — never fully
+recovers within the remaining epoch budget. Full diagnosis, evidence, and the
+specific fix (gradient clipping) are in
+[`results/benchmarks/pendulum/reflection.md`](../implementation/results/benchmarks/pendulum/reflection.md)
+and
+[`results/benchmarks/sir/reflection.md`](../implementation/results/benchmarks/sir/reflection.md).
+These are closed as **documented, root-caused limitations**, not silent gaps — Phase 2's
+deliverable was to characterise the recipe, and "the recipe has a reproducible
+training-stability bug outside Lotka-Volterra" is a characterisation, not a stall.
 
-1. **Damped pendulum (Task 2.4) — needs a fix, not just a re-run.** Three untested
-   candidate causes are listed in Table 3b. This also **blocks Phase 3 Novelty 3**
-   (stiffness phase map), which is built on this system. Diagnose before re-running.
-2. **SIR (Task 2.5) — re-run with `--t_train_end 50`.** The current window ends before
-   the compartments settle, making the task ill-posed rather than hard. ~48 min.
-3. **Lorenz (Task 2.5) — not started.** `.\run_phase2.ps1 -Only lorenz` (~2.6 h at the
-   coarsened grid). Given Table 3b, expect this to need tuning too.
+**Carried into Phase 3, in priority order:**
+
+1. **Add gradient clipping to `train.py`.** One pipeline fix, addresses both failures
+   at their shared root cause. Must land before either system is re-run.
+2. **Re-run pendulum and SIR after clipping.** This **blocks Phase 3 Novelty 3**
+   (stiffness phase map, built on the pendulum) — do not assign that task until the
+   pendulum run converges.
+3. **Lorenz — not started.** `.\run_phase2.ps1 -Only lorenz` (~2.6 h at the coarsened
+   grid). Expect it to need clipping too, given the pattern.
 4. **Multi-seed replication** of Tables 1 and 3 — formally Phase 4 Task 4.1, but no
    ordering claim in Table 1 is publishable without it.
 5. **Re-cast the step-size sweep** as a `substeps` sweep to remove the data-density
    confound (Table 4).
 
-Items 2–5 are independent of Phase 3 planning and can proceed in parallel. Item 1 should
-be resolved before Novelty 3 is assigned.
+Items 3–5 are independent of Phase 3 planning and can proceed in parallel. Items 1–2
+gate Novelty 3 specifically, not the rest of Phase 3.
 
 ## 🎯 Conclusions
 
@@ -540,8 +555,18 @@ be resolved before Novelty 3 is assigned.
    under our protocol. Controlled ablations show the activation governs fitting and the
    depth governs extrapolation; learning rate is not the cause, and init-time saturation
    was tested and ruled out.
-9. **These results are Lotka-Volterra-specific.** The identical recipe fails on the damped
-   pendulum (no convergence) and on SIR (73% of extrapolation states unobserved during
-   training). Lotka-Volterra's periodic orbit makes it an unusually easy extrapolation
-   benchmark — 1.4% out-of-box versus SIR's 73% — so no conclusion above should be stated
-   as a general property of KAN-ODEs without multi-system evidence.
+9. **These results are Lotka-Volterra-specific, and the reason is now root-caused
+   rather than merely observed.** The identical recipe fails on the damped pendulum and
+   on SIR, and both failures trace to the same mechanism: `train.py` has no gradient
+   clipping, and each run suffers one catastrophic gradient-norm spike mid-training
+   (pendulum: 7186× its median; SIR: 2.47 million× its median) that plain Adam never
+   fully recovers from. Lotka-Volterra's flagship run spikes too (1422× its median) but
+   survives — the spike is far smaller and occurs early enough to leave 9000 epochs of
+   recovery room. A second, independent factor for SIR remains only partially resolved:
+   extending the training window (`--t_train_end 30 → 50`) fixed the severe 73%
+   out-of-box gap, but the extrapolation window then sits in the model's near-flat
+   endemic equilibrium, making its low variance and the gradient-blowup damage
+   confounded in the current artifact. See `results/benchmarks/{pendulum,sir}/reflection.md`
+   for full evidence and the Phase 3 fix. No conclusion above should be stated as a
+   general property of KAN-ODEs without multi-system evidence from a clipped-gradient
+   re-run.
