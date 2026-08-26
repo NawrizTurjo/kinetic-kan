@@ -208,6 +208,48 @@ log analysis instead of being readable off the table.
 `lorenz`, `stepsize`, `noise` and `all` all behave exactly as before. Verified by dry
 run — `-Only systems` still targets `results/benchmarks/`.
 
+### 🐛 Bug fix: PID-reuse race in the completion wait *(found in production)*
+
+**Symptom.** The first 8-job probe sweep aborted after all jobs had launched:
+
+```text
+Wait-Process : This command stopped operation of "svchost (30400)" because of the
+following error: Access is denied.
+At ...\run_phase2.ps1:283 char:38
++     foreach ($r in $all) { $r.Proc | Wait-Process }
+```
+
+**Cause.** `Wait-Process` resolves its target **by PID**, and Windows recycles PIDs. On
+a long sweep an early job exits and its PID gets reassigned — here `pend_tanhact`
+(pid 30400) finished and 30400 became an `svchost`. The script then tried to wait on
+that unrelated system process, was denied, and died.
+
+**Impact.** Cosmetic-but-costly: *every training job was fine* (6 of 8 already had
+`metrics.json`, the other 2 were still running normally), but the script aborted before
+collation. The bug is **pre-existing** — it predates `FIX-2026-08` — and had never
+fired because no earlier sweep ran enough jobs for long enough. The 2-job `systems`
+sweep never came close.
+
+**Fix.** `.WaitForExit()` on the `Process` object captured by `Start-Process`, which
+holds an **OS handle** rather than a bare PID and therefore cannot be confused by
+reuse. Wrapped in `try/catch` so one unwaitable job cannot abort the sweep.
+
+```powershell
+foreach ($r in $all) {
+    try { $r.Proc.WaitForExit() }
+    catch { Write-Host ("  ! could not wait on {0}: {1}" -f $r.Name, $_.Exception.Message) }
+}
+```
+
+**Second, related hardening.** The failure report read `.Proc.ExitCode`, which *throws*
+if the process has not exited — so an interrupted wait would crash the report instead of
+printing it. It now checks `HasExited` first and prints `still running` / `unknown`
+rather than dying.
+
+> **Recovery if this ever bites again:** nothing is lost. The training processes are
+> independent and keep running. Wait for `Get-Process python` to come back empty, then
+> run `collate_results.py` manually — every `metrics.json` will be there.
+
 ---
 
 ## 📦 New file: `implementation/analyze_fixes.py`
@@ -252,17 +294,22 @@ already documented in [`05`](./05_phase2_benchmark_analysis.md) §Table 4.
 | **NaN guard:** forced divergence (`--lr 50 --grad_clip 0`) | ✅ fires at epoch 2, run survives with **valid** best metrics instead of NaN |
 | **Early abort:** same, 5000-epoch budget | ✅ stops at epoch 101; all 4 history arrays length 101; best metrics finite |
 | `stability` block populated in `metrics.json` | ✅ |
-| `-Only probe` / `-Only fixes` dry runs | ✅ 8 and 2 jobs, correct roots |
+| `-Only probe` / `-Only fixes` dry runs | ✅ correct job counts and roots |
 | `-Only systems` dry run | ✅ still `results/benchmarks/`, args unchanged |
+| PID-reuse fix: script re-parses, dry run clean | ✅ |
+| **In production: 11 probe runs completed end-to-end** | ✅ `nonfinite = 0` on all 11 |
 
 ---
 
 ## ⚠️ Things to be aware of
 
-1. **The `fixes` target stacks fixes that the `probe` has not yet validated.** It
-   assumes `--act identity` + `--loss_weighting std` for the pendulum and
-   `--conserve_sum` + `--loss_weighting std` for SIR. **Read the probe results first**
-   and edit those two `Add-Job` lines if the probe disagrees. Do not run `fixes` blind.
+1. ~~**The `fixes` target stacks fixes the probe has not yet validated.**~~
+   **RESOLVED.** The probe ran (11 runs, `results/_probe/`) and the `fixes` args were
+   rewritten from its results — see [`09`](./09_stability_fix_results.md). The pendulum
+   job changed from `identity + loss_weighting` to **`identity + --t_train_end 5.0`**,
+   because `loss_weighting` turned out to be the *worst* pendulum option on
+   extrapolation. A third job, `pendulum_control_win5`, was added to complete the
+   activation × window 2×2. The full ranking is recorded in the script's comments.
 2. **Duplicate `--lr` on the command line.** The launcher emits `--lr 0.002` from the
    global parameter and then `--lr 0.003` from the job-specific args. `argparse` takes
    the last, so **0.003 wins**. This is pre-existing behaviour inherited from the

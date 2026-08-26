@@ -1,7 +1,7 @@
 # 📈 Cross-Domain Stability Fixes: Probe Results & Full-Run Plan
 
 > **Branch:** `fix/phase1-revisit`
-> **Status:** probe complete (11 runs @ 2,000 epochs, `results/_probe/`) · full runs **not yet started**
+> **Status:** probe **complete** (11 runs @ 2,000 epochs, `results/_probe/`) · full runs **IN PROGRESS** (3 jobs @ 10,000 epochs → `results/_fixed/`, ETA ~3 h)
 > **Chain:** [`06`](./06_suggested_fixes.md) diagnosis → [`07`](./07_fix_changelog.md) code changes → [`08`](./08_how_to_run_fixes.md) how to run → **this doc: what the runs actually showed**
 
 ---
@@ -31,15 +31,23 @@ nothing (1.110 vs 0.894) — a textbook overfit. Only together do they work.
 SIR improved substantially on every metric but **remains frozen on a spurious fixed
 point**; that is a genuine open limitation, documented below.
 
+> ⚠️ **These are 2,000-epoch probe numbers.** The 10,000-epoch confirmation run is still
+> executing. Treat every figure here as provisional until `results/_fixed/` lands.
+
 ---
 
 ## 🔬 What was run
 
-| Batch | Runs | Epochs | Output |
-| :--- | :---: | :---: | :--- |
-| Probe round 1 | 8 (5 pendulum + 3 SIR) | 2,000 | `results/_probe/` |
-| Probe round 2 | 3 pendulum | 2,000 | `results/_probe/` |
-| **Total** | **11** | | `results/_probe/tables/` |
+| Batch | Runs | Epochs | Output | Status |
+| :--- | :---: | :---: | :--- | :--- |
+| Probe round 1 | 8 (5 pendulum + 3 SIR) | 2,000 | `results/_probe/` | ✅ complete |
+| Probe round 2 | 3 pendulum | 2,000 | `results/_probe/` | ✅ complete |
+| **Probe total** | **11** | | `results/_probe/tables/` | ✅ |
+| Full run | 3 (2 pendulum + 1 SIR) | 10,000 | `results/_fixed/` | ⏳ **in progress** |
+
+**Everything below the executive summary is from the 11 completed probe runs.** The
+full-budget numbers are not in yet; every conclusion here is stated at the 2,000-epoch
+budget and is pending confirmation at 10,000.
 
 Each run changes **exactly one thing** from the failing baseline (one-factor-at-a-time),
 which is what makes the attribution below possible. The earlier Phase-2 re-runs changed
@@ -215,9 +223,25 @@ cd d:\level4\Term1\NUM_project\kinetic-kan\implementation
 
 3 jobs × 4 threads = 12 logical cores. Output: `results/_fixed/`.
 
-> ⏱️ **Budget 3–4 hours.** The `win5` runs use 101 training points instead of 61, so
-> they are ~1.7× more expensive per epoch than the earlier pendulum runs. The 2,000-epoch
-> probes took ~66 min each under 3-way contention.
+> ⏱️ **Budget ~3 hours.** The `win5` runs use 101 training points instead of 61, so they
+> are ~1.7× more expensive per epoch than the earlier pendulum runs. Measured in flight:
+> ~1.0–1.3 s/epoch under 3-way contention. *(Ignore the ETA in the first ~2 minutes —
+> tqdm's early estimate reads 5–6 h before the rate stabilises.)*
+
+### 🔎 Early signal from the in-flight run (≈6%, epoch ~640 of 10,000)
+
+**Preliminary — not a result.** Recorded because it already bears on the 2×2:
+
+| Job | Train MSE @ ~640 | Full-horizon monitor |
+| :--- | :---: | :---: |
+| `pendulum_fixed` (identity + win5) | $\mathbf{2.98\times10^{-3}}$ | $\mathbf{4.66\times10^{-2}}$ |
+| `pendulum_control_win5` (SiLU + win5) | $1.53\times10^{-1}$ | $4.01\times10^{-1}$ |
+
+At matched epochs the SiLU control is **~51× worse on the fit** and **~9× worse on the
+full horizon**. If that holds, the activation fix is confirmed as necessary — the longer
+window alone does **not** rescue SiLU. `pendulum_fixed` has also already reached
+$4.66\times10^{-2}$ on the monitor at 6% of budget, essentially matching the probe's
+*final* $4.32\times10^{-2}$.
 
 ### Verify afterwards
 
@@ -236,6 +260,46 @@ python collate_results.py --root results/_fixed --out results/_fixed/tables --bu
 | `sir_fixed` mass | $\to 1.0000$ |
 | `sir_fixed` `I_rmse` | $< 0.0776$ (the 10k pre-fix reference) |
 | all | `final_train` not NaN · `nonfinite = 0` · `aborted = null` |
+
+---
+
+## 🛠️ Methodological lessons (worth carrying into Phase 3)
+
+**1. One factor at a time, or you learn nothing.** The Phase-2 re-runs changed clipping,
+`grid_len` and `lr` together, so "did clipping help?" needed forensic analysis of the
+training histories. This round changed exactly one thing per run, and the attribution
+fell straight out of the summary table.
+
+**2. Aggregate MSE hid both failures.** On the pendulum, $\omega$ dominates the loss and
+fits well while $\theta$ — the dimension that actually fails — is invisible in the
+average. On SIR, a frozen fixed point produces a perfectly respectable MSE. Both needed
+per-dimension diagnostics (`analyze_fixes.py`), not a single number.
+
+**3. Pick a metric that survives a changed experiment.** `extrap_mse` is not comparable
+across different `--t_train_end` values, because the window itself moves. **`full_mse`
+over the whole horizon is window-independent** and is what the pendulum ranking is
+built on. Ranking by `train_mse` instead would have picked `pend_identity` — the run
+with a *worse-than-baseline* trajectory.
+
+**4. A short smoke test cannot predict mid-training stability.** Established in
+`sir/reflection.md` (the 14-config, 100-epoch sweep could not have foreseen a blowup at
+epoch 5018) and re-confirmed here: gradient spikes of $2.6\times10^{4}$ and
+$1.0\times10^{7}$ appeared only well into full-length runs.
+
+**5. Verify a pass criterion before trusting it.** The "spike ratio in the low tens"
+rule was wrong and would have failed three perfectly healthy runs. See §A criterion we
+got wrong.
+
+**6. Operational: `Wait-Process` is unsafe on long sweeps.** The first 8-job probe
+aborted with `Access is denied` on an `svchost` — Windows had recycled the PID of a
+finished job, and `Wait-Process` resolves by PID. **No training was affected**; 6 of 8
+had already written `metrics.json` and the other 2 kept running. Fixed by using
+`.WaitForExit()` on the captured `Process` handle. Full write-up in
+[`07`](./07_fix_changelog.md) §Bug fix: PID-reuse race.
+
+> **If a sweep ever dies again:** nothing is lost. The training processes are
+> independent. Wait for `Get-Process python` to return empty, then run
+> `collate_results.py` manually.
 
 ---
 
@@ -273,3 +337,61 @@ python collate_results.py --root results/_fixed --out results/_fixed/tables --bu
 **Documents to update after the full run:** [`05`](./05_phase2_benchmark_analysis.md)
 §Phase 2 Completion Status, and both `reflection.md` files — all three still state that
 gradient clipping is the shared root cause, which these runs disproved.
+
+---
+
+## 🚨 Repo hygiene — fix before the report is submitted
+
+These are unrelated to the stability work but were found while auditing the codebase,
+and are recorded here so they are not lost.
+
+### 1. 🔴 The base paper's authors are wrong in four places
+
+The KAN-ODEs authors are **Benjamin C. Koenig, Suyong Kim, Sili Deng**. Only
+`implementation/README.md` has this right. Every other citation — **including the
+presentation deck that was already delivered** — says *Zachary Koenig, Jihoon Kim,
+Yuntian Deng*:
+
+| File | Line | Contains |
+| :--- | :---: | :--- |
+| `README.md` | 170, 180 | prose citation **and** the BibTeX `author` field |
+| `docs/README.md` | 82, 90 | prose citation **and** BibTeX |
+| `docs/03_presentation/KAN-ODE.tex` | 130 | `Z. Koenig, J. Kim, Y. Deng` — **needs recompiling** |
+| `docs/02_proposal/CSE402_Project_Proposal_Guide.md` | 43 | `Z. Koenig, J. Kim, Y. Deng` |
+
+A wrong citation in a submitted report is a cheap, avoidable mark against the work.
+Correct all four and rebuild `KAN-ODE.pdf`.
+
+### 2. 🟠 `implementation/README.md` is badly out of date
+
+Its "What Needs to Be Done" list still marks as *pending* several things that are
+**done**: the noise sweep, the `--dataset` CLI wiring, the RBF factor-of-2 correction,
+the B-spline re-run, the flagship re-run, and the `evaluate.py` config bug. A teammate
+reading it would redo finished work.
+**[`05`](./05_phase2_benchmark_analysis.md) is the accurate document**; the
+implementation README needs a rewrite.
+
+### 3. 🟠 The root `README.md` describes a repo that does not exist
+
+* Lists `tests/test_adjoint.py` — never written.
+* Lists per-member branches `feat/m1-kan-architecture` … `feat/m5-chaos-visuals` — none
+  exist. The real branches are `feat/phase1-foundation-completion`,
+  `feat/phase2-benchmarks`, `fix/phase1-revisit`.
+* Still advertises `--lr 5e-4`, the abandoned learning rate (the project standardised on
+  $2\times10^{-3}$).
+
+### 4. 🟡 CI never ran on this branch
+
+`.github/workflows/ci.yml` triggers on `main`, `develop`, `feat/**`. This branch is
+`fix/phase1-revisit` — **`fix/**` is not matched**, so none of these commits were
+CI-verified. Either add `fix/**` to the trigger list or rely on the PR to `main`
+(PRs to `main` do trigger it).
+
+### 5. 🟡 Two Phase-3 dependencies are not installed
+
+`torchdiffeq` (Novelty 5) and `pysindy` (Novelty 4) are in `requirements.txt` but
+missing from the environment. Everything else imports fine.
+
+```powershell
+pip install torchdiffeq pysindy
+```
