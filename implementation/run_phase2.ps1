@@ -30,6 +30,14 @@
       lorenz    3D Lorenz, coarsened grid        (plan Task 2.5; NOT in "all" -- costly)
       all       everything except lorenz
 
+    [FIX-2026-08] Two targets for the cross-domain stability fixes. Both write to
+    their OWN directories so nothing under results/benchmarks/ is ever overwritten:
+      probe     8 short one-factor-at-a-time diagnostics  -> results/_probe/
+                Isolates WHICH fix matters. Use -Epochs 2000.
+      fixes     2 full-length runs with the fixes applied -> results/_fixed/
+                Run this only AFTER reading the probe results.
+    Neither is included in "all".
+
 .PARAMETER Serial
     Run one job at a time. REQUIRED if you intend to report wall-clock timings.
 
@@ -37,6 +45,10 @@
     .\run_phase2.ps1 -Only solvers,activations,models
     .\run_phase2.ps1 -Only solvers -Seeds 42,1337,2024 -MaxParallel 3
     .\run_phase2.ps1 -Only all -Epochs 20 -DryRun      # verify the plan first
+
+    # [FIX-2026-08] cross-domain stability workflow
+    .\run_phase2.ps1 -Only probe -Epochs 2000 -MaxParallel 2   # step 1: diagnose
+    .\run_phase2.ps1 -Only fixes -Epochs 10000 -MaxParallel 2  # step 2: full runs
 #>
 
 param(
@@ -44,6 +56,10 @@ param(
     [double] $Lr            = 2e-3,
     [int[]]  $Seeds         = @(42),
     [string] $SaveDir       = "results/benchmarks",
+    # [FIX-2026-08] separate output roots so the fix runs can never collide with
+    # the committed Phase-2 artifacts under results/benchmarks/.
+    [string] $ProbeDir      = "results/_probe",
+    [string] $FixedDir      = "results/_fixed",
     [string[]] $Only        = @("solvers", "activations", "models", "bspline"),
     [int]    $MaxParallel   = 0,          # 0 = auto
     [int]    $ThreadsPerJob = 0,          # 0 = auto
@@ -76,7 +92,14 @@ if ($Serial) {
     if ($ThreadsPerJob -le 0) { $ThreadsPerJob = [Math]::Max(1, [Math]::Floor($logical / $MaxParallel)) }
 }
 
-$LogDir = Join-Path $SaveDir "_logs"
+# [FIX-2026-08] Route logs AND collation to the matching root for the probe/fixes
+# targets, so results/benchmarks/_logs/ and the committed results/tables/*.csv are
+# never touched by a diagnostic run.
+$ActiveRoot = $SaveDir
+if     ($Only -contains "probe") { $ActiveRoot = $ProbeDir }
+elseif ($Only -contains "fixes") { $ActiveRoot = $FixedDir }
+
+$LogDir = Join-Path $ActiveRoot "_logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 # --- Build the job list -------------------------------------------------------
@@ -136,6 +159,53 @@ if ($Only -contains "lorenz") {
           "--dt", $LorenzDt, "--t_end", $LorenzTEnd, "--t_train_end", $LorenzTTrain)
 }
 
+# =============================================================================
+# [FIX-2026-08] Cross-domain stability fixes. See docs/06_suggested_fixes.md for
+# the diagnosis and docs/08_how_to_run_fixes.md for the workflow.
+#
+# NOTE: these deliberately write to $ProbeDir / $FixedDir, NOT $SaveDir, so a
+# stray invocation can never overwrite results/benchmarks/. Neither target is
+# part of "all".
+# =============================================================================
+
+# --- probe: one-factor-at-a-time diagnostics ---------------------------------
+# Each pendulum job changes exactly ONE thing from the failing baseline, so the
+# summary table says which fix is responsible instead of confounding three at
+# once (which is what made the last round need forensic log analysis).
+if ($Only -contains "probe") {
+    # Baseline reproduces the known failure at the short budget -- the control.
+    $pendBase = @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5",
+                  "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0")
+    Add-Job "pend_control"  "$ProbeDir/pend_control"  $pendBase
+    Add-Job "pend_identity" "$ProbeDir/pend_identity" ($pendBase + @("--act", "identity"))
+    Add-Job "pend_tanhact"  "$ProbeDir/pend_tanhact"  ($pendBase + @("--act", "tanh"))
+    Add-Job "pend_lossw"    "$ProbeDir/pend_lossw"    ($pendBase + @("--loss_weighting", "std"))
+    Add-Job "pend_gridlims" "$ProbeDir/pend_gridlims" ($pendBase + @("--grid_lims", "-3", "3"))
+
+    $sirBase = @("--dataset", "sir", "--basis", "rbf", "--solver", "tsit5",
+                 "--t_train_end", "50.0", "--layers", "3", "16", "3",
+                 "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0")
+    Add-Job "sir_control"  "$ProbeDir/sir_control"  $sirBase
+    Add-Job "sir_conserve" "$ProbeDir/sir_conserve" ($sirBase + @("--conserve_sum", "1.0"))
+    Add-Job "sir_lossw"    "$ProbeDir/sir_lossw"    ($sirBase + @("--loss_weighting", "std"))
+}
+
+# --- fixes: full-length runs with the fixes combined -------------------------
+# These stack the fixes that the probe is expected to validate. If the probe
+# disagrees, EDIT THESE ARGS before running -- do not run them blind.
+if ($Only -contains "fixes") {
+    Add-Job "pendulum_fixed" "$FixedDir/pendulum_fixed" `
+        @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5",
+          "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
+          "--act", "identity", "--loss_weighting", "std")
+
+    Add-Job "sir_fixed" "$FixedDir/sir_fixed" `
+        @("--dataset", "sir", "--basis", "rbf", "--solver", "tsit5",
+          "--t_train_end", "50.0", "--layers", "3", "16", "3",
+          "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
+          "--conserve_sum", "1.0", "--loss_weighting", "std")
+}
+
 if ($Only -contains "stepsize" -or $Only -contains "all") {
     foreach ($d in $Dts) {
         $tag = "dt$($d.ToString('0.###', [Globalization.CultureInfo]::InvariantCulture))"
@@ -159,7 +229,7 @@ Write-Host (" Seeds         : {0}" -f ($Seeds -join ", "))
 Write-Host (" Epochs / LR   : {0} / {1}" -f $Epochs, $Lr)
 Write-Host (" Logical CPUs  : {0}" -f $logical)
 Write-Host (" Parallelism   : {0} concurrent x {1} threads each" -f $MaxParallel, $ThreadsPerJob)
-Write-Host (" Output        : {0}" -f $SaveDir)
+Write-Host (" Output        : {0}" -f $ActiveRoot)   # [FIX-2026-08] probe/fixes use their own root
 Write-Host (" Logs          : {0}" -f $LogDir)
 if (-not $Serial) {
     Write-Host " NOTE: wall-clock timings are NOT comparable under parallel execution." -ForegroundColor Yellow
@@ -242,9 +312,12 @@ if ($failed.Count -gt 0) {
 # --- Collate into results/tables/*.csv ----------------------------------------
 if (-not $NoCollate) {
     Write-Host "`nCollating results..." -ForegroundColor Cyan
-    & $Python collate_results.py --root $SaveDir --bucket best
-    & $Python collate_results.py --root $SaveDir --bucket final | Out-Null
-    Write-Host "`nTables written to results/tables/ (summary_best.csv, per_run_best.csv, *_final.csv)" -ForegroundColor Green
+    # [FIX-2026-08] $ActiveRoot / $TableDir keep probe and fixes runs out of the
+    # committed results/tables/*.csv. For the normal targets both are unchanged.
+    $TableDir = if ($ActiveRoot -eq $SaveDir) { "results/tables" } else { Join-Path $ActiveRoot "tables" }
+    & $Python collate_results.py --root $ActiveRoot --bucket best  --out $TableDir
+    & $Python collate_results.py --root $ActiveRoot --bucket final --out $TableDir | Out-Null
+    Write-Host ("`nTables written to {0}/ (summary_best.csv, per_run_best.csv, *_final.csv)" -f $TableDir) -ForegroundColor Green
 }
 
 Write-Host ("`nDone at {0:yyyy-MM-dd HH:mm:ss}" -f (Get-Date)) -ForegroundColor Cyan

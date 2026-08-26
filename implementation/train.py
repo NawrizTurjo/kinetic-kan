@@ -1,6 +1,7 @@
 import argparse
 import copy
 import json
+import math  # [FIX-2026-08 / X1] needed for math.isfinite() in the gradient guard
 import os
 import platform
 import subprocess
@@ -87,6 +88,51 @@ def _adapt_layers(layers, state_dim):
     return layers
 
 
+def _stability_summary(grad_norms, grad_clip, nonfinite_grad_steps, first_nonfinite_epoch,
+                       aborted_at_epoch=None, epochs_run=None):
+    """
+    [FIX-2026-08 / X4] Condense the per-epoch gradient history into the handful of
+    numbers that actually diagnose a training-stability failure.
+
+    `spike_ratio` (max / median of the finite pre-clip norms) is the statistic that
+    identified both Phase-2 cross-domain failures: 7186x for the damped pendulum
+    (epoch 4963) and 2.47e6x for SIR (epoch 5018). A healthy run sits in the low
+    tens. `clip_engaged_fraction` shows how often clipping actually bound the step,
+    which the pre-clip norms alone cannot reveal.
+    """
+    finite = [g for g in grad_norms if math.isfinite(g)]
+    if not finite:
+        return {
+            "grad_clip": grad_clip,
+            "nonfinite_grad_steps": nonfinite_grad_steps,
+            "first_nonfinite_epoch": first_nonfinite_epoch,
+            "aborted_at_epoch": aborted_at_epoch,
+            "epochs_run": epochs_run,
+            "note": "no finite gradient norms recorded",
+        }
+
+    ordered = sorted(finite)
+    median = ordered[len(ordered) // 2]
+    maximum = ordered[-1]
+    engaged = (
+        sum(1 for g in finite if g > grad_clip) / len(finite)
+        if grad_clip is not None and grad_clip > 0.0
+        else 0.0
+    )
+    return {
+        "grad_clip": grad_clip,
+        "nonfinite_grad_steps": nonfinite_grad_steps,
+        "first_nonfinite_epoch": first_nonfinite_epoch,
+        "aborted_at_epoch": aborted_at_epoch,
+        "epochs_run": epochs_run,
+        "grad_norm_median_preclip": median,
+        "grad_norm_max_preclip": maximum,
+        "grad_norm_spike_ratio": (maximum / median) if median > 0 else None,
+        "grad_norm_max_epoch": grad_norms.index(maximum) + 1,
+        "clip_engaged_fraction": engaged,
+    }
+
+
 def train_kan_ode(
     model_type="kan",
     dataset="lotka_volterra",
@@ -116,6 +162,15 @@ def train_kan_ode(
     dt=None,
     noise_std=0.0,
     grad_clip=1.0,
+    # ==========================================================================
+    # [FIX-2026-08] Cross-domain stability options. See docs/06_suggested_fixes.md
+    # and docs/07_fix_changelog.md. EVERY default below reproduces the exact
+    # pre-fix behaviour, so all 26 existing Phase-2 runs remain bit-reproducible.
+    # ==========================================================================
+    loss_weighting="none",   # [X2] "none" | "std" -- per-dimension loss balancing
+    conserve_sum=None,       # [S2] e.g. 1.0 for SIR (S+I+R=1); None disables
+    conserve_weight=1.0,     # [S2] penalty weight for the conservation residual
+    grid_lims=(-1.0, 1.0),   # [P3] KAN grid span; previously hardcoded to (-1,1)
     seed=42,
     save_dir="results/run_experiment",
     print_freq=200,
@@ -197,6 +252,11 @@ def train_kan_ode(
         model = KAN(
             layers_hidden=layers_hidden,
             grid_len=grid_len,
+            # [FIX-2026-08 / P3] grid_lims is now plumbed through instead of
+            # falling back to KAN's hardcoded (-1, 1). Widening it lets the
+            # spline grid cover state dimensions that tanh pushes towards the
+            # domain edges. Default (-1.0, 1.0) == previous behaviour.
+            grid_lims=tuple(grid_lims),
             basis_func=basis_func,
             normalizer=normalizer,
             base_act=base_act,
@@ -229,6 +289,12 @@ def train_kan_ode(
         "seed": seed,
         "noise_std": noise_std,
         "grad_clip": grad_clip,
+        # [FIX-2026-08] recorded so every result is traceable to the exact
+        # stability settings it was produced under.
+        "loss_weighting": loss_weighting,
+        "conserve_sum": conserve_sum,
+        "conserve_weight": conserve_weight if conserve_sum is not None else None,
+        "grid_lims": list(grid_lims),
         "t_start": t_start,
         "t_end": horizon["t_end"],
         "t_train_end": horizon["t_train_end"],
@@ -254,6 +320,61 @@ def train_kan_ode(
     best_epoch = -1
     best_state_dict = None
 
+    # ==========================================================================
+    # [FIX-2026-08 / X2] Per-dimension loss weighting.
+    #
+    # Plain F.mse_loss averages the squared error over ALL state dimensions
+    # equally, so the widest-spread dimension dominates the gradient. Measured
+    # training-window std imbalance vs. outcome:
+    #     Lotka-Volterra  x=1.986  y=1.367            -> 1.45x   converges
+    #     Damped pendulum th=1.010 om=2.534           -> 2.51x   FAILS
+    #     SIR             S=0.358  I=0.113  R=0.332   -> 3.19x   FAILS
+    # On the pendulum this shows up directly: omega is fitted to RMSE 0.048
+    # while theta -- whose derivative IS omega -- only reaches RMSE 0.756.
+    #
+    # With loss_weighting="std" each dimension is weighted by 1/var, then the
+    # weights are renormalised to mean 1.0 so the weighted loss stays on the
+    # same order of magnitude as the plain MSE it replaces.
+    #
+    # NOTE: `mse_train` (plain, unweighted) is still what gets logged and
+    # plotted, and every number in metrics.json is recomputed post-hoc by
+    # score() from the integrated trajectory. So switching this on changes what
+    # is OPTIMISED, never how results are MEASURED -- the new runs stay directly
+    # comparable with the existing 26.
+    # ==========================================================================
+    if loss_weighting == "none":
+        loss_weights = None
+    elif loss_weighting == "std":
+        dim_std = y_train.std(dim=0)                       # [state_dim]
+        inv_var = 1.0 / (dim_std ** 2 + 1e-12)
+        loss_weights = (inv_var / inv_var.mean()).detach()  # mean(weights) == 1
+        print(f"[FIX/X2] loss_weighting='std' | per-dim std: "
+              f"{[round(v, 4) for v in dim_std.tolist()]} -> weights: "
+              f"{[round(v, 4) for v in loss_weights.tolist()]}")
+    else:
+        raise ValueError(
+            f"Unknown loss_weighting '{loss_weighting}'. Expected 'none' or 'std'."
+        )
+
+    if conserve_sum is not None:
+        print(f"[FIX/S2] conservation penalty active: sum(u) -> {conserve_sum} "
+              f"(weight {conserve_weight})")
+
+    # [FIX-2026-08 / X1+X3+X4] stability instrumentation
+    post_clip_grad_norms = []       # [X3] norm AFTER clipping, to show clipping engaged
+    nonfinite_grad_steps = 0        # [X1] optimizer steps skipped due to inf/NaN
+    first_nonfinite_epoch = None    # [X1] when the first one happened
+    nonfinite_streak = 0            # [X1] consecutive skipped steps, for the abort below
+    aborted_at_epoch = None         # [X1] set if training stopped early
+    epochs_run = num_epochs         # [X1] actual epochs completed (== num_epochs normally)
+
+    # [FIX-2026-08 / X1] If the PARAMETERS themselves have already gone non-finite,
+    # every subsequent forward pass returns NaN and the guard below can only keep
+    # skipping steps -- the run is unrecoverable and just burns compute. SIR spent
+    # its last 1,299 epochs in exactly that state. Abort after this many consecutive
+    # skipped steps; best_model.pt is already safely on disk by then.
+    NONFINITE_ABORT_STREAK = 100
+
     print("=" * 70)
     print(f"Training Model: {model_desc}")
     print(f"Dataset: {dataset} | Solver: {solver} (substeps={substeps}) | LR: {lr} | Epochs: {num_epochs}")
@@ -270,7 +391,19 @@ def train_kan_ode(
 
         # Integrate forward over training time interval
         pred_train = node(y0=y0_init, t=t_train)
+
+        # Plain unweighted MSE. ALWAYS computed and always what gets logged, so
+        # loss_curves.png and train_losses[] stay comparable across every run in
+        # the project regardless of the stability options below.
         mse_train = F.mse_loss(pred_train, y_train)
+
+        # [FIX-2026-08 / X2] the quantity actually optimised: weighted if
+        # loss_weighting="std", otherwise literally mse_train (default path,
+        # bit-identical to pre-fix behaviour).
+        if loss_weights is None:
+            data_loss = mse_train
+        else:
+            data_loss = (loss_weights * (pred_train - y_train) ** 2).mean()
 
         # Add regularization if specified (for KAN models)
         if isinstance(model, KAN) and (act_reg > 0.0 or entropy_reg > 0.0):
@@ -278,10 +411,24 @@ def train_kan_ode(
         else:
             reg_loss = 0.0
 
-        total_loss = mse_train + reg_loss
+        # ---------------------------------------------------------------------
+        # [FIX-2026-08 / S2] Conservation-law penalty.
+        # SIR carries the exact invariant S + I + R = 1, which nothing in the
+        # loss or architecture previously enforced -- the failed run drifted to
+        # sum(u) = 1.0045 in extrapolation and 0.949-1.029 during training.
+        # Disabled (conserve_sum=None) for every system that has no such
+        # invariant, e.g. Lotka-Volterra and the pendulum.
+        # ---------------------------------------------------------------------
+        if conserve_sum is not None:
+            cons_residual = pred_train.sum(dim=-1) - float(conserve_sum)
+            cons_loss = conserve_weight * (cons_residual ** 2).mean()
+        else:
+            cons_loss = 0.0
+
+        total_loss = data_loss + reg_loss + cons_loss
         total_loss.backward()
 
-        # Continuous Gradient Norm Logging ||nabla_theta L||_2
+        # Continuous Gradient Norm Logging ||nabla_theta L||_2 (PRE-clip)
         gnorm = compute_gradient_norm(model)
         grad_norms.append(gnorm)
 
@@ -307,10 +454,46 @@ def train_kan_ode(
                 "config": run_config,
             }
 
-        if grad_clip is not None and grad_clip > 0.0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+        # =====================================================================
+        # [FIX-2026-08 / X1] Non-finite gradient guard.
+        #
+        # torch.nn.utils.clip_grad_norm_ computes
+        #       clip_coef = max_norm / (total_norm + 1e-6)
+        # so if total_norm has already overflowed float32 to inf, then
+        # clip_coef -> 0 and the subsequent grad.mul_(clip_coef) evaluates
+        #       inf * 0 = NaN
+        # which permanently poisons every parameter. Clipping bounds the
+        # optimizer STEP; it cannot undo an overflow in the forward/backward
+        # pass. The 10,000-epoch SIR run died exactly this way: gradient norm
+        # reached 5.82e18, went non-finite at epoch 8686, loss NaN from 8702,
+        # and the last 1,299 epochs plus final_model.pt were lost.
+        #
+        # Skipping the step keeps the last known-good weights and lets training
+        # continue. Arrays are appended to on every branch so all per-epoch
+        # histories stay index-aligned with `epoch`.
+        # =====================================================================
+        step_is_finite = math.isfinite(gnorm) and math.isfinite(train_loss_val)
 
-        optimizer.step()
+        if step_is_finite:
+            nonfinite_streak = 0
+            if grad_clip is not None and grad_clip > 0.0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+            # [FIX-2026-08 / X3] `grad_norms` above is the PRE-clip norm, so on
+            # its own it cannot show whether clipping actually engaged. Record
+            # the post-clip norm too, making that readable straight from the
+            # history instead of requiring forensic analysis after the fact.
+            post_clip_grad_norms.append(compute_gradient_norm(model))
+            optimizer.step()
+        else:
+            nonfinite_grad_steps += 1
+            nonfinite_streak += 1
+            if first_nonfinite_epoch is None:
+                first_nonfinite_epoch = epoch
+                print(f"\n[FIX/X1] Non-finite gradient at epoch {epoch} "
+                      f"(gnorm={gnorm}, loss={train_loss_val}). Skipping the "
+                      f"optimizer step and keeping the previous weights.")
+            optimizer.zero_grad(set_to_none=True)
+            post_clip_grad_norms.append(0.0)  # step dropped: effective update is zero
 
         # Monitor the full-horizon loss periodically (diagnostic only -- never used
         # for model selection).
@@ -329,6 +512,20 @@ def train_kan_ode(
             "gnorm": f"{gnorm:.2e}",
             "best": f"{best_train_loss:.3e}",
         })
+
+        # [FIX-2026-08 / X1] Early abort, placed at the very END of the loop body
+        # so every per-epoch array (train_losses, test_losses, grad_norms,
+        # post_clip_grad_norms) is appended to before we leave -- keeping them all
+        # the same length and index-aligned for the plots and the history JSON.
+        if nonfinite_streak >= NONFINITE_ABORT_STREAK:
+            aborted_at_epoch = epoch
+            epochs_run = epoch
+            print(f"\n[FIX/X1] ABORTING at epoch {epoch}: {nonfinite_streak} consecutive "
+                  f"non-finite steps means the parameters themselves are poisoned and "
+                  f"the run cannot recover. best_model.pt (epoch {best_epoch}, "
+                  f"train_mse={best_train_loss:.4e}) is already saved and is valid.")
+            pbar.close()
+            break
 
     total_time = time.time() - start_time
     print(f"\nTraining completed in {total_time:.2f}s! "
@@ -387,7 +584,24 @@ def train_kan_ode(
         "nfe_per_trajectory": nfe_per_traj,
         "nfe_per_epoch_train": track_nfe(solver, num_steps=n_train - 1, substeps=substeps),
         "training_time_seconds": total_time,
-        "seconds_per_epoch": total_time / max(num_epochs, 1),
+        # [FIX-2026-08 / X1] divide by epochs ACTUALLY run, not the requested
+        # budget, so an early-aborted run does not report a misleadingly small
+        # per-epoch cost. Identical to the old value when nothing aborts.
+        "seconds_per_epoch": total_time / max(epochs_run, 1),
+        # [FIX-2026-08 / X4] Post-hoc stability summary. Previously the only way
+        # to tell whether a run had suffered a gradient blowup was to load
+        # training_history.json and compute the max/median ratio by hand -- which
+        # is how both the pendulum (7186x) and SIR (2.47e6x) spikes were found.
+        # Surfacing it here makes every future failure readable straight off
+        # metrics.json and collates into results/tables/*.csv.
+        "stability": _stability_summary(
+            grad_norms=grad_norms,
+            grad_clip=grad_clip,
+            nonfinite_grad_steps=nonfinite_grad_steps,
+            first_nonfinite_epoch=first_nonfinite_epoch,
+            aborted_at_epoch=aborted_at_epoch,
+            epochs_run=epochs_run,
+        ),
     }
 
     with open(os.path.join(save_dir, "metrics.json"), "w") as f:
@@ -397,6 +611,10 @@ def train_kan_ode(
         "train_losses": train_losses,
         "test_losses": test_losses,
         "grad_norms": grad_norms,
+        # [FIX-2026-08 / X3] post-clip norms, same length/indexing as grad_norms.
+        # grad_norms[i] > post_clip_grad_norms[i] means clipping engaged at
+        # epoch i+1; a 0.0 entry means the step was dropped by the X1 guard.
+        "post_clip_grad_norms": post_clip_grad_norms,
     }
     with open(os.path.join(save_dir, "training_history.json"), "w") as f:
         json.dump(history, f)
@@ -481,6 +699,25 @@ if __name__ == "__main__":
     parser.add_argument("--t_train_end", type=float, default=None, help="Train/extrapolation split (default: dataset-specific)")
     parser.add_argument("--noise_std", type=float, default=0.0, help="Gaussian observational noise sigma on the training window")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="Max gradient norm clipping threshold (0.0 to disable)")
+    # ==========================================================================
+    # [FIX-2026-08] Cross-domain stability flags. All defaults == pre-fix
+    # behaviour, so omitting every flag below reproduces the existing Phase-2
+    # results exactly. See docs/08_how_to_run_fixes.md for the tested recipes.
+    # ==========================================================================
+    parser.add_argument("--loss_weighting", type=str, default="none", choices=["none", "std"],
+                        help="[X2] 'std' weights each state dimension by 1/var so no single "
+                             "dimension dominates the gradient (default: none)")
+    parser.add_argument("--conserve_sum", type=float, default=None,
+                        help="[S2] Penalise deviation of sum(state) from this value, e.g. 1.0 "
+                             "for SIR's S+I+R=1 invariant (default: disabled)")
+    parser.add_argument("--conserve_weight", type=float, default=1.0,
+                        help="[S2] Weight of the --conserve_sum penalty (default: 1.0)")
+    parser.add_argument("--normalizer", type=str, default="tanh", choices=["tanh", "sigmoid", "identity"],
+                        help="[P3] KAN input normalizer. Previously hardcoded to tanh and not "
+                             "reachable from the CLI (default: tanh)")
+    parser.add_argument("--grid_lims", type=float, nargs=2, default=[-1.0, 1.0], metavar=("LO", "HI"),
+                        help="[P3] KAN spline grid span. Widen past (-1, 1) when tanh pushes a "
+                             "state dimension onto the domain edges (default: -1.0 1.0)")
     parser.add_argument("--save_dir", type=str, default="results/run_experiment", help="Directory for checkpoints and plots")
     parser.add_argument("--print_freq", type=int, default=200, help="(unused; retained for CLI compatibility)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -508,6 +745,12 @@ if __name__ == "__main__":
         t_train_end=args.t_train_end,
         noise_std=args.noise_std,
         grad_clip=args.grad_clip,
+        # [FIX-2026-08] stability options -- see the argparse block above
+        loss_weighting=args.loss_weighting,
+        conserve_sum=args.conserve_sum,
+        conserve_weight=args.conserve_weight,
+        normalizer=args.normalizer,
+        grid_lims=tuple(args.grid_lims),
         save_dir=args.save_dir,
         print_freq=args.print_freq,
         seed=args.seed,
