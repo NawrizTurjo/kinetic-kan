@@ -197,13 +197,21 @@ python analyze_fixes.py --root results/_fixed
 | Check | Pass | Reference (the failed runs) |
 | :--- | :--- | :--- |
 | `final train_mse` is a number, not `NaN` | ✅ required | SIR previously **NaN** |
-| `nonfinite_grad_steps` | `0` ideally; small is fine | SIR previously 1,303 |
+| `nonfinite_grad_steps` | `0` | SIR previously 1,303 |
 | `aborted_at_epoch` | `null` | — |
-| `spike_ratio` | **low tens** | pendulum 7186× · SIR 2.47e6× |
-| pendulum `train_mse` | $\ll 2.87\times10^{-1}$ | old best $2.87\times10^{-1}$ |
-| pendulum `extrap_r2` | $> 0$ | old $-1.318$ |
-| SIR `train_mse` | $\lesssim 4.4\times10^{-4}$ | old best $4.39\times10^{-4}$ |
+| `epochs_run` | the full budget | — |
+| pendulum `theta_rmse` | $\ll 0.80$ | control $0.8015$ |
+| pendulum `theta_min` | reaches $\approx -1.385$ | control stalls at $-0.279$ |
+| pendulum `train_mse` | $\ll 3.29\times10^{-1}$ | control $3.29\times10^{-1}$ |
+| SIR `mass_min`/`mass_max` | $\to 1.0000$ | previously $1.0044$ |
+| SIR `I_drift` | $\to 0.0525$, **not** $\approx 0$ | previously $0.0003$ (frozen) |
 | SIR extrap **RMSE** | $< 6.1\times10^{-2}$ | old $6.14\times10^{-2}$ |
+
+> ⚠️ **`spike_ratio` is context, not a pass/fail gate.** It is the **pre-clip** norm, and
+> `--grad_clip` bounds the step regardless. The probe produced spikes of 25,879×
+> (`pend_identity`) and 3,375,786× (`sir_control`) on runs that completed cleanly with
+> `nonfinite = 0`. It only signals trouble when `nonfinite > 0`, or when clipping is
+> disabled. Judge the fit by `train_mse` / `theta_rmse`, not by the spike.
 
 > 📐 **Report RMSE, not $R^2$, for the SIR extrapolation window.** Its true signal has
 > std $0.002$–$0.017$ versus $0.11$–$0.36$ in training, so $R^2$'s denominator nearly

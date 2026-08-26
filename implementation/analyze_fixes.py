@@ -159,8 +159,10 @@ def section_summary(runs):
               f"{str(s.get('nonfinite_grad_steps', '-')):>8}"
               f"{str(s.get('epochs_run', '-')):>8}")
     print("=" * 104)
-    print("PASS: final_train is a number (not NaN) | nonfin == 0 | spike in the low tens")
-    print("FAIL reference -- pendulum spike 7186x, SIR spike 2.47e6x and final NaN")
+    print("PASS: final_train is a number (not NaN) | nonfin == 0 | epochs == the full budget")
+    print("NOTE: a large 'spike' is NOT itself a failure once --grad_clip is on -- it is the")
+    print("      PRE-clip norm, and clipping bounds the step. It only signals trouble when")
+    print("      nonfin > 0, or when clipping is disabled. Judge fit by train_mse/extrap_mse.")
 
 
 def section_pendulum(runs):

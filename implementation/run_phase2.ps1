@@ -191,19 +191,43 @@ if ($Only -contains "probe") {
 }
 
 # --- fixes: full-length runs with the fixes combined -------------------------
-# These stack the fixes that the probe is expected to validate. If the probe
-# disagrees, EDIT THESE ARGS before running -- do not run them blind.
+# Args below are now SET BY THE PROBE RESULTS (results/_probe, 11 runs at 2000
+# epochs -- see docs/09_stability_fix_results.md), not by prediction.
+#
+# Pendulum, ranked by full-horizon MSE over [0,10] (window-independent, so it is
+# the only metric comparable across different --t_train_end values):
+#     pend_id_win5    0.0432   identity + t_train_end 5.0   <-- CHOSEN, R2 = +0.662
+#     pend_tanh_win5  0.1365   tanh     + t_train_end 5.0
+#     pend_id_lossw   0.6386   identity + loss_weighting std
+#     pend_tanhact    0.7527   tanh
+#     pend_control    0.8943   (baseline)
+#     pend_identity   1.1100   identity alone -- WORSE than baseline
+#     pend_lossw      1.4835   loss_weighting alone -- worst
+# --loss_weighting was DROPPED here: it helps the fit but is the worst option on
+# extrapolation, and identity+lossw (0.6386) is 15x worse than identity+win5.
 if ($Only -contains "fixes") {
     Add-Job "pendulum_fixed" "$FixedDir/pendulum_fixed" `
         @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5",
           "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
-          "--act", "identity", "--loss_weighting", "std")
+          "--act", "identity", "--t_train_end", "5.0")
 
+    # SIR: both probe fixes helped on different axes, so they are combined.
+    #   sir_control   full_mse 3.778e-2  mass 1.1347
+    #   sir_conserve  full_mse 2.395e-2  mass 1.0086   (mass error 13.5% -> 0.86%)
+    #   sir_lossw     full_mse 1.684e-2  mass 0.9977   (best on every metric)
     Add-Job "sir_fixed" "$FixedDir/sir_fixed" `
         @("--dataset", "sir", "--basis", "rbf", "--solver", "tsit5",
           "--t_train_end", "50.0", "--layers", "3", "16", "3",
           "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
           "--conserve_sum", "1.0", "--loss_weighting", "std")
+
+    # Control at full budget: same longer window, but the ORIGINAL SiLU activation.
+    # Completes the 2x2 (activation x window) so the claim "both fixes were needed"
+    # is backed at 10,000 epochs rather than inferred from the probe.
+    Add-Job "pendulum_control_win5" "$FixedDir/pendulum_control_win5" `
+        @("--dataset", "damped_pendulum", "--basis", "rbf", "--solver", "tsit5",
+          "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
+          "--act", "silu", "--t_train_end", "5.0")
 }
 
 if ($Only -contains "stepsize" -or $Only -contains "all") {
@@ -280,7 +304,22 @@ foreach ($j in $jobs) {
 
 if ($started -gt 0) {
     Write-Host "`n$started launched, $skipped skipped. Waiting for completion..." -ForegroundColor Cyan
-    foreach ($r in $all) { $r.Proc | Wait-Process }
+    # [FIX-2026-08] Was: `$r.Proc | Wait-Process`, which resolves the target by PID.
+    # Windows recycles PIDs, so on a long sweep an early job can exit and have its PID
+    # reassigned (observed: an 8-job probe where pid 30400 became an svchost), after
+    # which Wait-Process tries to wait on that unrelated process and dies with
+    # "Access is denied" -- aborting the script and skipping collation even though
+    # every training job was fine.
+    #
+    # .WaitForExit() is called on the Process object captured by Start-Process, which
+    # holds an OS handle rather than a bare PID, so it cannot be confused by reuse.
+    foreach ($r in $all) {
+        try {
+            $r.Proc.WaitForExit()
+        } catch {
+            Write-Host ("  ! could not wait on {0}: {1}" -f $r.Name, $_.Exception.Message) -ForegroundColor Yellow
+        }
+    }
 }
 
 $elapsed = (Get-Date) - $t0
@@ -294,7 +333,11 @@ $failed = @()
 foreach ($j in $jobs) {
     $dir = $j.Args[$j.Args.IndexOf("--save_dir") + 1]
     if (-not (Test-Path (Join-Path $dir "metrics.json"))) {
-        $code = ($all | Where-Object { $_.Name -eq $j.Name } | Select-Object -First 1).Proc.ExitCode
+        # [FIX-2026-08] .ExitCode throws if the process has not exited (e.g. the wait
+        # above was interrupted), which would crash the report instead of printing it.
+        $rec  = $all | Where-Object { $_.Name -eq $j.Name } | Select-Object -First 1
+        $code = "?"
+        if ($rec) { try { if ($rec.Proc.HasExited) { $code = $rec.Proc.ExitCode } else { $code = "still running" } } catch { $code = "unknown" } }
         $failed += [pscustomobject]@{ Name = $j.Name; ExitCode = $code }
     }
 }
