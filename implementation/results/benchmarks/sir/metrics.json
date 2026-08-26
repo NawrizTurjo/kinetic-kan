@@ -21,6 +21,7 @@
         "entropy_reg": 0.0,
         "seed": 42,
         "noise_std": 0.0,
+        "grad_clip": 1.0,
         "t_start": 0.0,
         "t_end": 80.0,
         "t_train_end": 50.0,
@@ -35,44 +36,44 @@
         },
         "parameters": 864,
         "device": "cpu",
-        "torch_version": "2.13.0+cpu",
-        "platform": "Windows-11-10.0.26200-SP0",
-        "git_sha": "f150626"
+        "torch_version": "2.6.0+cpu",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "git_sha": "aece84b"
     },
     "selection": {
         "criterion": "min_train_mse",
-        "best_epoch": 3400,
-        "best_train_mse_during_training": 0.05658789724111557
+        "best_epoch": 6925,
+        "best_train_mse_during_training": 0.00043894650298170745
     },
     "best": {
-        "train_mse": 0.05658789724111557,
-        "extrap_mse": 0.10443411767482758,
-        "full_mse": 0.07441879063844681,
-        "extrap_rmse": 0.32316267989176534,
-        "extrap_mae": 0.3149241507053375,
-        "extrap_r2": -607.6321411132812,
-        "extrap_rel_l2": 0.5929973721504211,
-        "full_rmse": 0.27279807667659023,
-        "full_mae": 0.24536742269992828,
-        "full_r2": 0.11840444803237915,
-        "full_rel_l2": 0.556079626083374
+        "train_mse": 0.00043894650298170745,
+        "extrap_mse": 0.003769809613004327,
+        "full_mse": 0.0016802619211375713,
+        "extrap_rmse": 0.06139877533798477,
+        "extrap_mae": 0.04954112321138382,
+        "extrap_r2": -20.9700927734375,
+        "extrap_rel_l2": 0.11266559362411499,
+        "full_rmse": 0.0409909980500301,
+        "full_mae": 0.02837536856532097,
+        "full_r2": 0.9800949096679688,
+        "full_rel_l2": 0.08355724811553955
     },
     "final": {
-        "train_mse": 0.11840736865997314,
-        "extrap_mse": 0.06754001975059509,
-        "full_mse": 0.09945058822631836,
-        "extrap_rmse": 0.2598846277689296,
-        "extrap_mae": 0.18036088347434998,
-        "extrap_r2": -392.6168212890625,
-        "extrap_rel_l2": 0.47688332200050354,
-        "full_rmse": 0.31535787325880793,
-        "full_mae": 0.22003419697284698,
-        "full_r2": -0.1781325340270996,
-        "full_rel_l2": 0.6428347229957581
+        "train_mse": NaN,
+        "extrap_mse": NaN,
+        "full_mse": NaN,
+        "extrap_rmse": NaN,
+        "extrap_mae": NaN,
+        "extrap_r2": NaN,
+        "extrap_rel_l2": NaN,
+        "full_rmse": NaN,
+        "full_mae": NaN,
+        "full_r2": NaN,
+        "full_rel_l2": NaN
     },
-    "estimated_lipschitz_bound": 3.728443145751953,
+    "estimated_lipschitz_bound": 12.183414459228516,
     "nfe_per_trajectory": 1920,
     "nfe_per_epoch_train": 1200,
-    "training_time_seconds": 6675.18495965004,
-    "seconds_per_epoch": 0.667518495965004
+    "training_time_seconds": 6463.618663787842,
+    "seconds_per_epoch": 0.6463618663787842
 }
