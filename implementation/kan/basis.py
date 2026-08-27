@@ -30,20 +30,24 @@ from typing import Callable, Dict
 
 def rbf(x: torch.Tensor, grid: torch.Tensor, h: float) -> torch.Tensor:
     """
-    Gaussian Radial Basis Function (RBF):
-        phi_i(x) = exp(-((x - z_i) / h)^2)
-    
+    Gaussian Radial Basis Function (RBF), matching Eq. 5 of the KAN-ODE paper:
+        phi_i(x) = exp(-r^2 / (2 h^2)),  r = x - z_i
+
+    i.e. exp(-0.5 * ((x - z_i) / h)^2). Note the factor 1/2 in the exponent
+    denominator: an earlier version of this function omitted it (exp(-(r/h)^2)),
+    which produced kernels narrower than the paper's by a factor of sqrt(2).
+
     Args:
         x: Normalized input tensor of shape (*, in_features)
         grid: Grid centers of shape (grid_len,)
         h: Grid step denominator (float)
-        
+
     Returns:
         Tensor of shape (*, in_features, grid_len)
     """
     x_expanded = x.unsqueeze(-1)
     y = (x_expanded - grid) / h
-    return torch.exp(-(y ** 2))
+    return torch.exp(-0.5 * (y ** 2))
 
 
 def rswaf(x: torch.Tensor, grid: torch.Tensor, h: float) -> torch.Tensor:

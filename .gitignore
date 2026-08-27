@@ -54,6 +54,11 @@ runs/
 lightning_logs/
 .tensorboard/
 
+# Keep the small (~10 KB) benchmark checkpoints: a 10,000-epoch sweep costs hours of
+# compute, and Phase 3 (SINDy / pruning / Lorenz) needs trained weights to start from.
+!implementation/results/**/best_model.pt
+!implementation/results/**/final_model.pt
+
 # =============================================================================
 # Intermediate / Raw Data & Numerical Cache
 # =============================================================================

@@ -7,7 +7,15 @@ as established in the base MIT paper (Koenig et al., CMAME 2024).
 
 Base Paper Parameter Comparison on 2D Lotka-Volterra:
 - KAN-ODE (2 -> 10 -> 2, grid_len=5): 240 parameters
-- MLP-ODE (2 -> 14 -> 8 -> 8 -> 2):  252 parameters (Parameter-Matched Baseline)
+- MLP-ODE (2 -> 50 -> 2, tanh):       252 parameters (Parameter-Matched Baseline)
+
+The default architecture reproduces the bold row of the paper's Table I: a single
+hidden layer of 50 units with tanh activation ("an MLP with a hidden layer comprising
+50 nodes and the hyperbolic tangent activation function ... contained 252 trainable
+parameters"), i.e. 2*50+50 + 50*2+2 = 252. An earlier default of [2, 14, 8, 8, 2] with
+SiLU also totalled 252 parameters but is a materially different function class (3 hidden
+layers, narrower, different activation), so KAN-vs-MLP numbers taken against it were not
+comparable to the paper's own baseline.
 """
 
 import torch
@@ -33,13 +41,14 @@ class MLP_ODE(nn.Module):
     Multi-Layer Perceptron (MLP) vector field for Neural ODEs:
         du/dt = f_theta(t, u)
         
-    Default architecture [2, 14, 8, 8, 2] with bias yields exactly 252 parameters,
-    matching the 240-parameter KAN-ODE architecture [2, 10, 2] from the base paper.
+    Default architecture [2, 50, 2] with bias and tanh yields exactly 252 parameters,
+    matching both the parameter count and the layer topology of the paper's Table I
+    baseline, against the 240-parameter KAN-ODE architecture [2, 10, 2].
     
     Args:
-        layers_hidden (List[int], default=[2, 14, 8, 8, 2]):
+        layers_hidden (List[int], default=[2, 50, 2]):
             Layer dimensions from input to output.
-        activation (Union[str, Callable], default="silu"):
+        activation (Union[str, Callable], default="tanh"):
             Non-linear activation applied at intermediate hidden layers.
             Options: 'silu', 'tanh', 'relu', 'gelu', 'identity'.
         use_bias (bool, default=True):
@@ -49,8 +58,8 @@ class MLP_ODE(nn.Module):
     """
     def __init__(
         self,
-        layers_hidden: List[int] = [2, 14, 8, 8, 2],
-        activation: Union[str, Callable] = "silu",
+        layers_hidden: List[int] = [2, 50, 2],
+        activation: Union[str, Callable] = "tanh",
         use_bias: bool = True,
         init_scale: float = 1.0,
     ):

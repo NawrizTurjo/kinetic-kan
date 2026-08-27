@@ -1,0 +1,99 @@
+{
+    "config": {
+        "model_type": "kan",
+        "dataset": "damped_pendulum",
+        "layers_hidden": [
+            2,
+            10,
+            2
+        ],
+        "grid_len": 8,
+        "basis_func": "rbf",
+        "normalizer": "tanh",
+        "base_act": "identity",
+        "mlp_act": "tanh",
+        "use_base_act": true,
+        "solver": "tsit5",
+        "substeps": 2,
+        "lr": 0.003,
+        "num_epochs": 2000,
+        "act_reg": 0.0,
+        "entropy_reg": 0.0,
+        "seed": 42,
+        "noise_std": 0.0,
+        "grad_clip": 1.0,
+        "loss_weighting": "std",
+        "conserve_sum": null,
+        "conserve_weight": null,
+        "grid_lims": [
+            -1.0,
+            1.0
+        ],
+        "t_start": 0.0,
+        "t_end": 10.0,
+        "t_train_end": 3.0,
+        "dt": 0.05,
+        "state_dim": 2,
+        "n_train_points": 61,
+        "n_full_points": 201,
+        "data_params": {
+            "mu": 0.5,
+            "g": 9.81,
+            "length": 1.0,
+            "mass": 1.0
+        },
+        "parameters": 360,
+        "device": "cpu",
+        "torch_version": "2.6.0+cpu",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "git_sha": "ec35797"
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 2000,
+        "best_train_mse_during_training": 0.0005793035379610956
+    },
+    "best": {
+        "train_mse": 0.0005793034797534347,
+        "extrap_mse": 0.9165529608726501,
+        "full_mse": 0.6385709643363953,
+        "extrap_rmse": 0.9573677250005089,
+        "extrap_mae": 0.6990011930465698,
+        "extrap_r2": -0.8230763673782349,
+        "extrap_rel_l2": 1.347968339920044,
+        "full_rmse": 0.7991063535827977,
+        "full_mae": 0.4914972186088562,
+        "full_r2": 0.5879201292991638,
+        "full_rel_l2": 0.6377095580101013
+    },
+    "final": {
+        "train_mse": 0.0005801791558042169,
+        "extrap_mse": 0.9162593483924866,
+        "full_mse": 0.63836669921875,
+        "extrap_rmse": 0.9572143690900626,
+        "extrap_mae": 0.6988476514816284,
+        "extrap_r2": -0.8224923610687256,
+        "extrap_rel_l2": 1.3477522134780884,
+        "full_rmse": 0.7989785348923649,
+        "full_mae": 0.49139225482940674,
+        "full_r2": 0.588051974773407,
+        "full_rel_l2": 0.6376075744628906
+    },
+    "estimated_lipschitz_bound": 10.878366470336914,
+    "nfe_per_trajectory": 2400,
+    "nfe_per_epoch_train": 720,
+    "training_time_seconds": 2327.3098237514496,
+    "seconds_per_epoch": 1.163654911875725,
+    "stability": {
+        "grad_clip": 1.0,
+        "nonfinite_grad_steps": 0,
+        "first_nonfinite_epoch": null,
+        "aborted_at_epoch": null,
+        "epochs_run": 2000,
+        "grad_norm_median_preclip": 0.002305432100975137,
+        "grad_norm_max_preclip": 611.8785932557853,
+        "grad_norm_spike_ratio": 265407.336436834,
+        "grad_norm_max_epoch": 1,
+        "clip_engaged_fraction": 0.099
+    }
+}

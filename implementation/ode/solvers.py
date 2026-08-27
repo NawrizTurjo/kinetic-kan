@@ -100,49 +100,62 @@ def step_rk4(func: Callable, t: torch.Tensor, y: torch.Tensor, dt: torch.Tensor)
 
 def step_tsit5(func: Callable, t: torch.Tensor, y: torch.Tensor, dt: torch.Tensor) -> torch.Tensor:
     """
-    Tsitouras 5/4 Runge-Kutta fixed step (Tsit5).
-    Exact method used by Julia's DifferentialEquations Tsit5().
+    Tsitouras 5/4 Runge-Kutta, FIXED step (Tsit5).
+
+    Implements the 5th-order solution weights (TSIT5_A / TSIT5_B) of Tsitouras (2011).
+    This is NOT the adaptive Tsit5() of Julia's DifferentialEquations.jl: there is no
+    error-based step-size control here, so the embedded 4th-order estimator (TSIT5_E)
+    is unused by this function. Step-size control is exposed instead through the
+    `substeps` argument of `odeint`.
+
+    Only 6 stages are evaluated. The 7th stage (the FSAL stage) is skipped because
+    TSIT5_B[6] == 0.0, so it contributes nothing to the fixed-step update; evaluating
+    it would cost one extra function evaluation per step for no change in the result.
     """
     k = []
     # Stage 1
     k.append(func(t, y))
-    
-    # Stages 2 to 7
-    for stage_idx in range(1, 7):
+
+    # Stages 2 to 6 (stage 7 is FSAL-only and has zero solution weight)
+    for stage_idx in range(1, 6):
         t_stage = t + TSIT5_C[stage_idx] * dt
         y_stage = y
         for j in range(stage_idx):
             y_stage = y_stage + dt * TSIT5_A[stage_idx][j] * k[j]
         k.append(func(t_stage, y_stage))
-        
+
     # Combine with 5th order weights
     y_next = y
-    for j in range(len(TSIT5_B)):
+    for j in range(len(k)):
         if TSIT5_B[j] != 0.0:
             y_next = y_next + dt * TSIT5_B[j] * k[j]
-            
+
     return y_next
 
 
 def step_dopri5(func: Callable, t: torch.Tensor, y: torch.Tensor, dt: torch.Tensor) -> torch.Tensor:
     """
-    Dormand-Prince 5(4) fixed step (DOPRI5).
+    Dormand-Prince 5(4), FIXED step (DOPRI5).
+
+    As with `step_tsit5`, this applies only the 5th-order solution weights with no
+    adaptive step-size control. The 7th (FSAL) stage is skipped since
+    DOPRI5_B[6] == 0.0, giving 6 function evaluations per step.
     """
     k = []
     k.append(func(t, y))
-    
-    for stage_idx in range(1, 7):
+
+    for stage_idx in range(1, 6):
         t_stage = t + DOPRI5_C[stage_idx] * dt
         y_stage = y
         for j in range(stage_idx):
             y_stage = y_stage + dt * DOPRI5_A[stage_idx][j] * k[j]
         k.append(func(t_stage, y_stage))
-        
+
     y_next = y
-    for j in range(len(DOPRI5_B)):
+    for j in range(len(k)):
         if DOPRI5_B[j] != 0.0:
             y_next = y_next + dt * DOPRI5_B[j] * k[j]
-            
+
     return y_next
 
 

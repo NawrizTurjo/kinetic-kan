@@ -1,0 +1,79 @@
+{
+    "config": {
+        "model_type": "kan",
+        "dataset": "lotka_volterra",
+        "layers_hidden": [
+            2,
+            10,
+            2
+        ],
+        "grid_len": 5,
+        "basis_func": "rbf",
+        "normalizer": "tanh",
+        "base_act": "silu",
+        "mlp_act": "tanh",
+        "use_base_act": true,
+        "solver": "tsit5",
+        "substeps": 2,
+        "lr": 0.002,
+        "num_epochs": 10000,
+        "act_reg": 0.0,
+        "entropy_reg": 0.0,
+        "seed": 42,
+        "noise_std": 0.01,
+        "t_start": 0.0,
+        "t_end": 14.0,
+        "t_train_end": 3.5,
+        "dt": 0.1,
+        "state_dim": 2,
+        "n_train_points": 36,
+        "n_full_points": 141,
+        "data_params": {
+            "alpha": 1.5,
+            "beta": 1.0,
+            "gamma": 3.0,
+            "delta": 1.0
+        },
+        "parameters": 240,
+        "device": "cpu",
+        "torch_version": "2.5.1+cu121",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "git_sha": "163492a"
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 10000,
+        "best_train_mse_during_training": 0.00017160334391519427
+    },
+    "best": {
+        "train_mse": 0.0001225078449351713,
+        "extrap_mse": 0.001216938253492117,
+        "full_mse": 0.0009375091758556664,
+        "extrap_rmse": 0.034884642086341046,
+        "extrap_mae": 0.0258046742528677,
+        "extrap_r2": 0.9995822906494141,
+        "extrap_rel_l2": 0.012155764736235142,
+        "full_rmse": 0.030618771625518657,
+        "full_mae": 0.02143063396215439,
+        "full_r2": 0.9996780753135681,
+        "full_rel_l2": 0.010706755332648754
+    },
+    "final": {
+        "train_mse": 0.0001223296276293695,
+        "extrap_mse": 0.0011945139849558473,
+        "full_mse": 0.000920764752663672,
+        "extrap_rmse": 0.03456174163661095,
+        "extrap_mae": 0.025577206164598465,
+        "extrap_r2": 0.9995899796485901,
+        "extrap_rel_l2": 0.012043246999382973,
+        "full_rmse": 0.030344105731816715,
+        "full_mae": 0.021259145811200142,
+        "full_r2": 0.9996837973594666,
+        "full_rel_l2": 0.010610709898173809
+    },
+    "estimated_lipschitz_bound": 7.181065082550049,
+    "nfe_per_trajectory": 1680,
+    "nfe_per_epoch_train": 420,
+    "training_time_seconds": 1686.3549492359161,
+    "seconds_per_epoch": 0.16863549492359162
+}
