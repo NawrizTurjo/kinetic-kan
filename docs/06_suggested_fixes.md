@@ -263,6 +263,19 @@ optimizer fits $\omega$ and starves $\theta$ — precisely the observed split. T
 correlation across all three systems is perfect, but that is **three data points: a
 hypothesis, not proof.**
 
+> ## ⛔ C2 BELOW WAS REFUTED — see [`09`](./09_stability_fix_results.md)
+>
+> The `pendulum_control_win5` run (SiLU + `--t_train_end 5.0`, 10,000 epochs) reaches
+> $\theta$ RMSE $0.0114$ and $\theta_{\min} = -1.380$ against a true $-1.385$. **SiLU
+> learns $\dot\theta = \omega$ perfectly well once the training window is long enough**,
+> so the claim below — that it *cannot represent* the relation — is wrong. The probe of
+> $f_1(0,\omega)$ that motivated it was measured on a model that had failed to converge.
+>
+> **What survives:** at the short window, `identity` reaches train MSE
+> $2.62\times10^{-4}$ in 2,000 epochs while SiLU is still at $2.87\times10^{-1}$ after
+> 10,000 — a data-efficiency gap, not a representational limit. **Do not carry the
+> strong claim into the report.**
+
 **C2 — The SiLU residual branch cannot span both signs.** The `KDense` base path is
 $W \cdot \mathrm{silu}(x)$, and $\mathrm{silu}(w) = w\,\sigma(w)$:
 
