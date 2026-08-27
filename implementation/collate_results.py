@@ -65,6 +65,10 @@ def load_runs(root, bucket):
             "dt": cfg.get("dt"),
             "substeps": cfg.get("substeps"),
             "noise_std": cfg.get("noise_std"),
+            # [FIX-2026-08 / S3] provenance: two runs with the same lr/epochs but
+            # different time_scale are NOT the same experiment, and the CSVs are
+            # the only place that distinction survives.
+            "time_scale": cfg.get("time_scale", 1.0),
             "best_epoch": m.get("selection", {}).get("best_epoch"),
             "nfe_per_traj": m.get("nfe_per_trajectory"),
             "lipschitz": m.get("estimated_lipschitz_bound"),

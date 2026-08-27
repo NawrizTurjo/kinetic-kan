@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from kan import KAN, MLP_ODE
-from ode import NeuralODE
+from ode import NeuralODE, ZeroSumField, VanishingDimField
 from train import DATASETS
 from utils import (
     plot_trajectory_comparison,
@@ -75,6 +75,12 @@ def evaluate_checkpoint(checkpoint_path: str, solver: str = None, save_dir: str 
         model = KAN(
             layers_hidden=layers_hidden,
             grid_len=grid_len,
+            # [FIX-2026-08] grid_lims was NOT read back, so any checkpoint trained
+            # with a non-default span (e.g. --grid_lims 0 1) was rebuilt on the
+            # hardcoded (-1, 1) grid. load_state_dict succeeds -- `grid` is a
+            # buffer, and the weight shapes are unchanged -- so this reproduced no
+            # error, just silently wrong basis centers and wrong predictions.
+            grid_lims=tuple(config.get("grid_lims", [-1.0, 1.0])),
             basis_func=basis_func,
             normalizer=normalizer,
             base_act=base_act,
@@ -84,7 +90,16 @@ def evaluate_checkpoint(checkpoint_path: str, solver: str = None, save_dir: str 
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
-    node = NeuralODE(func=model, method=eval_solver, substeps=substeps)
+    # [FIX-2026-08 / S4] The projection is part of the field, not the weights, so a
+    # checkpoint trained under it integrates a DIFFERENT ODE than the bare module.
+    # Rebuilding without it silently reports a trajectory the run never produced.
+    field = model
+    if config.get("conserve_mode") == "projection":
+        field = ZeroSumField(model)
+    if config.get("vanish_dim") is not None:
+        field = VanishingDimField(field, dim=int(config["vanish_dim"]))
+
+    node = NeuralODE(func=field, method=eval_solver, substeps=substeps)
 
     # 2. Data (reconstructed from the checkpoint's own config)
     data, dataset = _rebuild_data(config)
@@ -92,8 +107,12 @@ def evaluate_checkpoint(checkpoint_path: str, solver: str = None, save_dir: str 
     y_full = data.y_full.numpy()
 
     # 3. Predict
+    # [FIX-2026-08 / S3] The checkpoint learned g = time_scale * f, so it must be
+    # integrated on the same rescaled clock it was trained on. Predictions still
+    # come back at the physical sample times in t_full.
+    time_scale = float(config.get("time_scale", 1.0) or 1.0)
     with torch.no_grad():
-        pred_full = node(y0=data.y0, t=t_full).numpy()
+        pred_full = node(y0=data.y0, t=t_full / time_scale).numpy()
 
     n_train = len(t_train)
     t0, t1 = t_full[0].item(), t_full[-1].item()

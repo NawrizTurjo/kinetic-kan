@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from kan import KAN, MLP_ODE, count_parameters
-from ode import NeuralODE
+from ode import NeuralODE, ZeroSumField, VanishingDimField
 from data import (
     generate_lotka_volterra_data,
     generate_damped_pendulum_data,
@@ -170,6 +170,9 @@ def train_kan_ode(
     loss_weighting="none",   # [X2] "none" | "std" -- per-dimension loss balancing
     conserve_sum=None,       # [S2] e.g. 1.0 for SIR (S+I+R=1); None disables
     conserve_weight=1.0,     # [S2] penalty weight for the conservation residual
+    conserve_mode="penalty", # [S4] "penalty" (soft, train window) | "projection" (exact)
+    vanish_dim=None,         # [S5] index whose zero-plane is a manifold of equilibria
+    time_scale=1.0,          # [S3] nondimensionalise time: integrate on t/time_scale
     grid_lims=(-1.0, 1.0),   # [P3] KAN grid span; previously hardcoded to (-1,1)
     seed=42,
     save_dir="results/run_experiment",
@@ -195,6 +198,10 @@ def train_kan_ode(
     os.makedirs(save_dir, exist_ok=True)
     device = torch.device(device)
 
+    if conserve_mode not in ("penalty", "projection"):
+        raise ValueError(
+            f"Unknown conserve_mode '{conserve_mode}'. Expected 'penalty' or 'projection'."
+        )
     if dataset not in DATASETS:
         raise ValueError(f"Unknown dataset '{dataset}'. Available: {list(DATASETS)}")
     spec = DATASETS[dataset]
@@ -240,6 +247,56 @@ def train_kan_ode(
     n_train = len(t_train)
     state_dim = y_full.shape[-1]
 
+    # ==========================================================================
+    # [FIX-2026-08 / S3] Time nondimensionalisation.
+    #
+    # Backprop through the solver differentiates a composition of ~1200 nested
+    # nonlinear steps, and its sensitivity grows like exp(L*T) in the horizon T
+    # and the field's Lipschitz constant L. That product is what separates the
+    # systems that train from the ones that do not:
+    #
+    #     Lotka-Volterra   T = 3.5   |f| ~ 1e0     -> converges
+    #     damped pendulum  T = 5.0   |f| ~ 1e0     -> converges (after the win fix)
+    #     SIR              T = 50.0  |f| ~ 1e-2    -> explodes
+    #
+    # SIR is not harder dynamics; it is the SAME dynamics written in the wrong
+    # units. Its natural timescale is the recovery time 1/gamma = 10 days, so
+    # measuring t in days makes the horizon 50 units long and the derivative 100x
+    # too small for a Glorot-initialised network to represent. Measured at init:
+    #
+    #     |f_theta(y)| = 0.203  vs  true |f| = 0.011   (19x too fast)
+    #     integrating that over [0, 50] sends the state to -51.8 (physical: [0,1])
+    #     epoch-0 loss 3.16e+02, gradient norm 4.89e+03
+    #
+    # Both failures follow from that one number. The blowup is the runaway
+    # trajectory driving the basis far off-grid; the "frozen fixed point" is the
+    # optimizer's rational response to it, because from a loss of 3.16e+02 the
+    # steepest available descent direction is f -> 0, which alone buys a ~3000x
+    # improvement. The model parks there and the true 1e-2 signal never competes.
+    #
+    # Substituting tau = t / time_scale turns the learned field into
+    #       g_theta(y) = time_scale * f(y),
+    # an exact change of variables: the network sees a horizon of T/time_scale
+    # and a target derivative of time_scale*|f|. With time_scale = 10 SIR becomes
+    # T = 5, |f| ~ 1e-1 -- the regime the other two systems already train in.
+    #
+    # NOTHING downstream is rescaled. Predictions come out at the same physical
+    # sample times, so every metric, plot and checkpoint stays directly
+    # comparable with the existing runs. time_scale=1.0 (the default) is a no-op
+    # and reproduces previous behaviour exactly.
+    # ==========================================================================
+    if time_scale is None or time_scale <= 0.0:
+        raise ValueError(f"time_scale must be positive, got {time_scale!r}")
+    t_train_s = t_train / float(time_scale)
+    t_full_s = t_full / float(time_scale)
+    if time_scale != 1.0:
+        true_deriv = ((y_train[1:] - y_train[:-1])
+                      / (t_train[1:] - t_train[:-1]).unsqueeze(-1)).abs().mean().item()
+        print(f"[FIX/S3] time_scale={time_scale} | integrating tau = t/{time_scale} "
+              f"-> horizon [{t_start / time_scale:.4g}, "
+              f"{horizon['t_end'] / time_scale:.4g}] | mean|f| {true_deriv:.4g} "
+              f"-> {true_deriv * time_scale:.4g}")
+
     # 2. Build Model & Neural ODE Integrator
     if model_type.lower() == "mlp":
         mlp_layers = _adapt_layers(mlp_layers, state_dim)
@@ -266,7 +323,49 @@ def train_kan_ode(
         model_desc = f"KAN-ODE {layers_hidden} (grid={grid_len}, basis={basis_func}, {total_p} params)"
         arch_layers = layers_hidden
 
-    node = NeuralODE(func=model, method=solver, substeps=substeps).to(device)
+    # ==========================================================================
+    # [FIX-2026-08 / S4] Exact vs. penalised conservation.
+    #
+    # `--conserve_sum` alone adds a soft penalty on the TRAINING window. That is
+    # the wrong instrument for an invariant: it competes with the data term, needs
+    # its weight tuned, and constrains nothing outside the sampled interval. The
+    # SIR evidence is unambiguous -- the penalty run reached 0.86% mass error on
+    # [0, 50] and 45% over the full horizon, because extrapolation was never
+    # penalised at all.
+    #
+    # `--conserve_mode projection` instead removes the violating direction from
+    # the vector field, so sum(y) is conserved by construction on any horizon.
+    # See ZeroSumField for the derivation.
+    # ==========================================================================
+    field = model
+    if conserve_sum is not None and conserve_mode == "projection":
+        y0_sum = float(y0_init.sum().item())
+        if abs(y0_sum - float(conserve_sum)) > 1e-4:
+            raise ValueError(
+                f"--conserve_mode projection conserves sum(y0)={y0_sum:.6f}, but "
+                f"--conserve_sum asks for {conserve_sum}. Projection cannot move the "
+                f"trajectory onto a different invariant surface, it can only keep it "
+                f"on the one the initial condition already lies on."
+            )
+        field = ZeroSumField(model)
+        print(f"[FIX/S4] conservation by PROJECTION: f <- f - mean(f), "
+              f"sum(y) pinned to {y0_sum:.6f} for all t (no penalty term)")
+
+    # ------------------------------------------------------------------
+    # [FIX-2026-08 / S5] Optional structural prior: f vanishes on y[d]=0.
+    # Applied OUTSIDE the projection so the field stays zero-sum (a scalar times
+    # a zero-sum vector is zero-sum), giving both SIR invariants at once.
+    # ------------------------------------------------------------------
+    if vanish_dim is not None:
+        if not (0 <= int(vanish_dim) < state_dim):
+            raise ValueError(
+                f"--vanish_dim {vanish_dim} is out of range for a {state_dim}-dim state."
+            )
+        field = VanishingDimField(field, dim=int(vanish_dim))
+        print(f"[FIX/S5] vanishing-dimension prior: f <- y[{int(vanish_dim)}] * f, "
+              f"so the plane y[{int(vanish_dim)}]=0 is a manifold of equilibria")
+
+    node = NeuralODE(func=field, method=solver, substeps=substeps).to(device)
 
     # Full resolved configuration -- written verbatim into the checkpoint and into
     # metrics.json so any result can be traced back to the exact run that produced it.
@@ -293,7 +392,11 @@ def train_kan_ode(
         # stability settings it was produced under.
         "loss_weighting": loss_weighting,
         "conserve_sum": conserve_sum,
-        "conserve_weight": conserve_weight if conserve_sum is not None else None,
+        "conserve_weight": (conserve_weight if conserve_sum is not None
+                            and conserve_mode == "penalty" else None),
+        "conserve_mode": conserve_mode if conserve_sum is not None else None,
+        "vanish_dim": int(vanish_dim) if vanish_dim is not None else None,
+        "time_scale": time_scale,
         "grid_lims": list(grid_lims),
         "t_start": t_start,
         "t_end": horizon["t_end"],
@@ -356,7 +459,7 @@ def train_kan_ode(
             f"Unknown loss_weighting '{loss_weighting}'. Expected 'none' or 'std'."
         )
 
-    if conserve_sum is not None:
+    if conserve_sum is not None and conserve_mode == "penalty":
         print(f"[FIX/S2] conservation penalty active: sum(u) -> {conserve_sum} "
               f"(weight {conserve_weight})")
 
@@ -390,7 +493,7 @@ def train_kan_ode(
         optimizer.zero_grad()
 
         # Integrate forward over training time interval
-        pred_train = node(y0=y0_init, t=t_train)
+        pred_train = node(y0=y0_init, t=t_train_s)
 
         # Plain unweighted MSE. ALWAYS computed and always what gets logged, so
         # loss_curves.png and train_losses[] stay comparable across every run in
@@ -419,7 +522,9 @@ def train_kan_ode(
         # Disabled (conserve_sum=None) for every system that has no such
         # invariant, e.g. Lotka-Volterra and the pendulum.
         # ---------------------------------------------------------------------
-        if conserve_sum is not None:
+        # [FIX-2026-08 / S4] In projection mode the invariant already holds exactly,
+        # so adding a penalty would only contribute numerical noise to the gradient.
+        if conserve_sum is not None and conserve_mode == "penalty":
             cons_residual = pred_train.sum(dim=-1) - float(conserve_sum)
             cons_loss = conserve_weight * (cons_residual ** 2).mean()
         else:
@@ -499,7 +604,7 @@ def train_kan_ode(
         # for model selection).
         if epoch % 10 == 0 or epoch == 1 or epoch == num_epochs:
             with torch.no_grad():
-                pred_full = node(y0=y0_init, t=t_full)
+                pred_full = node(y0=y0_init, t=t_full_s)
                 mse_test = F.mse_loss(pred_full, y_full)
             test_loss_val = mse_test.item()
         else:
@@ -546,7 +651,7 @@ def train_kan_ode(
         if state_dict is not None:
             model.load_state_dict(state_dict)
         with torch.no_grad():
-            pred = node(y0=y0_init, t=t_full).cpu().numpy()
+            pred = node(y0=y0_init, t=t_full_s).cpu().numpy()
         return pred, {
             "train_mse": compute_mse(y_full_np[:n_train], pred[:n_train]),
             "extrap_mse": compute_mse(y_full_np[n_train:], pred[n_train:]),
@@ -568,7 +673,12 @@ def train_kan_ode(
         best_state_dict["model_state_dict"] if best_state_dict is not None else None
     )
 
-    lipschitz_est = estimate_lipschitz_bound(model, x_domain=y_train)
+    # [FIX-2026-08 / S3] estimate_lipschitz_bound measures the field the network
+    # actually implements, g = time_scale * f. Dividing back by time_scale gives
+    # L in physical 1/time units, which is the only form comparable across runs
+    # (and across datasets) with different time_scale. Both are recorded.
+    lipschitz_raw = estimate_lipschitz_bound(model, x_domain=y_train)
+    lipschitz_est = lipschitz_raw / float(time_scale)
     nfe_per_traj = track_nfe(solver, num_steps=len(t_full) - 1, substeps=substeps)
 
     metrics_summary = {
@@ -581,6 +691,7 @@ def train_kan_ode(
         "best": best_metrics,
         "final": final_metrics,
         "estimated_lipschitz_bound": lipschitz_est,
+        "estimated_lipschitz_bound_rescaled_field": lipschitz_raw,
         "nfe_per_trajectory": nfe_per_traj,
         "nfe_per_epoch_train": track_nfe(solver, num_steps=n_train - 1, substeps=substeps),
         "training_time_seconds": total_time,
@@ -712,6 +823,24 @@ if __name__ == "__main__":
                              "for SIR's S+I+R=1 invariant (default: disabled)")
     parser.add_argument("--conserve_weight", type=float, default=1.0,
                         help="[S2] Weight of the --conserve_sum penalty (default: 1.0)")
+    parser.add_argument("--conserve_mode", type=str, default="penalty",
+                        choices=["penalty", "projection"],
+                        help="[S4] How --conserve_sum is enforced. 'penalty' (default) adds a "
+                             "soft residual term over the training window only. 'projection' "
+                             "subtracts the componentwise mean from the vector field, making "
+                             "sum(y) exactly invariant on every horizon including extrapolation.")
+    parser.add_argument("--vanish_dim", type=int, default=None,
+                        help="[S5] Structural prior: multiply the field by state[VANISH_DIM] so "
+                             "the plane state[VANISH_DIM]=0 becomes a manifold of equilibria. "
+                             "Exact for compartmental epidemic models, where every term carries "
+                             "a factor of I (SIR: 1). OPT-IN and dataset-specific -- it encodes "
+                             "known physics, so report results with and without it.")
+    parser.add_argument("--time_scale", type=float, default=1.0,
+                        help="[S3] Nondimensionalise time: integrate on tau = t/TIME_SCALE so "
+                             "the network learns g(y) = TIME_SCALE * f(y). Set it to the "
+                             "system's natural timescale to shrink an over-long horizon and "
+                             "lift an over-small derivative into trainable range "
+                             "(SIR: 10.0 = 1/gamma). 1.0 disables (default).")
     parser.add_argument("--normalizer", type=str, default="tanh", choices=["tanh", "sigmoid", "identity"],
                         help="[P3] KAN input normalizer. Previously hardcoded to tanh and not "
                              "reachable from the CLI (default: tanh)")
@@ -749,6 +878,9 @@ if __name__ == "__main__":
         loss_weighting=args.loss_weighting,
         conserve_sum=args.conserve_sum,
         conserve_weight=args.conserve_weight,
+        conserve_mode=args.conserve_mode,
+        vanish_dim=args.vanish_dim,
+        time_scale=args.time_scale,
         normalizer=args.normalizer,
         grid_lims=tuple(args.grid_lims),
         save_dir=args.save_dir,

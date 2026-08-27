@@ -1,5 +1,5 @@
 from .solvers import odeint, STEP_SOLVERS, step_tsit5, step_rk4, step_dopri5, step_euler, step_midpoint, step_heun
-from .neural_ode import NeuralODE
+from .neural_ode import NeuralODE, ZeroSumField, VanishingDimField
 
 __all__ = [
     "odeint",
@@ -11,4 +11,6 @@ __all__ = [
     "step_midpoint",
     "step_heun",
     "NeuralODE",
+    "ZeroSumField",
+    "VanishingDimField",
 ]

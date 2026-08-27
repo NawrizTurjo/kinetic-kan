@@ -188,6 +188,18 @@ if ($Only -contains "probe") {
     Add-Job "sir_control"  "$ProbeDir/sir_control"  $sirBase
     Add-Job "sir_conserve" "$ProbeDir/sir_conserve" ($sirBase + @("--conserve_sum", "1.0"))
     Add-Job "sir_lossw"    "$ProbeDir/sir_lossw"    ($sirBase + @("--loss_weighting", "std"))
+
+    # ---- SIR root-cause probes (2,000 epochs) -------------------------------
+    # The three above all end STILL FROZEN (I_drift 0.0000 against a true 0.0525);
+    # they differ only in how they fail. These isolate the actual causes. Measured
+    # extrap RMSE / I_drift / max mass error:
+    #   sir_van_only      0.0028  0.0524  1.2e-3   gate alone
+    #   sir_van_proj      0.0039  0.0522  0.0e+0   gate + exact conservation  <-- shipped
+    #   sir_van_proj_g5   0.0027  0.0527  0.0e+0   same at grid_len 5 (fewer params)
+    $sirFixed = $sirBase + @("--time_scale", "10.0")
+    Add-Job "sir_van_only"    "$ProbeDir/sir_van_only"    ($sirFixed + @("--vanish_dim", "1"))
+    Add-Job "sir_van_proj"    "$ProbeDir/sir_van_proj"    ($sirFixed + @("--conserve_sum", "1.0", "--conserve_mode", "projection", "--vanish_dim", "1"))
+    Add-Job "sir_van_proj_g5" "$ProbeDir/sir_van_proj_g5" ($sirFixed + @("--conserve_sum", "1.0", "--conserve_mode", "projection", "--vanish_dim", "1", "--grid_len", "5"))
 }
 
 # --- fixes: full-length runs with the fixes combined -------------------------
@@ -211,15 +223,50 @@ if ($Only -contains "fixes") {
           "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
           "--act", "identity", "--t_train_end", "5.0")
 
-    # SIR: both probe fixes helped on different axes, so they are combined.
-    #   sir_control   full_mse 3.778e-2  mass 1.1347
-    #   sir_conserve  full_mse 2.395e-2  mass 1.0086   (mass error 13.5% -> 0.86%)
-    #   sir_lossw     full_mse 1.684e-2  mass 0.9977   (best on every metric)
+    # SIR. The earlier recipe here was --conserve_sum 1.0 + --loss_weighting std,
+    # combining the two best PROBE runs. It diverged at epoch 3055 and was aborted
+    # at 3154. Stacking was never the problem; both probes were treating symptoms.
+    #
+    # Root cause (docs/10_sir_root_cause_and_fix.md): SIR was posed in the wrong
+    # units. Over a horizon of 50 with |f| ~ 1e-2, a Glorot-init KAN starts 19x too
+    # fast, the trajectory runs to -51.8 by epoch 0, and epoch-0 loss is 3.16e+02.
+    # Everything else followed from that -- the "gradient explosion" peaks at epoch
+    # ELEVEN, and the "frozen fixed point" is just the optimizer taking the steepest
+    # escape from that loss, which is f -> 0.
+    #
+    # Three independent failures, three separate fixes; measured at 2,000 epochs:
+    #   --time_scale 10           train_mse 2.37e-2 -> 2.4e-5   (kills both above)
+    #   --conserve_mode projection  mass err 0.35   -> 7e-7     (exact, all horizons)
+    #   --vanish_dim 1            extrap RMSE 0.095 -> 0.0039   (I=0 is an equilibrium)
+    #
+    # CONFIRMED at 10,000 epochs: the first two ALONE pass every acceptance
+    # criterion (sir_fixed_noprior: extrap RMSE 0.0140, mass 1.0000, I_drift
+    # 0.0837, 0 non-finite steps). --vanish_dim adds a further 25x on extrap RMSE
+    # (0.00057) but is NOT required, and it is the only one of the three that
+    # assumes anything physical. Both runs finish 10,000/10,000 with a finite
+    # final model; the pre-fix run died of NaN at epoch 8,686.
+    #
+    # --loss_weighting std is deliberately NOT here: with rescaling it makes things
+    # worse (extrap RMSE 0.163 vs 0.095), as does lr 1e-3 (0.430).
     Add-Job "sir_fixed" "$FixedDir/sir_fixed" `
         @("--dataset", "sir", "--basis", "rbf", "--solver", "tsit5",
           "--t_train_end", "50.0", "--layers", "3", "16", "3",
           "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
-          "--conserve_sum", "1.0", "--loss_weighting", "std")
+          "--time_scale", "10.0",
+          "--conserve_sum", "1.0", "--conserve_mode", "projection",
+          "--vanish_dim", "1")
+
+    # Ablation, and the honest control for the one fix that is a PHYSICAL claim
+    # rather than a numerical one. --vanish_dim asserts that the plane I=0 consists
+    # of equilibria (true for compartmental models: every SIR term carries a factor
+    # of I). This run is the same recipe WITHOUT that assertion, so its contribution
+    # is reported rather than absorbed into the headline number.
+    Add-Job "sir_fixed_noprior" "$FixedDir/sir_fixed_noprior" `
+        @("--dataset", "sir", "--basis", "rbf", "--solver", "tsit5",
+          "--t_train_end", "50.0", "--layers", "3", "16", "3",
+          "--grid_len", "8", "--lr", "0.003", "--grad_clip", "1.0",
+          "--time_scale", "10.0",
+          "--conserve_sum", "1.0", "--conserve_mode", "projection")
 
     # Control at full budget: same longer window, but the ORIGINAL SiLU activation.
     # Completes the 2x2 (activation x window) so the claim "both fixes were needed"

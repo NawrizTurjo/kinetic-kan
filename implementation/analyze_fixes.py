@@ -39,7 +39,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from kan import KAN, MLP_ODE          # noqa: E402
-from ode import NeuralODE             # noqa: E402
+from ode import NeuralODE, ZeroSumField, VanishingDimField             # noqa: E402
 from data import (                    # noqa: E402
     generate_lotka_volterra_data,
     generate_damped_pendulum_data,
@@ -122,9 +122,16 @@ def _predict(run_dir):
         )
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
-    node = NeuralODE(func=model, method=cfg["solver"], substeps=cfg.get("substeps", 2))
+    # [FIX-2026-08 / S4] see evaluate.py -- projection lives in the field, not the weights
+    field = ZeroSumField(model) if cfg.get("conserve_mode") == "projection" else model
+    if cfg.get("vanish_dim") is not None:
+        field = VanishingDimField(field, dim=int(cfg["vanish_dim"]))
+    node = NeuralODE(func=field, method=cfg["solver"], substeps=cfg.get("substeps", 2))
+    # [FIX-2026-08 / S3] runs trained with --time_scale learned g = time_scale * f
+    # and must be replayed on that same clock; older runs default to 1.0 (no-op).
+    time_scale = float(cfg.get("time_scale", 1.0) or 1.0)
     with torch.no_grad():
-        pred = node(y0=data.y0, t=data.t_full).numpy()
+        pred = node(y0=data.y0, t=data.t_full / time_scale).numpy()
     return {
         "cfg": cfg,
         "dataset": dataset,
