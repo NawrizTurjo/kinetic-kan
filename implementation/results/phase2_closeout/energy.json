@@ -1,0 +1,35 @@
+{
+    "run_dir": "results/_fixed/pendulum_control_win5",
+    "params": {
+        "mu": 0.5,
+        "g": 9.81,
+        "length": 1.0,
+        "mass": 1.0
+    },
+    "energy_true": {
+        "E0": 13.892399787902832,
+        "E_final": 0.11049909889698029,
+        "fraction_dissipated": 0.992046058177948
+    },
+    "energy_pred": {
+        "E0": 13.892399787902832,
+        "E_final": 0.800635039806366,
+        "fraction_dissipated": 0.9423688650131226
+    },
+    "monotonic_decay": {
+        "true_increasing_steps": 0,
+        "pred_increasing_steps": 40,
+        "total_steps": 200
+    },
+    "energy_rmse": {
+        "train": 0.08186470717191696,
+        "extrap": 0.3995288908481598
+    },
+    "drift_vs_own_E0": {
+        "max_energy_drift": 13.572402954101562,
+        "mean_energy_drift": 10.667436599731445,
+        "rel_energy_error": 0.9769660234451294,
+        "e0": 13.892399787902832,
+        "e_final": 0.800635039806366
+    }
+}
