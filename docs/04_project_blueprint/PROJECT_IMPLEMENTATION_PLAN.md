@@ -8,6 +8,43 @@
 
 ---
 
+> ## ⚠️ This document is the *original* plan — several parts are now superseded
+>
+> This file was written before Phase 1 and Phase 2 execution, and several of its
+> specifics no longer match what actually happened or what is currently planned. Kept
+> as the historical record (useful for the report's "plan vs. actual" narrative — see
+> [`Presentation_vs_Final_Plan_Comparison.md`](./Presentation_vs_Final_Plan_Comparison.md)),
+> but **for current status and what to do next, the numbered docs under `docs/` are
+> authoritative**, in this order: [`05`](../05_phase2_benchmark_analysis.md) (Phase 2
+> results) → [`06`](../06_suggested_fixes.md)–[`10`](../10_sir_root_cause_and_fix.md)
+> (cross-domain fixes) → [`11`](../11_phase2_closeout.md) (Phase 2 closeout) →
+> [`12`](../12_phase3_roadmap.md) (Phase 3 — **the current plan**).
+>
+> Known contradictions, flagged inline below at each specific location, and summarised
+> here:
+> 1. **Scope removed, not deferred:** Lorenz (Task 3.6, part of Task 2.5) and
+>    $\Delta t = 0.01$ (Task 2.1) are both fully dropped from the project. See
+>    [`12`](../12_phase3_roadmap.md) §1.2 for the reasoning.
+> 2. **Phase 3 ownership (§4 Task 3.1–3.6, §5 Member pipelines, §6.1 branch table) is
+>    superseded** by [`12_phase3_roadmap.md`](../12_phase3_roadmap.md), which reduces
+>    six novelties to five tracks (Lorenz folded out, SINDy merged with the epidemic
+>    fit) and assigns final ownership after a team reshuffle.
+> 3. **The individually-branched execution model** in §5–§6 (`feat/m1-kan-architecture`,
+>    etc.) was not how Phase 1–2 actually ran — the real history is three shared
+>    branches (`feat/phase1-foundation-completion`, `feat/phase2-benchmarks`,
+>    `fix/phase1-revisit`), all merged into `main`. [`12`](../12_phase3_roadmap.md)
+>    properly instantiates the per-track branch model for the first time, using
+>    `feat/p3-*` names.
+> 4. **§8's `ci.yml` is an early draft**, not what is deployed. The actual
+>    `.github/workflows/ci.yml` has no `ruff`/`mypy`/coverage-gate step and runs
+>    `pytest tests/ -v` only, on `branches: [main, develop, "feat/**"]` (not just
+>    `main`/`develop`) — the `feat/**` trigger matters for Phase 3, since branch names
+>    starting with `feat/` get CI automatically.
+> 5. **`tests/test_adjoint.py` (§7, §Test Module 3) does not exist yet** — it will be
+>    created as part of [`12`](../12_phase3_roadmap.md) Track A (Adjoint Profiling).
+
+---
+
 # 1. Project Overview & Base Repository Audit
 
 ```
@@ -194,6 +231,7 @@ pip install -r requirements.txt
 - **Task 2.1: Solver Order Ablation & Discretization Step-Size Sweep (`implementation/test_facility.py`)** — 👤 **Member 3: Monjur Hossain Khan (2105043 Lead)**
   - Run full 10,000-epoch benchmark sweeps across Forward Euler ($p=1$), Heun RK2 ($p=2$), Classical RK4 ($p=4$), DOPRI5, and Tsit5 across step sizes $\Delta t \in \{0.20, 0.10, 0.05, 0.01\}$.
   - Measure: Final Train MSE, Extrapolation MSE ($t > 3.5$), Number of Function Evaluations (NFE), and Wall-clock speed $\to$ Generate **Table 1**.
+  - ⚠️ **$\Delta t = 0.01$ was run and then permanently dropped** — 10× the cost of $\Delta t=0.1$ on an already-confounded sweep (changing $\Delta t$ also changes training-set size). See [`11_phase2_closeout.md`](../11_phase2_closeout.md) §Deferred. Table 1 stands on $\{0.20, 0.10, 0.05\}$.
 
 - **Task 2.2: Basis Function Representation Ablation (`implementation/test_facility.py`)** — 👤 **Member 4: Shams Hossain Simanto (2105048 Lead)**
   - Train identical KAN-ODE models across all basis functions: (1) Gaussian RBF, (2) Cubic B-Splines ($k=3$), (3) Chebyshev Polynomials ($N=4$), (4) Lagrange Polynomials ($N=4$), (5) Newton Divided Differences, (6) RSWAF, and (7) IQF.
@@ -211,6 +249,7 @@ pip install -r requirements.txt
   - Run initial KAN-ODE sweeps on 3D Chaotic Lorenz attractor and SIR epidemic data.
   - Build automated result collation pipeline: save `results/tables/01_baseline.csv`, `02_solvers.csv`, `03_bases.csv`.
   - Render multi-panel publication figures (Phase portraits with streamlines, error vs $\Delta t$ log-log curves) and draft Phase 1–2 report section.
+  - ⚠️ **Lorenz was fully removed from project scope** (not just this task) — see [`12_phase3_roadmap.md`](../12_phase3_roadmap.md) §1.2. SIR was run, root-caused, and fixed instead — see [`10_sir_root_cause_and_fix.md`](../10_sir_root_cause_and_fix.md). CSV collation (`collate_results.py`) and the publication figures (`phase2_closeout.py`) were both delivered, under different filenames than sketched here — see [`11_phase2_closeout.md`](../11_phase2_closeout.md).
 
 - **Phase 2 Quality Gate & CI Oversight:** — 👤 **Member 1: Nawriz Ahmed Turjo & Member 2: Abhishek Roy (Advisory / Review)**
   - Monitor CI runs, verify numerical precision tolerances, review CSV data schemas, and coordinate presentation sync.
@@ -218,6 +257,11 @@ pip install -r requirements.txt
 ---
 
 ### 🌟 Phase 3: Part 2 Novel Research Contributions (Days 7–9)
+
+> ⚠️ **This entire section (Task 3.1–3.6) is superseded.** Lorenz is removed, SINDy and
+> the epidemic fit are merged into one track, and ownership was reassigned after Phase 2
+> — see [`12_phase3_roadmap.md`](../12_phase3_roadmap.md) for the five tracks and their
+> final owners. Kept below as the original plan.
 
 #### Goal: Implement the 6 high-impact novelties with clear ownership across team members.
 
@@ -264,6 +308,12 @@ pip install -r requirements.txt
 ---
 
 # 5. Sequential File-by-File Build Roadmap & Member Responsibilities
+
+> ⚠️ **The Phase 3 rows of this section (Stage 3, and the Phase-3 line in each member's
+> pipeline table below) are superseded** — see [`12_phase3_roadmap.md`](../12_phase3_roadmap.md).
+> Stages 0–2 (Phase 1–2) describe the intended per-member split reasonably well, though
+> the branch mechanics in §6 did not match what actually ran — see the amendment at the
+> top of this document.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -469,6 +519,12 @@ To enable all 5 team members to work simultaneously with **zero waiting time** a
 
 ### 🌿 6.1 GitHub Branching Strategy & Workflow Rules
 
+> ⚠️ **The branch names and file ownership below (`feat/m1-kan-architecture`, etc.) were
+> never actually created** — Phase 1–2 ran on three shared branches instead (see the
+> amendment at the top of this document). [`12_phase3_roadmap.md`](../12_phase3_roadmap.md)
+> §2.5 properly implements this per-track branch model for Phase 3, using `feat/p3-*`
+> names tied to task slugs rather than member numbers.
+
 Every member develops exclusively within their isolated feature branch:
 
 | Member | Student ID & Name | Dedicated Git Branch | Primary Files Owned & Developed |
@@ -663,6 +719,12 @@ def test_extreme_input_nan_immunity():
 
 ### 🧪 Test Module 3: Adjoint Sensitivity & Memory Parity (`tests/test_adjoint.py`)
 
+> ⚠️ **This file does not exist in the repository yet.** It is sketched here as the
+> original design intent; it will actually be created as part of
+> [`12_phase3_roadmap.md`](../12_phase3_roadmap.md) Track A (Adjoint Profiling, owned by
+> Nawriz), whose acceptance criteria use the same $< 5\times10^{-3}$ relative-error
+> threshold shown below.
+
 ```python
 import pytest
 import torch
@@ -716,6 +778,13 @@ Automated Continuous Integration ensures that any push or pull request is verifi
 ---
 
 ### ⚙️ Workflow 1: Multi-OS Multi-Python CI (`.github/workflows/ci.yml`)
+
+> ⚠️ **This is an early draft, not what is deployed.** The actual
+> `.github/workflows/ci.yml` triggers on `branches: [main, develop, "feat/**"]` for push
+> (not just `main`/`develop` as shown below — the `feat/**` trigger is what makes
+> Phase 3's `feat/p3-*` branches CI-verified automatically) and runs only
+> `pytest tests/ -v` — there is no `ruff`/`mypy` step and no `--cov-fail-under=85` gate.
+> `sciml_bench.yml` and `code_quality.yml` (§8's workflow matrix) were never built.
 
 ```yaml
 name: CI Pipeline
