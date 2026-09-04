@@ -17,26 +17,31 @@ it, so there is no "true" vector field to recover.
 
 Why this is not just "rerun SIR with a different loader"
 --------------------------------------------------------
-Two of the three SIR fixes turn out to be inapplicable here, and saying so with
-a measurement rather than an assumption is most of the work:
+Each of SIR's three fixes was PREDICTED here from its preconditions, and then
+run as a 2,000-epoch control arm to check the prediction. One of the three
+predictions turned out to be wrong, which is the entire reason the arms exist:
 
-  * `conserve_mode projection` pins sum(y) to sum(y0) for all time. SIR has that
-    invariant exactly. This dataset does NOT: sum(y) runs from 0.0019 to 1.5400
-    (measured, see `--diagnose`), because cumulative recovered is monotonically
-    increasing by construction. Applying the projection would conserve the wrong
-    constant -- it would hold the total at its t=0 value of 0.0027 forever.
+  * `--time_scale` -- predicted to transfer (it is pure units). CONFIRMED.
+    At s=1 the run reproduces SIR's exact failure signature: gradient spike
+    ratio 2.6e5 and a trajectory reaching 2.8e8. Any s in [10, 40] holds the
+    spike ratio to 2.3-9.4, docs/10's "healthy low tens".
 
-  * `vanish_dim` gates the field by y[dim], making y[dim]=0 a manifold of
-    equilibria. Here y0[0] = 0.0027 after normalisation, so the gate would
-    multiply the entire field by 0.0027 at t=0 and the trajectory would barely
-    move -- the pathology `--time_scale` exists to avoid.
+  * `conserve_mode projection` -- predicted to be INAPPLICABLE, because it pins
+    sum(y) to sum(y0) and this dataset's sum(y) runs 0.0019 -> 1.5400 (cumulative
+    recovered only grows). CONFIRMED: the arm holds sum(y) at 0.002748 for all t
+    and its training MSE is 25x worse than the unconstrained arm.
 
-Both are run anyway, as 2,000-epoch CONTROL arms, so those claims rest on
-measured losses and not only on the algebra.
+  * `vanish_dim` -- predicted to be inapplicable, on the grounds that y0[0] =
+    0.0027 would gate the field to near-zero at t=0 and freeze the trajectory.
+    **REFUTED.** It is the single best-performing option tested: 22x better
+    training MSE and 20x better extrapolation than the same arm without it. The
+    prediction confused a slow START with a frozen one -- f <- y[0]*f encodes
+    "growth is proportional to current prevalence", which is the structural
+    truth of an epidemic's onset whether or not a compartmental ODE generated
+    the curve, and it also bounds the runaway the other arms suffer.
 
-`--time_scale`, by contrast, is pure units and transfers directly. The argument
-is the same four-number init-time diagnostic that cracked SIR, reproduced by
-`--diagnose` before any training happens.
+`--diagnose` reproduces the four-number init-time measurement that cracked SIR,
+before any training happens; the arms then test what it predicts.
 
 Usage
 -----
@@ -177,7 +182,7 @@ def diagnose(time_scales=(1.0, 10.0, 20.0, 24.0, 30.0, 40.0)):
 # ==============================================================================
 
 def train_arm(tag, time_scale=1.0, conserve_projection=False, vanish_dim=None,
-              epochs=2000, print_freq=250, out_root=None):
+              epochs=2000, print_freq=250, out_root=None, train_days=45):
     """
     A thin training loop over the same five primitives `train_kan_ode` composes:
     KAN, NeuralODE, the data generator, Adam, and `compute_gradient_norm`.
@@ -190,13 +195,18 @@ def train_arm(tag, time_scale=1.0, conserve_projection=False, vanish_dim=None,
     Carries `train.py`'s X1 non-finite gradient guard: a control arm that is
     EXPECTED to fail (projection, vanish_dim) is exactly the situation where a
     poisoned parameter set would otherwise burn the whole budget.
+
+    `train_days` moves the train/extrapolation split. The dataset's default of
+    45 puts the split exactly ON the outbreak peak, so the training window holds
+    0% of the 75-day decay -- the split arm exists to separate "the method
+    cannot extrapolate" from "the window contained no decay to learn from".
     """
     out_dir = os.path.join(out_root or ensure_results_dir(RUNS_SUBDIR), tag)
     os.makedirs(out_dir, exist_ok=True)
 
     torch.manual_seed(BASE["seed"])
     np.random.seed(BASE["seed"])
-    data = load_empirical_epidemic_data()
+    data = load_empirical_epidemic_data(train_days=train_days)
     torch.manual_seed(BASE["seed"])
     np.random.seed(BASE["seed"])
 
@@ -221,7 +231,7 @@ def train_arm(tag, time_scale=1.0, conserve_projection=False, vanish_dim=None,
         "time_scale": float(time_scale),
         "conserve_mode": "projection" if conserve_projection else None,
         "vanish_dim": int(vanish_dim) if vanish_dim is not None else None,
-        "num_epochs": epochs, "parameters": total_p,
+        "num_epochs": epochs, "parameters": total_p, "train_days": int(train_days),
         "state_dim": int(data.y_full.shape[-1]),
         "n_train_points": n_train, "n_full_points": int(len(data.t_full)),
         "t_split": float(data.t_split), "t_end": float(data.t_full[-1]),
@@ -238,7 +248,8 @@ def train_arm(tag, time_scale=1.0, conserve_projection=False, vanish_dim=None,
     ABORT_STREAK = 100
 
     print(f"[{tag}] time_scale={time_scale} projection={conserve_projection} "
-          f"vanish_dim={vanish_dim} epochs={epochs} params={total_p}")
+          f"vanish_dim={vanish_dim} train_days={train_days} epochs={epochs} "
+          f"params={total_p}")
     t0 = time.time()
 
     for epoch in range(1, epochs + 1):
@@ -371,7 +382,11 @@ def plot_time_scale_sweep(runs, save_path):
         return False
 
     xs = [e[0] for e in ts_runs]
-    fig, ax = plt.subplots(figsize=(7.2, 4.6), dpi=150)
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.7), dpi=150)
+
+    # ---- (a) accuracy. s=1 is ~15 decades above the rest, which is the point:
+    # the axis is dominated by the collapse, not by the plateau after it.
+    ax = axes[0]
     for metric, color, marker, label in (
         ("train_mse", C_FIT, "o", "Training window $t \\in [0, 44]$ d"),
         ("extrap_mse", C_ALT, "s", "Extrapolation $t \\in (44, 120]$ d"),
@@ -379,22 +394,51 @@ def plot_time_scale_sweep(runs, save_path):
         ys = [e[2]["best"][metric] for e in ts_runs]
         ax.plot(xs, ys, color=color, marker=marker, markersize=8,
                 markeredgecolor="white", markeredgewidth=1.2, label=label, zorder=3)
-
-    best = min(ts_runs, key=lambda e: e[2]["best"]["train_mse"])
-    ax.axvline(best[0], color=C_TRUTH, linestyle=":", linewidth=1.5, zorder=2)
-    ax.annotate(f"selected: $s = {best[0]:g}$", (best[0], ax.get_ylim()[1]),
-                xytext=(6, -12), textcoords="offset points", fontsize=9,
-                color=C_TRUTH, va="top")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xticks(xs)
     ax.set_xticklabels([f"{v:g}" for v in xs])
     ax.set_xlabel("Time scale $s$   (integrate on $\\tau = t/s$)")
     ax.set_ylabel("MSE at best epoch")
-    ax.set_title("Time-scale sweep on the empirical outbreak (2,000-epoch probes)")
+    ax.set_title("(a) Accuracy — the $s=1$ blow-up, then a plateau")
     ax.grid(True, which="both", alpha=0.35, linestyle="--")
     ax.set_axisbelow(True)
-    ax.legend(loc="best", framealpha=0.92)
+    ax.legend(loc="center right", framealpha=0.92, fontsize=8.5)
+
+    # ---- (b) stability. docs/10 characterises a healthy run as a spike ratio
+    # in the "low tens"; that band is what the rescaled arms drop into.
+    ax = axes[1]
+    ratios = [e[2]["stability"].get("grad_norm_spike_ratio") or float("nan")
+              for e in ts_runs]
+    ax.plot(xs, ratios, color=C_THIRD, marker="D", markersize=8,
+            markeredgecolor="white", markeredgewidth=1.2, zorder=3)
+    ax.axhspan(1, 50, color=C_TRUTH, alpha=0.09, zorder=1)
+    ax.annotate("docs/10 “healthy”: spike ratio in the low tens",
+                (0.03, 0.06), xycoords="axes fraction", fontsize=8.5, color=C_TRUTH)
+    for i, (x, r) in enumerate(zip(xs, ratios)):
+        if np.isfinite(r):
+            # The leftmost point sits at the axis corner; nudge its label inward
+            # instead of letting it run off the edge.
+            ha = "left" if i == 0 else "center"
+            ax.annotate(f"{r:,.0f}×", (x, r), xytext=(2 if i == 0 else 0, 9),
+                        textcoords="offset points", ha=ha, fontsize=8.5,
+                        color=C_TRUTH)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    finite_ratios = [r for r in ratios if np.isfinite(r) and r > 0]
+    if finite_ratios:
+        # Headroom so the topmost value label is not clipped by the axes.
+        ax.set_ylim(top=max(finite_ratios) * 12)
+    ax.set_xticks(xs)
+    ax.set_xticklabels([f"{v:g}" for v in xs])
+    ax.set_xlabel("Time scale $s$   (integrate on $\\tau = t/s$)")
+    ax.set_ylabel("Gradient-norm spike ratio (max / median)")
+    ax.set_title("(b) Stability — SIR's failure signature, and its removal")
+    ax.grid(True, which="both", alpha=0.35, linestyle="--")
+    ax.set_axisbelow(True)
+
+    fig.suptitle("Time-scale sweep on the empirical outbreak (2,000-epoch probes)",
+                 y=1.03)
     fig.tight_layout()
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -402,52 +446,100 @@ def plot_time_scale_sweep(runs, save_path):
     return True
 
 
+def _best_tag(runs, preferred):
+    """First tag in `preferred` that actually produced a prediction."""
+    for tag in preferred:
+        if tag in runs and "_pred" in runs[tag]:
+            return tag
+    return None
+
+
 def plot_epidemic_fit(runs, full_tag, save_path):
     """
-    The headline: the fitted trajectory against the outbreak, with the two
-    inapplicable SIR fixes shown as what they are -- failed control arms.
+    Three panels:
+      (a) the best configuration's fit and extrapolation
+      (b) the three structural options at matched settings -- the control arms
+      (c) the split control: what happens when the training window is allowed
+          to contain some of the outbreak's decay
+
+    Panel (c) is what separates "the method cannot extrapolate this" from "the
+    default window ends exactly on the peak and contains none of the decay".
     """
     data = load_empirical_epidemic_data()
     t, y = data.t_full.numpy(), data.y_full.numpy()
     n_train = len(data.t_train)
+    split_day = float(data.t_split)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14.5, 4.8), dpi=150)
+    headline = _best_tag(runs, ["full_vanish", full_tag, "vanish", "ts24"])
+    fig, axes = plt.subplots(1, 3, figsize=(19, 4.8), dpi=150)
 
+    # ---- (a) headline fit -------------------------------------------------
     ax = axes[0]
     ax.plot(t, y[:, 0], color=C_TRUTH, linewidth=2.4, label="Observed infected")
     ax.plot(t, y[:, 1], color=C_TRUTH, linewidth=2.4, alpha=0.42,
             label="Observed cumulative recovered")
-    if full_tag in runs and "_pred" in runs[full_tag]:
-        p = runs[full_tag]["_pred"]
+    if headline:
+        p = runs[headline]["_pred"]
+        cfg = runs[headline]["config"]
         ax.plot(t, p[:, 0], color=C_FIT, linestyle="--", label="KAN-ODE infected")
         ax.plot(t, p[:, 1], color=C_THIRD, linestyle="--",
                 label="KAN-ODE cumulative recovered")
-    ax.axvline(t[n_train - 1], color="#0b0b0b", linestyle=":", linewidth=1.6)
-    ax.annotate("train | extrapolate", (t[n_train - 1], 1.12), xytext=(5, 0),
+        desc = f"$s={cfg['time_scale']:g}$"
+        if cfg.get("vanish_dim") is not None:
+            # Plain title text, not mathtext -- an escaped underscore would show
+            # the backslash rather than hide it.
+            desc += f", vanish_dim {cfg['vanish_dim']}"
+        desc += f", {cfg['num_epochs']:,} ep"
+        ax.set_title(f"(a) Best configuration — {desc}")
+    else:
+        ax.set_title("(a) Best configuration")
+    ax.axvline(split_day, color="#0b0b0b", linestyle=":", linewidth=1.6)
+    ax.annotate("train | extrapolate", (split_day, 0.04), xytext=(5, 0),
                 textcoords="offset points", fontsize=8.5, color=C_TRUTH, va="center")
-    ax.set_ylim(-0.08, 1.30)
+    ax.set_ylim(-0.08, 1.35)
     ax.set_xlabel("day")
     ax.set_ylabel("normalised state")
-    ax.set_title("(a) Fit and extrapolation, selected configuration")
     ax.grid(True, alpha=0.35, linestyle="--")
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", framealpha=0.94, fontsize=8.5)
 
+    # ---- (b) structural control arms --------------------------------------
     ax = axes[1]
     ax.plot(t, y[:, 0], color=C_TRUTH, linewidth=2.4, label="Observed infected")
-    arms = [(full_tag, C_FIT, "time scale only"),
-            ("proj", C_ALT, "+ conserve projection"),
-            ("vanish", C_THIRD, "+ vanish_dim 0")]
-    for tag, color, label in arms:
+    for tag, color, label in (("ts24", C_FIT, "time scale only"),
+                              ("proj", C_ALT, "+ conserve projection"),
+                              ("vanish", C_THIRD, "+ vanish_dim 0")):
         if tag in runs and "_pred" in runs[tag]:
-            mse = runs[tag]["best"]["full_mse"]
             ax.plot(t, runs[tag]["_pred"][:, 0], color=color, linestyle="--",
-                    label=f"{label}  (full MSE {mse:.3f})")
-    ax.axvline(t[n_train - 1], color="#0b0b0b", linestyle=":", linewidth=1.6)
-    ax.set_ylim(-0.08, 1.30)
+                    label=f"{label}  (full MSE {runs[tag]['best']['full_mse']:.3f})")
+    ax.axvline(split_day, color="#0b0b0b", linestyle=":", linewidth=1.6)
+    # The unconstrained arm runs off to ~6, so clip and say so rather than
+    # letting one diverging curve flatten the other three into a single line.
+    ax.set_ylim(-0.08, 1.35)
+    ax.annotate("plain arm continues to 6.2 →", (0.97, 1.28), xycoords=("axes fraction", "data"),
+                ha="right", fontsize=8, color=C_ALT)
     ax.set_xlabel("day")
     ax.set_ylabel("normalised infected")
-    ax.set_title("(b) Control arms: the two SIR fixes that do not transfer")
+    ax.set_title("(b) Structural priors, matched at $s=24$, 2,000 epochs")
+    ax.grid(True, alpha=0.35, linestyle="--")
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper left", framealpha=0.94, fontsize=8.5)
+
+    # ---- (c) split control ------------------------------------------------
+    ax = axes[2]
+    ax.plot(t, y[:, 0], color=C_TRUTH, linewidth=2.4, label="Observed infected")
+    for tag, color in (("ts24", "#86b6ef"), ("split60", "#2a78d6"), ("split70", "#0d366b")):
+        if tag in runs and "_pred" in runs[tag]:
+            cfg = runs[tag]["config"]
+            day = cfg.get("train_days", 45)
+            ax.plot(t, runs[tag]["_pred"][:, 0], color=color, linestyle="--",
+                    label=f"split day {day}  (extrap MSE "
+                          f"{runs[tag]['best']['extrap_mse']:.3f})")
+            ax.axvline(day, color=color, linestyle=":", linewidth=1.2, alpha=0.8)
+    ax.set_ylim(-0.08, 1.35)
+    ax.set_xlabel("day")
+    ax.set_ylabel("normalised infected")
+    ax.set_title("(c) Split control — the peak is at day 45")
     ax.grid(True, alpha=0.35, linestyle="--")
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", framealpha=0.94, fontsize=8.5)
@@ -475,7 +567,9 @@ def collect(out_dir, full_tag="full"):
     }
 
     plot_time_scale_sweep(runs, os.path.join(out_dir, "epidemic_time_scale_sweep.png"))
-    if full_tag in runs:
+    # The headline arm is whichever of the full-length runs exists, so this must
+    # not be gated on `full_tag` alone -- `full_vanish` may be the better one.
+    if _best_tag(runs, ["full_vanish", full_tag, "vanish", "ts24"]):
         plot_epidemic_fit(runs, full_tag, os.path.join(out_dir, "real_epidemic_fit.png"))
 
     path = os.path.join(out_dir, "real_epidemic_metrics.json")
@@ -495,6 +589,9 @@ def main():
     ap.add_argument("--time_scale", type=float, default=1.0)
     ap.add_argument("--conserve_projection", action="store_true")
     ap.add_argument("--vanish_dim", type=int, default=None)
+    ap.add_argument("--train_days", type=int, default=45,
+                    help="Train/extrapolation split in days. The dataset default "
+                         "of 45 lands exactly on the outbreak peak.")
     ap.add_argument("--epochs", type=int, default=2000)
     ap.add_argument("--full_tag", default="full")
     ap.add_argument("--out", default=None)
@@ -520,6 +617,7 @@ def main():
     train_arm(args.tag, time_scale=args.time_scale,
               conserve_projection=args.conserve_projection,
               vanish_dim=args.vanish_dim, epochs=args.epochs,
+              train_days=args.train_days,
               out_root=os.path.join(out_dir, RUNS_SUBDIR))
 
 

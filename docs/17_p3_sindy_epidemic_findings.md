@@ -143,7 +143,9 @@ alone: **there is no KAN-side quantity it could be compared against.**
 ### A note on `SmoothedFiniteDifference` — SINDy's own noise defence backfires here
 
 The smoothed arm is *worse than plain finite differences at every noise level*
-(coefficient error $\ge 87\%$ even at $\sigma=0$). This is a property of the window,
+(worst-term coefficient error $87\%$ at $\sigma=0$, rising to $101\%$ at
+$\sigma=0.1$ — against $5.4\%$ and $44.6\%$ for plain finite differences). This is
+a property of the window,
 not of the method: `SmoothedFiniteDifference` defaults to a Savitzky-Golay filter with
 `window_length=11`, and at $\Delta t = 0.1$ that spans $1.1$ time units — **33% of
 Lotka-Volterra's $3.33$ period, and 31% of the entire 36-point training series**. A

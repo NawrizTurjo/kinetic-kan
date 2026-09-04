@@ -20,7 +20,7 @@ Two sub-tasks, bundled because both compare a learned model against an
 ```powershell
 cd implementation/experiments/sindy_epidemic
 
-python run_all.py                    # everything: E1 + E2  (~3 h, see below)
+python run_all.py                    # everything: E1 + E2  (see Runtime below)
 python run_all.py --skip-e2          # E1 only              (~1 min)
 python run_all.py --probe-epochs 30 --full-epochs 40   # fast end-to-end smoke test
 ```
@@ -51,21 +51,33 @@ Tests: `pytest tests/test_p3_sindy_epidemic.py` (27 tests, no training required)
 > to `>=2.0` belongs in the single integration PR described in roadmap §2.4, not
 > in this branch.
 
-Runtime is dominated by E2, at a measured **0.82 s/epoch**:
+### What E2 runs
 
-| Stage | Work | Wall clock |
-| :--- | :--- | :--- |
-| E1 | no training — re-integration only | ~1 min |
-| E2 probes | 8 arms × 2,000 epochs, **in parallel** | ~30 min (machine-dependent) |
-| E2 full run | 1 arm × 10,000 epochs, **serial** | ~2 h 15 min |
+| Stage | Arms | Budget | Why |
+| :-- | :--- | :-: | :--- |
+| 1 | `ts1 ts10 ts20 ts24 ts30 ts40` | 2,000 ep | Does `--time_scale` transfer? `s=1` is the no-fix baseline |
+| 2 | `proj`, `vanish` | 2,000 ep | The two structural priors, at matched `s=24` |
+| 3 | `split60`, `split70` | 2,000 ep | Move the train/extrapolation split off the outbreak peak |
+| 4 | `full_vanish`, `full_plain` | 5,000 ep | Headline runs — matched `s` and budget, differing only in `vanish_dim` |
 
-The probe arms are independent, so `run_all.py` runs them as parallel processes,
-each pinned to one thread — measured at 0.82 s/epoch on one thread vs. 0.80
-s/epoch on ten, because the cost is a sequential Python loop over 44 intervals ×
-2 substeps × 6 Tsit5 stages rather than anything BLAS-bound. Parallel scaling is
-nonetheless poor on a power-limited laptop (measured ~1.5× aggregate throughput
-for 8 arms), so the probe stage can take considerably longer than 30 min there.
-The full run is the long pole either way and cannot be parallelised.
+Stage 3 exists because the dataset's default split (day 45) lands **exactly on
+the infected peak**, so the training window holds 0% of the 75-day decay. Those
+arms separate *"the method cannot extrapolate"* from *"the window contained
+nothing to extrapolate from"*.
+
+### Runtime
+
+Measured at **0.82 s/epoch** single-threaded. Stages 1–3 run in parallel (each
+child pinned to one thread — intra-op threading buys nothing here: 0.82 s/epoch
+on one thread vs. 0.80 on ten, because the cost is a sequential Python loop over
+44 intervals × 2 substeps × 6 Tsit5 stages, not anything BLAS-bound).
+
+**Parallel scaling is sublinear on a power-limited CPU** — 8 concurrent arms
+measured only ~1.5× the aggregate throughput of one, and per-arm speed fell from
+0.82 to ~3.6 s/epoch. Hence `--max-parallel` (default 4), and hence stage 4 runs
+its two long arms *serially*, which on such a machine finishes sooner than
+running them together. Budget roughly 1–1.5 h for stages 1–3 and ~1 h per
+stage-4 arm; a machine that holds its clocks will be considerably quicker.
 
 ---
 
@@ -91,7 +103,7 @@ Nothing outside this folder, `results/phase3/sindy_epidemic/`,
 
 A KAN edge `i -> o` owns `grid_len` spline coefficients plus one base weight:
 
-```
+```text
 phi_{o,i}(x) = sum_g C[o, i*G+g] * basis_g(norm(x))  +  W[o,i] * silu(x)
 ```
 
@@ -126,9 +138,14 @@ here — not a reason to edit a shared file. The loop keeps `train.py`'s
 non-finite gradient guard (X1), its gradient clipping, and its
 select-on-training-loss checkpoint rule.
 
-### E2 runs control arms for the fixes it argues are inapplicable
+### E2 predicts, then runs the control arm anyway — and one prediction was wrong
 
-Two of SIR's three fixes have preconditions this dataset does not satisfy
-(`sum(y)` is not invariant; the `vanish_dim` gate is ~0.003 at `t=0`). Rather
-than only asserting that, `run_all.py` trains both as 2,000-epoch control arms,
-so the claim rests on measured losses. See the write-up for the numbers.
+Each of SIR's three fixes was predicted here from its preconditions, then run as
+a control arm to check. `--time_scale` transferred as predicted; `conserve_mode
+projection` failed as predicted. **`vanish_dim` was predicted to fail and did
+not** — it is the best-performing option tested. The prediction had confused a
+slow *start* with a frozen one.
+
+That is the argument for running the controls rather than reasoning to a
+conclusion and stopping: one arm in three overturned the write-up's expected
+result. See the findings doc for the numbers.
