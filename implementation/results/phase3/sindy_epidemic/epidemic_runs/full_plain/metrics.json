@@ -1,0 +1,61 @@
+{
+  "config": {
+    "tag": "full_plain",
+    "dataset": "empirical_epidemic",
+    "time_scale": 24.0,
+    "conserve_mode": null,
+    "vanish_dim": null,
+    "num_epochs": 5000,
+    "parameters": 240,
+    "train_days": 45,
+    "state_dim": 2,
+    "n_train_points": 45,
+    "n_full_points": 121,
+    "t_split": 45.0,
+    "t_end": 120.0,
+    "torch_version": "2.11.0+cpu",
+    "grid_len": 5,
+    "basis_func": "rbf",
+    "normalizer": "tanh",
+    "base_act": "silu",
+    "solver": "tsit5",
+    "substeps": 2,
+    "lr": 0.002,
+    "grad_clip": 1.0,
+    "seed": 42,
+    "layers_hidden": [
+      2,
+      10,
+      2
+    ]
+  },
+  "selection": {
+    "criterion": "min_train_mse",
+    "best_epoch": 4889,
+    "best_train_mse_during_training": 0.0022024500649422407
+  },
+  "best": {
+    "train_mse": 0.002202449832111597,
+    "extrap_mse": 4.055952548980713,
+    "full_mse": 2.5483596324920654,
+    "finite": true
+  },
+  "final": {
+    "train_mse": 0.002882914850488305,
+    "extrap_mse": 3.996757984161377,
+    "full_mse": 2.51143217086792,
+    "finite": true
+  },
+  "training_time_seconds": 1258.9498682022095,
+  "seconds_per_epoch": 0.2517899736404419,
+  "stability": {
+    "grad_clip": 1.0,
+    "nonfinite_grad_steps": 0,
+    "first_nonfinite_epoch": null,
+    "aborted_at_epoch": null,
+    "epochs_run": 5000,
+    "grad_norm_median_preclip": 2.272619641347817,
+    "grad_norm_max_preclip": 12.629919155097285,
+    "grad_norm_spike_ratio": 5.5574276158270335
+  }
+}

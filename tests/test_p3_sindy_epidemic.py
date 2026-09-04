@@ -210,6 +210,56 @@ class TestSplitMse:
 # 3. The empirical-epidemic facts E2's argument depends on
 # ==============================================================================
 
+E2_RUNS = os.path.join(IMPL_ROOT, "results", "phase3", "sindy_epidemic", "epidemic_runs")
+
+
+class TestEpidemicArmReplay:
+    """
+    `best_prediction.npy` is gitignored, so a fresh clone can only redraw E2's
+    figures by re-integrating each arm from its committed `best_model.pt`. That
+    replay path has to honour time_scale, train_days and the structural wrappers
+    -- if it does not, `--collect` draws a trajectory the run never produced.
+    """
+
+    @pytest.mark.parametrize("tag", ["ts24", "proj", "vanish", "split60", "full_vanish"])
+    def test_replay_reproduces_published_metrics(self, tag):
+        import run_epidemic_fit as ref
+
+        metrics_path = os.path.join(E2_RUNS, tag, "metrics.json")
+        ckpt = os.path.join(E2_RUNS, tag, "best_model.pt")
+        if not (os.path.exists(metrics_path) and os.path.exists(ckpt)):
+            pytest.skip(f"E2 arm '{tag}' has not been run in this working tree")
+
+        with open(metrics_path) as f:
+            m = json.load(f)
+        config = m["config"]
+
+        pred = ref.replay_checkpoint(ckpt, config)
+        data = load_empirical_epidemic_data(train_days=config.get("train_days", 45))
+        got = common.split_mse(data.y_full.numpy(), pred, len(data.t_train))
+
+        assert got["train_mse"] == pytest.approx(m["best"]["train_mse"], rel=1e-4)
+        assert got["extrap_mse"] == pytest.approx(m["best"]["extrap_mse"], rel=1e-4)
+
+    def test_replay_honours_the_structural_wrapper(self):
+        """
+        The projection arm conserves sum(y) exactly. Replaying it without
+        re-applying `ZeroSumField` would integrate a different ODE, and this is
+        the cheapest observable that would catch it.
+        """
+        import run_epidemic_fit as ref
+
+        metrics_path = os.path.join(E2_RUNS, "proj", "metrics.json")
+        ckpt = os.path.join(E2_RUNS, "proj", "best_model.pt")
+        if not (os.path.exists(metrics_path) and os.path.exists(ckpt)):
+            pytest.skip("E2 'proj' arm has not been run in this working tree")
+
+        with open(metrics_path) as f:
+            config = json.load(f)["config"]
+        sums = ref.replay_checkpoint(ckpt, config).sum(-1)
+        assert np.ptp(sums) < 1e-5, "ZeroSumField was not re-applied on replay"
+
+
 class TestEmpiricalEpidemicPreconditions:
     """
     E2 claims two of SIR's three fixes do not transfer. Both claims are claims

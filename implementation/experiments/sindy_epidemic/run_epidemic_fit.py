@@ -349,16 +349,57 @@ def train_arm(tag, time_scale=1.0, conserve_projection=False, vanish_dim=None,
 # Collection & figures
 # ==============================================================================
 
+def replay_checkpoint(ckpt_path, config):
+    """
+    Re-integrate an arm from its saved checkpoint.
+
+    The cached `best_prediction.npy` is gitignored (`*.npy`), so a fresh clone has
+    the checkpoints but not the trajectories. Rather than let `--collect` silently
+    draw an empty figure there, rebuild the prediction from `best_model.pt` --
+    re-applying the structural wrappers and the arm's own time_scale, the same
+    rebuild contract `common.integrate` implements for the Phase-2 checkpoints.
+    """
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    data = load_empirical_epidemic_data(train_days=config.get("train_days", 45))
+
+    model = KAN(layers_hidden=config.get("layers_hidden", BASE["layers_hidden"]),
+                grid_len=config.get("grid_len", BASE["grid_len"]),
+                basis_func=config.get("basis_func", BASE["basis_func"]),
+                normalizer=config.get("normalizer", BASE["normalizer"]),
+                base_act=config.get("base_act", BASE["base_act"]))
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+
+    field = model
+    if config.get("conserve_mode") == "projection":
+        field = ZeroSumField(field)
+    if config.get("vanish_dim") is not None:
+        field = VanishingDimField(field, dim=int(config["vanish_dim"]))
+
+    node = NeuralODE(func=field, method=config.get("solver", BASE["solver"]),
+                     substeps=config.get("substeps", BASE["substeps"]))
+    with torch.no_grad():
+        return node(y0=data.y0,
+                    t=data.t_full / float(config.get("time_scale", 1.0))).cpu().numpy()
+
+
 def load_runs(run_root):
     runs = {}
     for path in sorted(glob.glob(os.path.join(run_root, "*", "metrics.json"))):
         tag = os.path.basename(os.path.dirname(path))
+        d = os.path.dirname(path)
         with open(path) as f:
             runs[tag] = json.load(f)
-        pred = os.path.join(os.path.dirname(path), "best_prediction.npy")
+
+        pred, ckpt = (os.path.join(d, "best_prediction.npy"),
+                      os.path.join(d, "best_model.pt"))
         if os.path.exists(pred):
             runs[tag]["_pred"] = np.load(pred)
-        hist = os.path.join(os.path.dirname(path), "training_history.json")
+        elif os.path.exists(ckpt):
+            runs[tag]["_pred"] = replay_checkpoint(ckpt, runs[tag]["config"])
+            print(f"  [{tag}] best_prediction.npy absent -- replayed from checkpoint")
+
+        hist = os.path.join(d, "training_history.json")
         if os.path.exists(hist):
             with open(hist) as f:
                 runs[tag]["_history"] = json.load(f)
@@ -528,15 +569,25 @@ def plot_epidemic_fit(runs, full_tag, save_path):
     # ---- (c) split control ------------------------------------------------
     ax = axes[2]
     ax.plot(t, y[:, 0], color=C_TRUTH, linewidth=2.4, label="Observed infected")
+    escapes = []
     for tag, color in (("ts24", "#86b6ef"), ("split60", "#2a78d6"), ("split70", "#0d366b")):
         if tag in runs and "_pred" in runs[tag]:
             cfg = runs[tag]["config"]
             day = cfg.get("train_days", 45)
-            ax.plot(t, runs[tag]["_pred"][:, 0], color=color, linestyle="--",
+            pred = runs[tag]["_pred"]
+            ax.plot(t, pred[:, 0], color=color, linestyle="--",
                     label=f"split day {day}  (extrap MSE "
                           f"{runs[tag]['best']['extrap_mse']:.3f})")
             ax.axvline(day, color=color, linestyle=":", linewidth=1.2, alpha=0.8)
+            if float(pred[:, 0].max()) > 1.35:
+                escapes.append((day, float(pred[:, 0].max()), color))
     ax.set_ylim(-0.08, 1.35)
+    # A curve that leaves the frame must say so, or the panel reads as if it
+    # simply stopped -- and "it ran away" is the whole point of that arm.
+    for i, (day, peak, color) in enumerate(escapes):
+        ax.annotate(f"split {day} runs off to {peak:.1f} ↑", (0.97, 1.28 - 0.09 * i),
+                    xycoords=("axes fraction", "data"), ha="right", fontsize=8,
+                    color=color)
     ax.set_xlabel("day")
     ax.set_ylabel("normalised infected")
     ax.set_title("(c) Split control — the peak is at day 45")

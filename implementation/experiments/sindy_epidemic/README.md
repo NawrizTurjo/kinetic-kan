@@ -34,7 +34,7 @@ python run_epidemic_fit.py --tag ts24 --time_scale 24 --epochs 2000
 python run_epidemic_fit.py --collect             # E2 figures + summary JSON
 ```
 
-Tests: `pytest tests/test_p3_sindy_epidemic.py` (27 tests, no training required).
+Tests: `pytest tests/test_p3_sindy_epidemic.py` (33 tests, no training required).
 
 ### Environment
 
