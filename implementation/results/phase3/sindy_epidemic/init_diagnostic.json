@@ -1,0 +1,82 @@
+{
+  "dataset": "load_empirical_epidemic_data()",
+  "state_dim": 2,
+  "state_meaning": [
+    "infected (normalised)",
+    "cumulative recovered (normalised)"
+  ],
+  "n_train_points": 45,
+  "n_full_points": 121,
+  "horizon_days": 120.0,
+  "t_split_days": 45.0,
+  "init_field_magnitude": 0.2987297773361206,
+  "true_field_magnitude": 0.015916572883725166,
+  "init_over_true_ratio": 18.768473560132684,
+  "untrained_trajectory_range": [
+    -0.004787340760231018,
+    1.9983222484588623
+  ],
+  "sum_invariant": {
+    "sum_y0": 0.0027479606214910746,
+    "sum_min": 0.001941237598657608,
+    "sum_max": 1.5399630069732666,
+    "sum_std": 0.5036731362342834,
+    "sum_range": 1.5380218029022217,
+    "is_invariant": false
+  },
+  "vanish_dim_gate": {
+    "y0_infected": 0.0027479606214910746,
+    "min_infected": 0.0,
+    "argmin_infected_day": 101.0
+  },
+  "time_scale_probe": [
+    {
+      "time_scale": 1.0,
+      "rescaled_horizon": 120.0,
+      "rescaled_true_deriv": 0.015916572883725166,
+      "untrained_traj_min": -0.004787340760231018,
+      "untrained_traj_max": 1.9983222484588623,
+      "epoch0_train_mse": 1.5858889818191528
+    },
+    {
+      "time_scale": 10.0,
+      "rescaled_horizon": 12.0,
+      "rescaled_true_deriv": 0.15916572883725166,
+      "untrained_traj_min": -0.01624022051692009,
+      "untrained_traj_max": 1.8993358612060547,
+      "epoch0_train_mse": 0.14906547963619232
+    },
+    {
+      "time_scale": 20.0,
+      "rescaled_horizon": 6.0,
+      "rescaled_true_deriv": 0.3183314576745033,
+      "untrained_traj_min": -0.016240179538726807,
+      "untrained_traj_max": 1.2166146039962769,
+      "epoch0_train_mse": 0.0918586403131485
+    },
+    {
+      "time_scale": 24.0,
+      "rescaled_horizon": 5.0,
+      "rescaled_true_deriv": 0.381997749209404,
+      "untrained_traj_min": -0.01624022051692009,
+      "untrained_traj_max": 0.9963707327842712,
+      "epoch0_train_mse": 0.08827266097068787
+    },
+    {
+      "time_scale": 30.0,
+      "rescaled_horizon": 4.0,
+      "rescaled_true_deriv": 0.477497186511755,
+      "untrained_traj_min": -0.016252411529421806,
+      "untrained_traj_max": 0.7823754549026489,
+      "epoch0_train_mse": 0.08612839877605438
+    },
+    {
+      "time_scale": 40.0,
+      "rescaled_horizon": 3.0,
+      "rescaled_true_deriv": 0.6366629153490067,
+      "untrained_traj_min": -0.01626192033290863,
+      "untrained_traj_max": 0.5917918682098389,
+      "epoch0_train_mse": 0.08519136160612106
+    }
+  ]
+}
