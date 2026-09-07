@@ -56,11 +56,16 @@ recipe from `docs/10_sir_root_cause_and_fix.md` so the run actually converges):
 - `profiling.py` -- the four measurement primitives above, reusable and unit-tested.
 - `run_profile.py` -- CLI that runs the full profiling suite and writes
   `results/phase3/adjoint_profiling/table4.json`,
-  `results/phase3/adjoint_profiling/memory_vs_trajectory_length.png`, and a
-  **draft** `docs/13_p3_adjoint_profiling_findings.md` auto-filled with the real
-  numbers (the prose's factual claims are generated from the JSON; the
-  interpretive paragraph is left as a `TODO` for a human read of the actual
-  table -- see the file for exactly what's auto vs. manual).
+  `results/phase3/adjoint_profiling/memory_vs_trajectory_length.png`, and
+  (on first run only) a draft `docs/13_p3_adjoint_profiling_findings.md`. The
+  real run has already happened (RTX 3060, 2000 epochs/stage) and the findings
+  doc has been hand-written from that real `table4.json` -- it is not a
+  placeholder. If you re-run this script (e.g. to extend the sweep or bump the
+  epoch count), it will refresh `table4.json` and the figure but **leaves the
+  findings doc alone** once it exists, specifically so a bare re-run can't
+  silently clobber the hand-written analysis with the generic auto-draft again
+  -- pass `--overwrite_findings` if you actually want to regenerate it from
+  scratch.
 
 ## How to run
 
@@ -93,6 +98,6 @@ after all five Phase 3 branches merge).
 
 | Check | Target | Status |
 | :--- | :--- | :--- |
-| Gradient relative error, both systems | $< 5\times10^{-3}$ | confirmed at toy scale in tests (~1e-7); real-scale numbers land in `table4.json` after `run_profile.py --device cuda` |
-| Both systems profiled | direct autograd **and** adjoint | implemented, delegated to run |
-| Written finding | states explicitly whether "adjoint isn't needed here" still holds, and at what trajectory length it would stop holding | auto-drafted in `docs/13_p3_adjoint_profiling_findings.md`, needs a human read of the real table |
+| Gradient relative error, both systems | $< 5\times10^{-3}$ | ✅ done -- $2.85\times10^{-7}$ (Lotka-Volterra), $4.88\times10^{-7}$ (SIR), on the RTX 3060 real run |
+| Both systems profiled | direct autograd **and** adjoint | ✅ done -- see `results/phase3/adjoint_profiling/table4.json` |
+| Written finding | states explicitly whether "adjoint isn't needed here" still holds, and at what trajectory length it would stop holding | ✅ done -- `docs/13_p3_adjoint_profiling_findings.md`. Short version: the claim holds, but not for the reason originally stated -- adjoint is already cheaper in *memory* even at $N=36$, the real cost is a measured ~1.9-2.1x **wall-clock** slowdown, and that would only stop being the deciding factor around $N_t \sim 10^5$ (extrapolated). |

@@ -152,7 +152,7 @@ def find_crossover(sweep):
     return None
 
 
-def write_findings_md(table4, sweep, crossover, save_path):
+def write_findings_md(table4, sweep, crossover, save_path, fig_path):
     lv = table4["systems"]["lotka_volterra"]
     sir = table4["systems"]["sir"]
     device_name = table4["meta"]["device_name"]
@@ -205,10 +205,11 @@ def write_findings_md(table4, sweep, crossover, save_path):
                       else "not reached within the swept range "
                            f"(up to $N_t={sweep['n_t'][-1]}$)")
     lines.append("## Memory vs. trajectory length\n")
-    lines.append(
-        "![memory vs trajectory length](../../implementation/results/phase3/adjoint_profiling/"
-        "memory_vs_trajectory_length.png)\n"
-    )
+    # Derived, not hardcoded: a literal "../.." string here previously drifted out of
+    # sync with the actual folder depth and produced a broken image link in the
+    # rendered doc. relpath is always correct regardless of how deep either file sits.
+    img_rel = os.path.relpath(fig_path, os.path.dirname(save_path)).replace(os.sep, "/")
+    lines.append(f"![memory vs trajectory length]({img_rel})\n")
     lines.append(
         f"Sweeping $N_t \\in \\{{{', '.join(str(n) for n in sweep['n_t'])}\\}}$ with a single "
         "forward+backward pass per point (isolating the memory claim from training-loop/optimizer "
@@ -255,6 +256,12 @@ def main():
                          help="N_t values for the memory-vs-length sweep")
     parser.add_argument("--skip_training_profile", action="store_true",
                          help="Only run the memory-vs-length sweep + gradient check (fast smoke run)")
+    parser.add_argument("--overwrite_findings", action="store_true",
+                         help="Regenerate docs/13_p3_adjoint_profiling_findings.md from scratch even if "
+                              "it already exists. Default is to leave it alone once it exists, since the "
+                              "auto-drafted interpretive paragraph is meant to be replaced by hand after "
+                              "the first real run -- a bare re-run (e.g. to extend the sweep) should not "
+                              "silently clobber that with the generic placeholder again.")
     args = parser.parse_args()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -295,12 +302,15 @@ def main():
     plot_memory_vs_length(sweep, systems, fig_path)
     print(f"Wrote {fig_path}")
 
-    if systems:
-        crossover = find_crossover(sweep)
-        write_findings_md(table4, sweep, crossover, DOCS_PATH)
-        print(f"Wrote draft findings: {DOCS_PATH}")
-    else:
+    if not systems:
         print("Skipped findings draft (--skip_training_profile was set, no per-system table to report)")
+    elif os.path.exists(DOCS_PATH) and not args.overwrite_findings:
+        print(f"Left {DOCS_PATH} untouched (already exists -- pass --overwrite_findings to "
+              f"regenerate the draft from scratch and discard any hand-written analysis in it)")
+    else:
+        crossover = find_crossover(sweep)
+        write_findings_md(table4, sweep, crossover, DOCS_PATH, fig_path)
+        print(f"Wrote draft findings: {DOCS_PATH}")
 
 
 if __name__ == "__main__":
