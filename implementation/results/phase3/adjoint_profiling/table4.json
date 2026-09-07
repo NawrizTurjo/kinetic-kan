@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce RTX 3060",
+    "torch_version": "2.5.1+cu121",
+    "epochs_per_profiling_run": 2000,
+    "timestamp": "2026-09-07 06:05:11"
+  },
+  "systems": {
+    "lotka_volterra": {
+      "state_dim": 2,
+      "n_train_points": 36,
+      "grad_check": {
+        "grad_relative_error": 2.8526217879241204e-07,
+        "grad_norm_direct": 18.724773406982422,
+        "grad_norm_adjoint": 18.724777221679688,
+        "trajectory_relative_diff": 8.530038542176044e-08
+      },
+      "direct_autograd": {
+        "method": "direct_autograd",
+        "solver": "rk4",
+        "substeps": 2,
+        "peak_vram_mb": 18.610688,
+        "wallclock_s": 635.0457234999999,
+        "wallclock_s_per_1000_epochs": 317.52286174999995,
+        "final_train_mse": 0.027003776282072067,
+        "num_epochs": 2000
+      },
+      "adjoint": {
+        "method": "adjoint",
+        "solver": "rk4",
+        "substeps": 2,
+        "step_size": 0.05000000074505806,
+        "peak_vram_mb": 17.0752,
+        "wallclock_s": 1345.7092536,
+        "wallclock_s_per_1000_epochs": 672.8546268,
+        "final_train_mse": 0.003144867019727826,
+        "num_epochs": 2000
+      }
+    },
+    "sir": {
+      "state_dim": 3,
+      "n_train_points": 101,
+      "grad_check": {
+        "grad_relative_error": 4.883186589131764e-07,
+        "grad_norm_direct": 92.29784393310547,
+        "grad_norm_adjoint": 92.29786682128906,
+        "trajectory_relative_diff": 2.0004145540042373e-07
+      },
+      "direct_autograd": {
+        "method": "direct_autograd",
+        "solver": "rk4",
+        "substeps": 2,
+        "peak_vram_mb": 21.517312,
+        "wallclock_s": 1969.4901811,
+        "wallclock_s_per_1000_epochs": 984.74509055,
+        "final_train_mse": 6.961492181289941e-05,
+        "num_epochs": 2000
+      },
+      "adjoint": {
+        "method": "adjoint",
+        "solver": "rk4",
+        "substeps": 2,
+        "step_size": 0.02500000037252903,
+        "peak_vram_mb": 17.119232,
+        "wallclock_s": 3743.2834321,
+        "wallclock_s_per_1000_epochs": 1871.64171605,
+        "final_train_mse": 3.023239696631208e-05,
+        "num_epochs": 2000
+      }
+    }
+  },
+  "memory_vs_trajectory_length": {
+    "n_t": [
+      36,
+      101,
+      201,
+      401,
+      801,
+      1601,
+      3201
+    ],
+    "direct_autograd_mb": [
+      18.606592,
+      21.504,
+      25.963008,
+      34.878976,
+      52.7104,
+      88.375296,
+      159.703552
+    ],
+    "adjoint_mb": [
+      17.071104,
+      17.073152,
+      17.07776,
+      17.084928,
+      17.098752,
+      17.128448,
+      17.186304
+    ]
+  }
+}
