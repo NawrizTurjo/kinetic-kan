@@ -2,7 +2,9 @@
 
 > **Owner:** Shams Hossain Simanto (2105048) · **Branch:** `feat/p3-hybrid-basis`
 > **Folder:** `experiments/hybrid_basis/` · **Results:** `results/phase3/hybrid_basis/`
-> **Status:** 📋 guideline complete, implementation not yet started
+> **Status:** ✅ implemented, tested, both probes validated (incl. a pendulum
+> gate-speed fix confirmed at probe scale) — 10,000-epoch full-budget runs for
+> both systems queued to launch next; §11 to be filled in once they complete
 > **Parent plan:** [`12_phase3_roadmap.md`](./12_phase3_roadmap.md) §Track C
 >
 > This file is meant to be **self-contained** — everything needed to execute Track C
@@ -204,6 +206,13 @@ Mirrors `train_kan_ode()`'s structure exactly (seeding order, best-on-train-loss
 checkpoint taken via `deepcopy` *before* `optimizer.step()`, the X1 non-finite gradient
 guard) — just with `basis_func` kept out of anything JSON-serialized, per §3.
 
+**This section is the final, as-shipped version** — it has been through two rounds of
+fixes since the first draft (§3b's `lr`/`grid_len` bug, §7b's missing plots, §10b's
+`blend_lr_mult` gate-speed fix) plus one dead-code cleanup (an unused `import time`,
+found during the pre-10k re-audit in §10c and removed). The full `tests/` suite (172
+tests) and a post-cleanup 5-epoch smoke test on both datasets were both re-run clean
+against this exact version before it was trusted for the 10,000-epoch runs.
+
 ```python
 # experiments/hybrid_basis/run_hybrid.py
 """
@@ -216,7 +225,6 @@ import copy
 import json
 import math
 import os
-import time
 
 import numpy as np
 import torch
@@ -225,20 +233,31 @@ from tqdm import tqdm
 
 import sys
 # This file lives at implementation/experiments/hybrid_basis/run_hybrid.py, so
-# "implementation/" is exactly two levels up -- no extra suffix needed.
+# "implementation/" (the package root holding kan/, ode/, data/, utils/) is exactly
+# two levels up -- no extra "implementation" suffix needed.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 from kan import KAN, count_parameters
 from ode import NeuralODE
 from data import generate_lotka_volterra_data, generate_damped_pendulum_data
 from utils import (
-    compute_mse, compute_rmse, compute_mae,
-    compute_r2_score, compute_relative_l2_error, compute_gradient_norm,
+    compute_mse, compute_r2_score, compute_relative_l2_error, compute_gradient_norm,
+    plot_trajectory_comparison, plot_phase_space, plot_loss_curves, plot_gradient_norm_dynamics,
 )
 from hybrid_basis import HybridBasis
 
 
-def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu", log_every=500):
+def run(dataset, epochs, lr=None, grid_len=None, grad_clip=1.0, save_dir=None,
+        seed=42, device="cpu", log_every=500, blend_lr_mult=1.0):
+    """
+    lr and grid_len default to None so a dataset-specific validated value can be
+    supplied automatically (below) WITHOUT silently overriding an explicit CLI value
+    -- the bug this replaced. `grid_len` previously did override unconditionally
+    (`grid_len = 8` regardless of what was passed for damped_pendulum); `lr` did not
+    override at all, so the pendulum branch silently ran at LV's lr=2e-3 instead of
+    the [09]-validated 3e-3 whenever --lr was omitted. Both are now resolved the same
+    way: use the CLI value if one was given, else the validated per-dataset default.
+    """
     os.makedirs(save_dir, exist_ok=True)
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -246,13 +265,27 @@ def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu
     if dataset == "lotka_volterra":
         data = generate_lotka_volterra_data(seed=seed)           # defaults match Table 2
         layers = [2, 10, 2]
+        if lr is None:
+            lr = 2e-3        # Table 2's own lr
+        if grid_len is None:
+            grid_len = 5      # Table 2's own G
     elif dataset == "damped_pendulum":
-        # [09]-fixed recipe: t_train_end=5.0, default SiLU base_act, G=8.
+        # [09]-fixed recipe: t_train_end=5.0, default SiLU base_act, G=8, lr=3e-3.
         data = generate_damped_pendulum_data(t_train_end=5.0, seed=seed)
         layers = [2, 10, 2]
-        grid_len = 8
+        if lr is None:
+            lr = 3e-3         # [09] pendulum_control_win5's validated lr -- NOT 2e-3
+        if grid_len is None:
+            grid_len = 8      # [09] pendulum_control_win5's validated G
     else:
         raise ValueError(dataset)
+
+    # Print the RESOLVED config immediately -- this is what a silent lr/grid_len
+    # mismatch (the actual bug this replaced) looked like: nothing wrong printed at
+    # launch, and the only trace was inside metrics.json's config block afterwards,
+    # findable only by comparing it against docs/09's own recipe after the fact.
+    print(f"[{dataset}] resolved config: lr={lr}  grid_len={grid_len}  epochs={epochs}  "
+          f"grad_clip={grad_clip}  seed={seed}  blend_lr_mult={blend_lr_mult}")
 
     torch.manual_seed(seed)  # re-seed so model init isn't coupled to data-gen draws
     np.random.seed(seed)
@@ -267,9 +300,28 @@ def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu
     y0 = data.y0.to(device)
     n_train = len(t_train)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # [GATE-FIX] blend_lr_mult=1.0 (default) is a no-op: a single param group at
+    # `lr`, identical to plain Adam(model.parameters(), lr=lr). >1.0 gives
+    # blend_logits its own, faster-moving group -- targets a specific evidenced
+    # bottleneck (see §10b): the gate was moving in the right direction
+    # (toward RBF) but slowly, still 12.6% B-spline at epoch 2000, exactly the
+    # window where the pure-RBF pendulum recipe was already near-converged
+    # (train MSE 0.0023 at the same epoch, vs 0.271 here). B-spline was never
+    # validated on the pendulum anywhere in this project, so prolonged exposure
+    # to it during that critical window is the leading suspect. This does not
+    # bias the gate's DIRECTION -- it still starts neutral (0.5/0.5) and is
+    # fully gradient-driven -- only how fast it can move.
+    if blend_lr_mult != 1.0:
+        blend_id = id(hybrid.blend_logits)
+        other_params = [p for p in model.parameters() if id(p) != blend_id]
+        optimizer = torch.optim.Adam([
+            {"params": other_params, "lr": lr},
+            {"params": [hybrid.blend_logits], "lr": lr * blend_lr_mult},
+        ])
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    train_losses, alpha_hist, beta_hist, grad_norms = [], [], [], []
+    train_losses, test_losses, alpha_hist, beta_hist, grad_norms = [], [], [], [], []
     best_loss, best_epoch, best_state = float("inf"), -1, None
     nonfinite_steps = 0
 
@@ -302,12 +354,24 @@ def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu
             nonfinite_steps += 1
             optimizer.zero_grad(set_to_none=True)
 
+        # Periodic full-horizon monitor loss, same cadence as train.py
+        # (epoch%10==0 or first/last epoch) -- NOT every epoch, since a full
+        # extra t_full integration every step would roughly double training cost
+        # on top of the training-window pass already done above.
+        if epoch % 10 == 0 or epoch == 1 or epoch == epochs:
+            with torch.no_grad():
+                test_loss_val = F.mse_loss(node(y0=y0, t=t_full), y_full).item()
+        else:
+            test_loss_val = test_losses[-1] if test_losses else float("inf")
+        test_losses.append(test_loss_val)
+
         pbar.set_postfix({"loss": f"{loss_val:.3e}", "a": f"{a:.3f}", "b": f"{b:.3f}"})
 
         # [LOG] tqdm's \r-updated bar is nearly unreadable once redirected to a file
-        # (every update lands on the same visual line). tqdm.write() emits a normal
+        # (every update lands on the same visual line, so a plain `> file.log` capture
+        # is one giant carriage-return-separated blob). tqdm.write() emits a normal
         # newline-terminated line instead -- readable both live and in a redirected
-        # log file, and safe to interleave with the bar.
+        # log file, and safe to interleave with the bar (that's what it's for).
         if epoch % log_every == 0 or epoch == epochs:
             tqdm.write(
                 f"[{dataset}] epoch {epoch}/{epochs}  loss={loss_val:.4e}  "
@@ -315,28 +379,32 @@ def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu
                 f"gnorm={gnorm:.3e}  nonfinite_total={nonfinite_steps}"
             )
 
-    # Score both checkpoints, train/extrap/full split -- same convention as train.py
+    # Score both checkpoints, train/extrap/full split -- same convention as train.py.
+    # Returns (metrics_dict, pred) -- pred is reused below for the plots so scoring
+    # the same checkpoint twice (once for numbers, once for plots) is avoided.
     def score(state_dict):
         model.load_state_dict(state_dict)
         with torch.no_grad():
             pred = node(y0=y0, t=t_full).cpu().numpy()
         y = y_full.cpu().numpy()
-        return {
+        metrics_dict = {
             "train_mse": compute_mse(y[:n_train], pred[:n_train]),
             "extrap_mse": compute_mse(y[n_train:], pred[n_train:]),
             "extrap_r2": compute_r2_score(y[n_train:], pred[n_train:]),
             "extrap_rel_l2": compute_relative_l2_error(y[n_train:], pred[n_train:]),
             "full_mse": compute_mse(y, pred),
         }
+        return metrics_dict, pred
 
-    final_metrics = score(model.state_dict())
-    best_metrics = score(best_state) if best_state is not None else final_metrics
+    final_metrics, final_pred = score(model.state_dict())
+    best_metrics, best_pred = score(best_state) if best_state is not None else (final_metrics, final_pred)
 
     # basis_func recorded as a STRING here -- never the object itself (see SS3).
     config = {
         "dataset": dataset, "basis_func": "hybrid_softmax_bspline_rbf",
         "layers_hidden": layers, "grid_len": grid_len, "lr": lr, "epochs": epochs,
         "grad_clip": grad_clip, "seed": seed, "parameters": total_p,
+        "blend_lr_mult": blend_lr_mult,
     }
     metrics = {
         "config": config,
@@ -348,10 +416,47 @@ def run(dataset, epochs, lr, grid_len, grad_clip, save_dir, seed=42, device="cpu
     with open(os.path.join(save_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=4)
     with open(os.path.join(save_dir, "training_history.json"), "w") as f:
-        json.dump({"train_losses": train_losses, "grad_norms": grad_norms,
-                   "alpha": alpha_hist, "beta": beta_hist}, f)
+        json.dump({"train_losses": train_losses, "test_losses": test_losses,
+                   "grad_norms": grad_norms, "alpha": alpha_hist, "beta": beta_hist}, f)
     torch.save({"model_state_dict": best_state, "config": config},
               os.path.join(save_dir, "best_model.pt"))
+
+    # [PLOTS] previously missing entirely -- run_hybrid.py never called any of the
+    # utils.plotting functions train.py's train_kan_ode() calls automatically, so a
+    # completed run produced only best_model.pt/metrics.json/training_history.json
+    # and nothing visual. Reusing the SAME plotting utilities every other run in the
+    # project uses (not reimplementing them) keeps hybrid-basis figures directly
+    # comparable to Table 2's existing per-basis plots.
+    labels = (("Prey ($x$)", "Predator ($y$)") if dataset == "lotka_volterra"
+              else (r"Angle $\theta$", r"Angular velocity $\omega$"))
+    plot_trajectory_comparison(
+        t_full=t_full.cpu().numpy(), y_true=y_full.cpu().numpy(), y_pred=best_pred,
+        t_split=data.t_split, labels=labels,
+        title=f"Hybrid Basis: Trajectory Comparison ({dataset})",
+        save_path=os.path.join(save_dir, "trajectory_comparison.png"))
+    plot_phase_space(
+        y_true=y_full.cpu().numpy(), y_pred=best_pred, train_len=n_train, labels=labels,
+        title=f"Hybrid Basis: Phase Portrait ({dataset})",
+        save_path=os.path.join(save_dir, "phase_space.png"))
+    plot_loss_curves(
+        train_losses=train_losses, test_losses=test_losses,
+        title=f"Hybrid Basis: Training/Monitor Loss ({dataset})",
+        save_path=os.path.join(save_dir, "loss_curves.png"))
+    plot_gradient_norm_dynamics(
+        grad_norms=grad_norms,
+        title=f"Hybrid Basis: Gradient Norm Dynamics ({dataset})",
+        save_path=os.path.join(save_dir, "gradient_norm_dynamics.png"))
+    # alpha/beta gate evolution -- the one plot specific to this track, not part of
+    # utils.plotting since no other track has a blend gate to visualize.
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(8, 4.5), dpi=150)
+    plt.plot(alpha_hist, label=r"$\alpha$ (B-spline weight)", color="#1f77b4")
+    plt.plot(beta_hist, label=r"$\beta$ (RBF weight)", color="#d62728")
+    plt.xlabel("epoch"); plt.ylabel("softmax weight"); plt.legend(); plt.grid(alpha=0.3)
+    plt.title(f"Hybrid Basis: Gate Evolution ({dataset})")
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, "alpha_beta_evolution.png"), dpi=200)
+    plt.close()
 
     print(f"\n{dataset}: best train={best_metrics['train_mse']:.4e} "
           f"full={best_metrics['full_mse']:.4e} "
@@ -363,16 +468,23 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", choices=["lotka_volterra", "damped_pendulum"], required=True)
     ap.add_argument("--epochs", type=int, default=2000)
-    ap.add_argument("--lr", type=float, default=2e-3)
-    ap.add_argument("--grid_len", type=int, default=5)
+    ap.add_argument("--lr", type=float, default=None,
+                    help="omit to use the validated per-dataset default (2e-3 LV, 3e-3 pendulum)")
+    ap.add_argument("--grid_len", type=int, default=None,
+                    help="omit to use the validated per-dataset default (G=5 LV, G=8 pendulum)")
     ap.add_argument("--grad_clip", type=float, default=1.0)
     ap.add_argument("--save_dir", type=str, required=True)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--log_every", type=int, default=500,
                     help="print a clean, file-log-friendly status line every N epochs")
+    ap.add_argument("--blend_lr_mult", type=float, default=1.0,
+                    help="1.0 (default) = no-op, single lr for all params. >1.0 gives "
+                         "blend_logits its own faster lr = base_lr * blend_lr_mult "
+                         "(see §10b for why this exists)")
     args = ap.parse_args()
     run(args.dataset, args.epochs, args.lr, args.grid_len, args.grad_clip,
-        args.save_dir, args.seed, log_every=args.log_every)
+        args.save_dir, args.seed, log_every=args.log_every,
+        blend_lr_mult=args.blend_lr_mult)
 ```
 
 ---
@@ -402,6 +514,39 @@ def load(checkpoint_path):
     model.eval()
     return model, cfg
 ```
+
+## 7b. Plots — added after the probe stage, backfilled onto the probes themselves
+
+`run_hybrid.py` originally wrote only `best_model.pt` / `metrics.json` /
+`training_history.json` — unlike `train_kan_ode()`, it never called any of
+`utils.plotting`'s functions, so a completed run produced no figures at all. Fixed:
+every run now also writes (reusing the exact same plotting utilities every other run
+in the project uses, not reimplementing them):
+
+| File | From |
+| :--- | :--- |
+| `trajectory_comparison.png` | `utils.plot_trajectory_comparison` |
+| `phase_space.png` | `utils.plot_phase_space` |
+| `loss_curves.png` | `utils.plot_loss_curves` (needed adding `test_losses` tracking — a periodic full-horizon monitor loss, same `epoch%10==0` cadence as `train.py`, **not** every epoch, since that would roughly double compute) |
+| `gradient_norm_dynamics.png` | `utils.plot_gradient_norm_dynamics` |
+| `alpha_beta_evolution.png` | track-specific, inlined (no other track has a blend gate) |
+
+**The two already-completed probes predate this fix** and were backfilled without
+retraining via `experiments/hybrid_basis/regenerate_plots.py` (loads the saved
+checkpoint + history, re-integrates, calls the same 5 plot functions):
+
+```powershell
+python experiments\hybrid_basis\regenerate_plots.py --run_dir results\phase3\hybrid_basis\probe_lv
+python experiments\hybrid_basis\regenerate_plots.py --run_dir results\phase3\hybrid_basis\probe_pendulum
+```
+
+**What the phase portraits actually show, beyond the MSE numbers:** LV's predicted
+orbit (train + 4 extrapolated periods) visually overlaps the true orbit almost
+exactly. The pendulum's does not — the training-window prediction collapses into a
+narrow, wrong-shaped oscillation rather than tracking the true decaying spiral, and
+the extrapolation stays tangled near the origin rather than resolving to a clean
+inward spiral. This is consistent with, and more vivid than, the "still descending,
+not yet converged" read from the loss curve alone (§11 below).
 
 ---
 
@@ -448,12 +593,19 @@ Both systems run the full 10,000-epoch budget, matching Table 2's methodology ex
 "more is better" default, but running it anyway keeps this result directly comparable
 to Table 2's epoch-matched numbers).
 
+**Pendulum uses `--blend_lr_mult 15`** — the §10b gate-speed fix, confirmed at the full
+2,000-epoch probe scale (24× train-MSE improvement, phase portrait visually corrected
+from a broken shape to a clean matching spiral) before being carried into this full run.
+**LV does not** — its probe never showed the pendulum's slow-gate problem (the opposite,
+if anything: hybrid beat pure RBF 14× at epoch 2,000 there), so this run is a
+straight scale-up of `probe_lv` with nothing changed.
+
 Each command redirects to a log file with `*> file.log` (PowerShell's all-streams
 redirect — `tqdm`'s bar goes to stderr, so a plain `>` alone would miss it):
 
 ```powershell
 python experiments\hybrid_basis\run_hybrid.py --dataset lotka_volterra --epochs 10000 --log_every 500 --save_dir results\phase3\hybrid_basis\lv_full *> results\phase3\hybrid_basis\lv_full.log
-python experiments\hybrid_basis\run_hybrid.py --dataset damped_pendulum --epochs 10000 --log_every 500 --save_dir results\phase3\hybrid_basis\pendulum_full *> results\phase3\hybrid_basis\pendulum_full.log
+python experiments\hybrid_basis\run_hybrid.py --dataset damped_pendulum --epochs 10000 --log_every 500 --blend_lr_mult 15 --save_dir results\phase3\hybrid_basis\pendulum_full *> results\phase3\hybrid_basis\pendulum_full.log
 ```
 
 Run them in **separate PowerShell windows** (or with `Start-Process` — see below) so
@@ -544,11 +696,136 @@ necessary.
 
 ---
 
-## 11. Findings *(fill in after running)*
+## 10b. ⚠️ Pendulum-specific finding — the probe result was misleading, and a targeted fix
 
-### Stage 1 probe result
+The Stage 1 sanity checks (§8: gate moved, no NaN, loss descending) **passed** for the
+pendulum probe, but passing those checks turned out not to mean the result was healthy.
+Direct comparison against `pendulum_control_win5` (pure RBF, same recipe, known to
+converge to $R^2=0.647$ by epoch 10,000) at the **same epoch count**:
 
-*(alpha/beta at epoch 1 vs. epoch 2000, both systems — did the gate move?)*
+| Epoch | Pure RBF pendulum (`pendulum_control_win5`) | Hybrid pendulum (probe) |
+| :---: | :---: | :---: |
+| 1,000 | $0.0847$ | $0.328$ |
+| 2,000 | $\mathbf{0.0023}$ | $\mathbf{0.271}$ — **117× worse** |
+
+Pure RBF was essentially converged by epoch 2,000; the hybrid probe was nowhere close.
+**This rules out "just needs the same 10,000 epochs pure RBF took"** — pure RBF didn't
+need that long. The same comparison on Lotka-Volterra shows the *opposite* pattern
+(hybrid beats pure RBF $14\times$ at epoch 2,000), so this is not a general
+"blending costs early speed" effect — it's pendulum-specific.
+
+**Leading hypothesis:** B-spline was never validated on the pendulum anywhere in this
+project (Phase 2's basis ablation only ran on Lotka-Volterra). The gate starts neutral
+and only slowly shifts toward RBF — still 12.6% B-spline at epoch 2,000 in the probe —
+so if B-spline genuinely doesn't suit the pendulum's dynamics, that contamination during
+exactly the window where pure RBF was racing to convergence is the most likely drag.
+
+**Fix — `--blend_lr_mult`:** give `blend_logits` its own Adam parameter group at
+`lr × blend_lr_mult`, leaving every other parameter (and the validated `lr=0.003`,
+`G=8`, `t_train_end=5.0`, everything else) untouched:
+
+```python
+if blend_lr_mult != 1.0:
+    blend_id = id(hybrid.blend_logits)
+    other_params = [p for p in model.parameters() if id(p) != blend_id]
+    optimizer = torch.optim.Adam([
+        {"params": other_params, "lr": lr},
+        {"params": [hybrid.blend_logits], "lr": lr * blend_lr_mult},
+    ])
+else:
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)   # default: unchanged
+```
+
+This targets *speed*, not *direction* — the gate is already moving the right way
+(toward RBF), just slowly. It still starts neutral (0.5/0.5) and is fully
+gradient-driven; nothing is hand-biased toward an assumed answer.
+
+**Verified before the real run:**
+- `blend_lr_mult=1.0` (default) reproduces the original 3-epoch smoke test's `train_mse`
+  **exactly** — zero regression.
+- Parameter-group split covers all 362 parameters with no overlap (360 + 2), confirmed
+  by direct inspection of `optimizer.param_groups`.
+- A 50-epoch functional test at `blend_lr_mult=15` reached $\alpha=0.170$ (83% RBF) —
+  **more RBF-dominant than the original probe reached by epoch 200** ($\alpha=0.415$).
+  No instability introduced, `nonfinite_total=0` throughout.
+- Full `tests/` suite (172 tests) re-confirmed clean after the change.
+
+**Re-run confirmed the fix works, at the real 2,000-epoch probe scale (not just the
+50-epoch functional test above):** repeated with `--blend_lr_mult 15`, saved to
+`results/phase3/hybrid_basis/probe_pendulum_gatefix/`, separate from the original
+(unfixed) `probe_pendulum` so both remain available for direct comparison.
+
+| | Unfixed `probe_pendulum` | Fixed `probe_pendulum_gatefix` | Pure RBF (`pendulum_control_win5`, for reference) |
+| :--- | :---: | :---: | :---: |
+| Best train MSE (2,000 ep) | $0.2715$ | $\mathbf{0.01108}$ — **24× better** | $0.0023$ |
+| Final blend weights | $\alpha{=}0.126,\ \beta{=}0.874$ | $\alpha{=}0.002,\ \beta{=}0.998$ | — |
+| `nonfinite_grad_steps` | $0$ | $0$ | — |
+
+The fixed run's train MSE closed most of the gap to pure RBF (from $117\times$ worse to
+$\approx 5\times$ worse at matched epochs), and the gate essentially fully committed to
+RBF ($99.8\%$). **Visually confirmed too, not just numerically:** the fixed run's
+`phase_space.png` shows a clean, correctly-decaying spiral tracking the true orbit
+closely through the training window — a completely different shape from the original
+probe's collapsed, wrong-shaped oscillation (§7b). The extrapolation segment still shows
+a phase lag from the true orbit (consistent with `extrap_r2` still being slightly
+negative, $-0.02$, at the *min-train-mse* checkpoint) — but note this same
+negative-`extrap_r2`-at-the-best-checkpoint pattern is present in the **unfixed** probe
+too ($-0.05$), and that probe's own *final*-epoch checkpoint (not the min-train-mse one)
+scores $+0.44$ — so this looks like an artifact of the min-train-mse selection criterion
+picking an epoch that overfits the training window at some cost to extrapolation,
+present in both runs, not something the gate fix introduced.
+
+**Decision:** fix adopted for the full pendulum run (`--blend_lr_mult 15`, §8 Stage 2).
+Not yet known whether it holds up at 10,000 epochs (e.g. whether the late-run gradient
+norm upticks seen in both probes near epoch 2,000 grow into a real problem over 5× more
+epochs) — that is exactly what the full run will determine.
+
+---
+
+## 10c. Final pre-10k recheck (everything double-checked before committing real compute)
+
+Immediately before queuing the 10,000-epoch runs, did one more full pass end-to-end:
+
+- **Full `tests/` suite re-run clean: 172/172 passed**, including all 10
+  `test_p3_hybrid_basis.py` tests — no regression from any change made in §3b/§7b/§10b.
+- **Line-by-line re-audit of all three Track C source files**
+  (`hybrid_basis.py`, `run_hybrid.py`, `load_hybrid.py`) against the actual current
+  files on disk (not from memory) — lr/grid_len resolution, the `blend_lr_mult`
+  optimizer-group split, non-finite-gradient handling, best-checkpoint timing
+  (`deepcopy` before `optimizer.step()`), JSON-safety of the saved `config` (never the
+  raw `HybridBasis` object), and all 5 plot calls — no further problems found.
+- **One dead-code cleanup:** an unused `import time` in `run_hybrid.py` (never called
+  anywhere in the file) — removed. Not a bug, just noise found during the re-audit.
+- **Post-cleanup smoke test, both datasets, 5 epochs each** (pendulum with
+  `--blend_lr_mult 15`, matching what the real 10k pendulum run will use): both
+  resolved configs printed correctly, gate moved on both, and all 8 expected output
+  files (`metrics.json`, `training_history.json`, `best_model.pt`, and the 5 plots)
+  were generated with no errors, then deleted (scratch-only, not committed).
+
+No outstanding bugs identified. §8 Stage 2's commands are considered final as of this
+recheck.
+
+---
+
+## 11. Findings *(Stage 2 to fill in after the 10k runs)*
+
+### Stage 1 probe result — complete
+
+Both systems' gates start at exactly $(\alpha,\beta)=(0.5,0.5)$ (unbiased, per
+`HybridBasis`'s `init_logits=(0.0,0.0)`) and move measurably by epoch 2,000:
+
+| System | Run | $\alpha$ (epoch 1) | $\alpha$ (epoch 2000, final) | Best train MSE |
+| :--- | :--- | :---: | :---: | :---: |
+| Lotka-Volterra | `probe_lv` | $0.500$ | $0.134$ | $0.001989$ |
+| Damped pendulum | `probe_pendulum` (unfixed) | $0.500$ | $0.126$ | $0.2715$ |
+| Damped pendulum | `probe_pendulum_gatefix` (`blend_lr_mult=15`) | $0.500$ | $0.002$ | $0.01108$ |
+
+Both systems' gates move the **same direction** (toward RBF, $\beta \to 1$), but at very
+different speeds and with very different consequences — LV converges well either way
+(hybrid actually *beats* pure RBF there at matched epochs, §10b), while the pendulum's
+un-accelerated gate speed measurably hurt convergence (§10b) until corrected. See §10b
+for the full analysis and the fix; `probe_pendulum_gatefix` is the version carried
+forward into the full 10,000-epoch pendulum run.
 
 ### Stage 2 full-budget result
 
