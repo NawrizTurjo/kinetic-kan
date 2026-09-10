@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 
 ROOT = "results/phase3/hybrid_basis"
-TAGS = ["probe_lv", "probe_pendulum", "lv_full", "pendulum_full"]
+TAGS = ["probe_lv", "probe_pendulum", "lv_full", "pendulum_full", "pendulum_3k"]
 
 for tag in TAGS:
     hist_path = os.path.join(ROOT, tag, "training_history.json")

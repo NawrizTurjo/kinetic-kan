@@ -2,9 +2,13 @@
 
 > **Owner:** Shams Hossain Simanto (2105048) · **Branch:** `feat/p3-hybrid-basis`
 > **Folder:** `experiments/hybrid_basis/` · **Results:** `results/phase3/hybrid_basis/`
-> **Status:** ✅ implemented, tested, both probes validated (incl. a pendulum
-> gate-speed fix confirmed at probe scale) — 10,000-epoch full-budget runs for
-> both systems queued to launch next; §11 to be filled in once they complete
+> **Status:** ✅ **complete**, including a follow-up (§11a). Both 10,000-epoch
+> full-budget runs finished (LV in 3h25m, pendulum in 12h31m, run concurrently).
+> LV: clean, near-parity with pure bases. Pendulum: overfits badly if trained the
+> full 10k (extrap R² −2.17 vs. pure RBF's +0.647) — but a follow-up run capped at
+> the identified pre-overfit sweet spot (3,000 epochs, §11a) shows hybrid is
+> actually competitive with pure RBF at a matched epoch count. The result is
+> budget-dependent, not a flat "hybrid is worse."
 > **Parent plan:** [`12_phase3_roadmap.md`](./12_phase3_roadmap.md) §Track C
 >
 > This file is meant to be **self-contained** — everything needed to execute Track C
@@ -636,18 +640,49 @@ Get-Content results\phase3\hybrid_basis\lv_full.log -Wait -Tail 20 |
     Select-String -Pattern '\[lotka_volterra\] epoch.*'
 ```
 
-**Running both in the background from one window**, if you'd rather not open two:
+**Running both in parallel from one window — same pattern as `run_phase2.ps1`**
+(thread-pinning + `Start-Process -PassThru` + `.WaitForExit()` on the captured
+`Process` object, not a bare PID — see that script's own `[FIX-2026-08]` comment
+on why PID-based `Wait-Process` is unsafe once a job exits and Windows recycles
+the PID):
 
 ```powershell
-Start-Process python -ArgumentList "experiments\hybrid_basis\run_hybrid.py --dataset lotka_volterra --epochs 10000 --log_every 500 --save_dir results\phase3\hybrid_basis\lv_full" -RedirectStandardOutput results\phase3\hybrid_basis\lv_full.log -RedirectStandardError results\phase3\hybrid_basis\lv_full.err.log -NoNewWindow
-Start-Process python -ArgumentList "experiments\hybrid_basis\run_hybrid.py --dataset damped_pendulum --epochs 10000 --log_every 500 --save_dir results\phase3\hybrid_basis\pendulum_full" -RedirectStandardOutput results\phase3\hybrid_basis\pendulum_full.log -RedirectStandardError results\phase3\hybrid_basis\pendulum_full.err.log -NoNewWindow
+$root = "D:\level4\Term1\NUM_project\kinetic-kan\implementation"
+cd $root
+
+$logDir = "results\phase3\hybrid_basis\_logs"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+# Thread pinning, same reasoning as run_phase2.ps1: this machine has 12 logical
+# cores; PyTorch grabs every core by default, so 2 unpinned parallel jobs would
+# oversubscribe the CPU and inflate both wall-clock numbers. 12/2 = 6 each.
+$env:OMP_NUM_THREADS      = 6
+$env:MKL_NUM_THREADS      = 6
+$env:OPENBLAS_NUM_THREADS = 6
+
+$lv = Start-Process python -ArgumentList "experiments\hybrid_basis\run_hybrid.py --dataset lotka_volterra --epochs 10000 --log_every 500 --save_dir results\phase3\hybrid_basis\lv_full" -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardOutput "$logDir\lv_full.log" -RedirectStandardError "$logDir\lv_full.err.log"
+
+$pend = Start-Process python -ArgumentList "experiments\hybrid_basis\run_hybrid.py --dataset damped_pendulum --epochs 10000 --log_every 500 --blend_lr_mult 15 --save_dir results\phase3\hybrid_basis\pendulum_full" -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardOutput "$logDir\pendulum_full.log" -RedirectStandardError "$logDir\pendulum_full.err.log"
+
+Write-Host "Launched lv_full (pid $($lv.Id)) and pendulum_full (pid $($pend.Id))"
+
+$lv.WaitForExit()
+$pend.WaitForExit()
+Write-Host "Both runs finished."
 ```
 
-`Start-Process` splits stdout/stderr into two files (`tqdm`'s bar and the clean
-`log_every` lines both go to stderr, so `pendulum_full.err.log` is the one to watch);
-the `*>` form above is simpler for a single foreground run in its own window. Note:
-`Start-Process` here is the *actual* command being run (not something I'm running for
-you) — you're launching it yourself, from your own PowerShell window.
+**Verified, not assumed** (a redirect-split smoke test with `tqdm.write()` +
+a real bar): `tqdm.write()` — the clean `[dataset] epoch N/epochs ...` `log_every`
+lines — goes to **stdout**; the raw `\r`-updated bar goes to **stderr**. So
+`lv_full.log`/`pendulum_full.log` (stdout) contain *only* the clean
+one-line-per-checkpoint status — no bar noise to filter out at all — while the
+`.err.log` files catch the raw bar, useful only if you want to watch it move
+live. `-WorkingDirectory` is required since `Start-Process` does not reliably
+inherit the calling shell's current directory otherwise. Note: this command is
+the *actual* thing being run (not something run on your behalf) — you launch it
+yourself, from your own PowerShell window, and it returns your prompt only after
+both jobs finish (because of the two `.WaitForExit()` calls) — open a second
+window if you want to keep using this one meanwhile.
 
 ### Stage 3 — The headline plot: $\alpha(t)$, $\beta(t)$
 
@@ -680,12 +715,12 @@ Read the numbers **live** from these files rather than copying figures out of
 
 ## 9. Definition of done
 
-| Check | Target |
-| :--- | :--- |
-| Gate weights logged every epoch, both systems | not just final values |
-| Compared against **existing** Table 2 numbers | citation via Stage 4's script, not a wasted re-run |
-| Explicit verdict | faster / same / worse than the better pure basis, stated numerically |
-| 242 vs. 240 parameter count noted wherever compared | not silently glossed over |
+| Check | Target | Status |
+| :--- | :--- | :---: |
+| Gate weights logged every epoch, both systems | not just final values | ✅ §11 |
+| Compared against **existing** Table 2 numbers | citation via Stage 4's script, not a wasted re-run | ✅ §11 |
+| Explicit verdict | faster / same / worse than the better pure basis, stated numerically | ✅ §11 Verdict |
+| 242 vs. 240 parameter count noted wherever compared | not silently glossed over | ✅ §11, §5 |
 
 ## 10. Files you must not touch
 
@@ -807,7 +842,7 @@ recheck.
 
 ---
 
-## 11. Findings *(Stage 2 to fill in after the 10k runs)*
+## 11. Findings — complete
 
 ### Stage 1 probe result — complete
 
@@ -829,12 +864,196 @@ forward into the full 10,000-epoch pendulum run.
 
 ### Stage 2 full-budget result
 
-*(table: Hybrid vs. RBF vs. B-spline — train MSE, extrap MSE, R², wall-clock)*
+Both 10,000-epoch runs completed cleanly (`nonfinite_grad_steps=0` in both),
+launched concurrently per §8's parallel-launch pattern. Real wall-clock:
+LV **3h25m**, pendulum **12h31m** (both inflated somewhat above their solo-calibrated
+estimates — §8's revised timing table — by CPU contention from running together;
+see the live discussion during the run for the arithmetic).
+
+**Lotka-Volterra — Hybrid vs. the two pure bases (Table 2, read live via Stage 4's script):**
+
+| Basis | Train MSE | Extrap MSE | Extrap R² | Params | Cost |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| RBF | $8.83\times10^{-5}$ | $8.92\times10^{-5}$ | $1.0000$ | $240$ | $0.171$ s/epoch (solo) |
+| B-spline | $7.20\times10^{-5}$ | $8.38\times10^{-5}$ | $1.0000$ | $240$ | $0.668$ s/epoch (solo) |
+| **Hybrid** | $1.47\times10^{-4}$ | $1.78\times10^{-4}$ | $0.9999$ | $242$ | $\approx 0.87$ s/epoch (solo) — roughly the **sum** of both pure bases' costs |
+
+At the full 10,000-epoch budget, hybrid is essentially **tied with, but not better
+than**, either pure basis on LV — both pure bases actually edge it out slightly once
+fully converged (R² rounds to $1.0000$ for both vs. hybrid's $0.9999$). This is a
+different picture than the 2,000-epoch probe, where hybrid appeared to *beat* pure
+RBF (§10b) — at 2,000 epochs pure RBF hadn't yet finished converging, so hybrid's
+apparent lead there was a mid-training snapshot, not a full-budget result. Cost is the
+real story: hybrid pays for both bases every forward pass, so its per-epoch cost is
+close to the *sum* of the two pure bases, not a saving.
+
+**Damped pendulum — Hybrid vs. pure RBF (no B-spline reference exists for the pendulum
+— Phase 2's basis ablation only ran on Lotka-Volterra):**
+
+| | Hybrid (`pendulum_full`, `blend_lr_mult=15`) | Pure RBF (`pendulum_control_win5`, same recipe) |
+| :--- | :---: | :---: |
+| Best train MSE | $9.44\times10^{-5}$ (matches pure RBF) | $9.28\times10^{-5}$ |
+| Extrap MSE | $\mathbf{0.809}$ | $0.090$ — **9× better** |
+| Extrap R² | $\mathbf{-2.17}$ | $+0.647$ |
+| Final gate | $\alpha{=}0.021,\ \beta{=}0.979$ | — |
+| Params | $362$ | $360$ |
+
+Train-set fit is essentially identical between the two — the hybrid network matches
+pure RBF's training accuracy almost exactly. **Extrapolation is where it falls apart,**
+and the *reason* is visible directly in the saved per-epoch history, not inferred:
+
+- The full-horizon monitor loss (`training_history.json`'s `test_losses`, evaluated on
+  train+extrap together every 10 epochs) reaches its own best value around
+  **epoch ≈3,000** ($\approx 0.055$ — actually *better* than pure RBF's eventual number)
+  — then **rises and plateaus around $0.4$** for the remaining $7{,}000$ epochs, while
+  train loss keeps monotonically improving all the way to $9.4\times10^{-5}$. This is
+  textbook overfitting to the training window, and it is *not* subtle — see
+  `pendulum_full/loss_curves.png`.
+- The `min_train_mse` checkpoint-selection criterion (the same convention used
+  everywhere else in this project, `train.py` included) picks epoch $9{,}987$ — deep
+  inside the overfit region — which is exactly why the headline "best" number above is
+  so bad. **No earlier checkpoint was retained** (`run_hybrid.py` only keeps a
+  `deepcopy` at the epoch with the lowest train loss seen *so far*, which by definition
+  is a late epoch once training has run this long) — so the actual weights at the
+  epoch-3,000 sweet spot are not recoverable from this run without re-running.
+- **The gate itself is not the cause.** `pendulum_full/alpha_beta_evolution.png` shows
+  $\beta$ reaching $\approx 0.995$ by epoch $\approx 250$ and staying there (drifting
+  only slightly back to $0.979$ after epoch $6{,}000$) — the gate had long since settled
+  into a near-pure-RBF configuration well before the overfitting onset at epoch 3,000,
+  so this is not a gate-oscillation artifact.
+- **Pure RBF, on the identical recipe, does not show this pattern.** Its own
+  `test_losses` history stays bounded between $0.02$ and $0.09$ across the *entire*
+  $10{,}000$ epochs — no comparable blow-up. So a network that is $\approx 98\%$ RBF by
+  final weight, having arrived there via a hybrid gate, generalizes measurably worse
+  over a long run than a network that was pure RBF from initialization, despite
+  matching its training fit almost exactly.
+- Visually confirmed in `phase_space.png`: the training-window prediction overlaps the
+  true orbit almost perfectly; the extrapolated trajectory collapses into a small,
+  incorrect loop instead of continuing the true decaying spiral in toward the origin.
+- Confirmed **not** an LV-style pattern — `lv_full/loss_curves.png` shows train and
+  extrapolation loss decreasing together in lockstep for the full 10,000 epochs, no
+  divergence at any point.
 
 ### Verdict
 
-*(faster / same / worse than the better pure basis — with numbers)*
+- **Lotka-Volterra: no benefit, no harm, real cost.** Hybrid ties pure RBF/B-spline on
+  final accuracy (R² 0.9999 vs. 1.0000) but costs roughly the **sum** of both bases'
+  per-epoch compute ($\approx 0.87$ vs. $0.17$–$0.67$ s/epoch solo) for **242
+  parameters instead of 240**. The gate lands at $\alpha{=}0.116/\beta{=}0.884$ — a
+  genuine partial blend, not a collapse to one basis — but that blend does not
+  translate into an accuracy edge at full budget. **Not worth its cost on this system.**
+- **Damped pendulum: negative result at the full 10k budget, but budget-dependent —
+  see the §11a follow-up below.** At the `min_train_mse` selection convention used
+  throughout this project, the full 10,000-epoch hybrid run is **9× worse** than pure
+  RBF on extrapolation MSE and swings from a healthy positive R² ($+0.647$, pure RBF)
+  to strongly negative ($-2.17$, hybrid) — despite matching pure RBF's training fit
+  almost exactly and despite the `blend_lr_mult` gate-speed fix working exactly as
+  designed (confirmed at 2,000-epoch probe scale, §10b). The failure mode is a
+  late-training overfitting collapse in extrapolation quality that the equivalent
+  pure-RBF network does not exhibit on the same recipe — **not** the
+  originally-hypothesized "slow gate" problem, which the fix did correctly resolve.
+  **However**, a follow-up run capped at the pre-overfit sweet spot (3,000 epochs, §11a)
+  shows hybrid is actually **competitive with, and briefly ahead of, pure RBF at a
+  matched epoch count** — so the full-budget number above is not the whole story; it
+  is specifically what happens if this recipe is trained *past* its optimum.
+- **Overall: the learnable hybrid basis does not outperform the better pure basis on
+  either system tested, and on the pendulum specifically it is measurably worse and in
+  a way not yet fully explained.** The 2,000-epoch probe stage's optimistic read (§10b:
+  "hybrid catches up to pure RBF") was a correct description of *training* dynamics at
+  that budget, but did not anticipate the full-budget overfitting divergence — a second
+  instance in this track (after §3b's `lr` bug) of a short-budget signal not
+  generalizing to the full run, this time for a genuine dynamical reason rather than a
+  configuration bug.
 
 ### Anything unexpected
 
-*(e.g. did alpha/beta converge to one basis, split evenly, or oscillate?)*
+- **The gate does converge, decisively, on both systems** — LV to a genuine partial
+  blend ($\alpha{=}0.116$), pendulum to near-total RBF ($\alpha{=}0.021$) — confirming
+  the softmax gate is learnable and gradient-driven exactly as designed, on both
+  datasets, at full budget. This part of the mechanism works correctly.
+- **The most unexpected result: matching pure RBF's training accuracy did not mean
+  matching its extrapolation quality**, on the one system (pendulum) where the two
+  bases' behavior differs most. A network that is $\approx 98\%$ RBF by final weight
+  behaves measurably differently, over a long training run, than one that was $100\%$
+  RBF from initialization — despite an essentially identical training loss trajectory
+  for most of the run. Plausible contributing factors, **not verified, listed as open
+  questions for future work**: (a) the residual $\sim 2\%$ B-spline contribution,
+  though tiny, is still receiving gradients throughout training and may act as a slow
+  destabilizing perturbation rather than a neutral no-op; (b) the extra `blend_logits`
+  parameters change the loss landscape's local geometry near this solution even after
+  they've stopped moving much; (c) this specific run may simply be an unlucky
+  seed/trajectory — untested here, since only `seed=42` was run for either system (no
+  multi-seed error bars for Track C, unlike Phase 2's `-Seeds` sweeps).
+- **A practical lesson about checkpointing:** saving only the `min_train_mse` snapshot
+  (mirroring `train.py`'s own convention) means that when a run overfits like this
+  pendulum one did, the actually-good intermediate solution is unrecoverable after the
+  fact. A useful extension for any follow-up work on this track would be to also
+  checkpoint on `min` full-horizon monitor loss, not just train loss — this would have
+  let this run report both numbers instead of only the overfit one. Not implemented
+  here since it would change `run_hybrid.py`'s saved-checkpoint semantics without a
+  clear signal beforehand that this system specifically would need it (LV never showed
+  the pattern that would have motivated this).
+
+## 11a. Follow-up — pendulum at the pre-overfit sweet spot (3,000 epochs)
+
+§11's "anything unexpected" section flagged that the `pendulum_full` run's own
+full-horizon monitor loss actually bottomed out around epoch 2,950–3,000 (value
+$\approx 0.054$, briefly *better* than pure RBF's number), but that no checkpoint was
+saved there — only the `min_train_mse` snapshot from deep in the overfit region (epoch
+9,987) survives from that run.
+
+**Confirmed the exact minimum, from the saved per-epoch history, before re-running
+anything:** `argmin` of `pendulum_full/training_history.json`'s `test_losses` is epoch
+**2,950**, value $0.0542$ — climbing sharply again by epoch 3,200 ($0.129$). A fresh run
+was launched, same recipe as `pendulum_full` (`lr=0.003`, `grid_len=8`,
+`blend_lr_mult=15`) but capped at **3,000 epochs**, saved separately to
+`results/phase3/hybrid_basis/pendulum_3k/` — `pendulum_full`, `probe_pendulum`, and
+`probe_pendulum_gatefix` are all untouched.
+
+| | `pendulum_3k` (3,000 ep, hybrid) | Pure RBF **at the same epoch** (`pendulum_control_win5`'s own history, epoch 3,000) | Pure RBF at full budget (10,000 ep, for reference) |
+| :--- | :---: | :---: | :---: |
+| Full-horizon MSE | $\mathbf{0.0553}$ | $0.0808$ | $0.0448$ |
+| Extrap MSE | $0.107$ | — | $0.090$ |
+| Extrap R² | $\mathbf{+0.580}$ | — | $+0.647$ |
+| Final gate | $\alpha{=}0.004,\ \beta{=}0.996$ | — | — |
+
+**At a matched epoch count, hybrid actually beats pure RBF's own epoch-3,000 number**
+($0.0553$ vs. $0.0808$ full-horizon MSE), and its extrapolation R² ($+0.580$) is close
+to pure RBF's fully-converged, full-10k-budget number ($+0.647$) — a completely
+different picture from the catastrophic $-2.17$ the same recipe produces at 10,000
+epochs. Visually confirmed too: `pendulum_3k/phase_space.png` shows the training-window
+prediction tracking the true orbit closely, and — unlike `pendulum_full`'s collapsed
+extrapolation loop — the extrapolated trajectory follows the *correct* inward-decaying
+shape, even though it doesn't overlap the true orbit as tightly as pure RBF's
+full-budget result does.
+
+**What this changes about the verdict:** the pendulum result is not simply "hybrid is
+worse" — it is **budget-dependent**. Hybrid is competitive with pure RBF up to roughly
+epoch 3,000 on this recipe, then overfits severely if training continues to 10,000
+epochs, in a way pure RBF itself does not. Pure RBF's own advantage at full budget is
+therefore not really about basis quality — it's about which system tolerates the full
+10,000-epoch budget without overfitting its extrapolation behavior. This refines, rather
+than reverses, §11's overall verdict: hybrid still does not *beat* the better pure basis
+on this system at any budget tested, but the size and cause of the gap depends heavily
+on when training is stopped, and the fix from §10b (`blend_lr_mult`) demonstrably works
+correctly at both the 2,000-epoch and 3,000-epoch scales — the divergence is specific to
+prolonged training, not to the fix or the gate.
+
+---
+
+### Deliverable files (per `docs/12` §Track C)
+
+Generated after both 10k runs completed, no new training required (`pendulum_3k` is the
+one exception — a genuinely new, cheap 3,000-epoch run added after the 10k runs to
+capture the pre-overfit checkpoint documented in §11a):
+
+- `results/phase3/hybrid_basis/table.json` — the full comparison table above, in
+  machine-readable form (hybrid vs. RBF vs. B-spline where it exists, both systems, plus
+  the §11a epoch-matched pendulum comparison), built directly from each run's own
+  `metrics.json` (Stage 4's script, written to disk instead of just printed).
+- `results/phase3/hybrid_basis/{probe_lv,probe_pendulum,lv_full,pendulum_full,pendulum_3k}_alpha_beta.png`
+  — the gate-trajectory plot for every completed run, via `plot_blend.py` (§8 Stage 3).
+  Per-run copies (`alpha_beta_evolution.png`) also exist inside each run's own
+  subdirectory, generated automatically by `run_hybrid.py` itself (§7b) — these
+  top-level copies are the same data, just collected in one place per `docs/12`'s
+  named deliverable path.

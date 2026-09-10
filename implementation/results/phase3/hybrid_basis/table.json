@@ -1,0 +1,67 @@
+{
+  "lotka_volterra": {
+    "rbf": {
+      "train_mse": 8.832586172502488e-05,
+      "extrap_mse": 8.922593406168744e-05,
+      "extrap_r2": 0.9999693632125854,
+      "full_mse": 8.899613749235868e-05,
+      "parameters": 240,
+      "seconds_per_epoch": 0.17124570903778077
+    },
+    "bspline": {
+      "train_mse": 7.201554399216548e-05,
+      "extrap_mse": 8.378543134313077e-05,
+      "extrap_r2": 0.9999712705612183,
+      "full_mse": 8.078035898506641e-05,
+      "parameters": 240,
+      "seconds_per_epoch": 0.6679628783226014
+    },
+    "hybrid": {
+      "train_mse": 0.00014723789354320616,
+      "extrap_mse": 0.00017815282626543194,
+      "extrap_r2": 0.9999388456344604,
+      "full_mse": 0.0001702596346149221,
+      "parameters": 242,
+      "seconds_per_epoch": 0.87
+    }
+  },
+  "damped_pendulum": {
+    "rbf": {
+      "train_mse": 9.279654477722943e-05,
+      "extrap_mse": 0.08993890881538391,
+      "extrap_r2": 0.6472282409667969,
+      "full_mse": 0.04479236155748367,
+      "parameters": 360,
+      "seconds_per_epoch": 0.7682857127666474
+    },
+    "bspline": null,
+    "hybrid": {
+      "train_mse": 9.437342669116333e-05,
+      "extrap_mse": 0.8085800409317017,
+      "extrap_r2": -2.1715331077575684,
+      "full_mse": 0.4023260176181793,
+      "parameters": 362,
+      "seconds_per_epoch": 2.54
+    },
+    "hybrid_3k_epoch_matched": {
+      "note": "Follow-up run capped at 3000 epochs to capture the pre-overfit sweet spot identified in docs/15 SS11 (pendulum_full monitor loss argmin was epoch 2950, value 0.0542) -- pendulum_full itself only saved a min_train_mse checkpoint from deep in the overfit region, so this is a fresh run with the SAME recipe (lr=0.003, grid_len=8, blend_lr_mult=15) to get an actual saved checkpoint near that point.",
+      "epochs": 3000,
+      "train_mse": 0.004230659455060959,
+      "extrap_mse": 0.10696206986904144,
+      "extrap_r2": 0.5804574489593506,
+      "full_mse": 0.05534081533551216,
+      "final_blend_weights": {
+        "alpha": 0.0041440511122345924,
+        "beta": 0.995855987071991
+      },
+      "parameters": 362,
+      "rbf_full_mse_at_same_epoch_3000_for_reference": 0.08080992102622986
+    }
+  },
+  "notes": {
+    "selection_criterion": "min_train_mse (same convention as train.py)",
+    "hybrid_cost_note": "hybrid computes both bases every forward pass; seconds_per_epoch is the solo (uncontended) calibration from docs/15 SS8, not the parallel-run wall clock",
+    "bspline_pendulum": "no B-spline reference exists for the pendulum -- Phase 2 basis ablation only ran on lotka_volterra",
+    "pendulum_caveat": "hybrid best checkpoint is min_train_mse (epoch 9987), which docs/15 SS11 shows sits deep in a post-epoch-3000 extrapolation overfitting region; see docs/15 SS11 for the full analysis"
+  }
+}

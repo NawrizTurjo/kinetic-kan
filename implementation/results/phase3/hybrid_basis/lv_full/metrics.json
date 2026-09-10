@@ -1,0 +1,41 @@
+{
+    "config": {
+        "dataset": "lotka_volterra",
+        "basis_func": "hybrid_softmax_bspline_rbf",
+        "layers_hidden": [
+            2,
+            10,
+            2
+        ],
+        "grid_len": 5,
+        "lr": 0.002,
+        "epochs": 10000,
+        "grad_clip": 1.0,
+        "seed": 42,
+        "parameters": 242,
+        "blend_lr_mult": 1.0
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 9899
+    },
+    "best": {
+        "train_mse": 0.00014723789354320616,
+        "extrap_mse": 0.00017815282626543194,
+        "extrap_r2": 0.9999388456344604,
+        "extrap_rel_l2": 0.004650978837162256,
+        "full_mse": 0.0001702596346149221
+    },
+    "final": {
+        "train_mse": 0.0005581013392657042,
+        "extrap_mse": 0.0016030388651415706,
+        "extrap_r2": 0.9994497895240784,
+        "extrap_rel_l2": 0.01395147293806076,
+        "full_mse": 0.0013362463796511292
+    },
+    "nonfinite_grad_steps": 0,
+    "final_blend_weights": {
+        "alpha": 0.11557423323392868,
+        "beta": 0.8844258189201355
+    }
+}
