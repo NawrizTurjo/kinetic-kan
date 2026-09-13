@@ -1,0 +1,236 @@
+{
+  "description": "Track B -- gradient norm roughness per solver, ranked noisiest first.",
+  "noise_measure": {
+    "name": "log_step_noise",
+    "formula": "std(diff(log10(grad_norms)))",
+    "rationale": "Scale-invariant roughness: measures epoch-to-epoch relative change, so solvers whose gradients live at different magnitudes remain comparable."
+  },
+  "warmup_epochs_dropped": 0,
+  "source": "results/benchmarks/ablation_solvers",
+  "clipping_note": "These six runs predate [FIX-2026-08]; no post_clip_grad_norms key exists, so all norms are raw and unclipped.",
+  "correlation": {
+    "method": "spearman",
+    "x": "solver order p",
+    "y": "log_step_noise",
+    "rho": -0.08827348295047496,
+    "p_value": 0.8679336982351336,
+    "n": 6
+  },
+  "warmup_sensitivity": {
+    "cuts": [
+      {
+        "warmup": 0,
+        "rho": -0.08827348295047496,
+        "p_value": 0.8679336982351336,
+        "ranking": [
+          "euler",
+          "rk4",
+          "tsit5",
+          "dopri5",
+          "midpoint",
+          "heun"
+        ]
+      },
+      {
+        "warmup": 500,
+        "rho": -0.08827348295047496,
+        "p_value": 0.8679336982351336,
+        "ranking": [
+          "euler",
+          "rk4",
+          "tsit5",
+          "dopri5",
+          "midpoint",
+          "heun"
+        ]
+      },
+      {
+        "warmup": 2000,
+        "rho": -0.44136741475237473,
+        "p_value": 0.3809392104771887,
+        "ranking": [
+          "euler",
+          "tsit5",
+          "midpoint",
+          "heun",
+          "dopri5",
+          "rk4"
+        ]
+      },
+      {
+        "warmup": 5000,
+        "rho": 0.7061878636037997,
+        "p_value": 0.11680660694745564,
+        "ranking": [
+          "tsit5",
+          "midpoint",
+          "dopri5",
+          "rk4",
+          "heun",
+          "euler"
+        ]
+      }
+    ],
+    "sign_stable": false,
+    "any_significant": false
+  },
+  "spike_diagnostics": {
+    "euler": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 40.24520720673014,
+      "spike_epochs": 1176,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.0006338429811876267,
+      "median_loss_on_calm": 0.00041827351378742605,
+      "frac_recovered_after_spike": 0.6522108843537415,
+      "loss_first": 4.837161064147949,
+      "loss_final": 0.00013772401143796742,
+      "loss_min": 0.00013772401143796742
+    },
+    "heun": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 56.10424600021182,
+      "spike_epochs": 1011,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.0003450873482506722,
+      "median_loss_on_calm": 0.0001830663823056966,
+      "frac_recovered_after_spike": 0.6399604352126608,
+      "loss_first": 4.83103084564209,
+      "loss_final": 8.315122977364808e-05,
+      "loss_min": 8.315122977364808e-05
+    },
+    "midpoint": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 58.167730642451296,
+      "spike_epochs": 1047,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.0003220205835532397,
+      "median_loss_on_calm": 0.0001737330894684419,
+      "frac_recovered_after_spike": 0.6449760765550239,
+      "loss_first": 4.830907821655273,
+      "loss_final": 9.076744026970118e-05,
+      "loss_min": 8.857200009515509e-05
+    },
+    "rk4": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 28.591430512252366,
+      "spike_epochs": 1037,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.00033579711453057826,
+      "median_loss_on_calm": 0.0001834438880905509,
+      "frac_recovered_after_spike": 0.6460945033751205,
+      "loss_first": 4.8309831619262695,
+      "loss_final": 9.416419197805226e-05,
+      "loss_min": 9.412837243871763e-05
+    },
+    "dopri5": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 34.551938629521906,
+      "spike_epochs": 986,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.000340903177857399,
+      "median_loss_on_calm": 0.00018055273540085182,
+      "frac_recovered_after_spike": 0.6227180527383367,
+      "loss_first": 4.8309831619262695,
+      "loss_final": 9.924681216944009e-05,
+      "loss_min": 9.282823884859681e-05
+    },
+    "tsit5": {
+      "nonfinite_grad": 0,
+      "nonfinite_loss": 0,
+      "max_grad_norm": 50.23698937870902,
+      "spike_epochs": 866,
+      "window_epochs": 4000,
+      "median_loss_on_spikes": 0.00039016405935399234,
+      "median_loss_on_calm": 0.0001795307034626603,
+      "frac_recovered_after_spike": 0.6270207852193995,
+      "loss_first": 4.8309831619262695,
+      "loss_final": 8.832585444906726e-05,
+      "loss_min": 8.832585444906726e-05
+    },
+    "_verdict": {
+      "any_nonfinite": false,
+      "all_loss_decreased": true,
+      "note": "Spikes appear in the loss as well as the gradient and are followed by recovery, which is edge-of-stability optimisation under a fixed learning rate -- not a defect in the model or the backward pass."
+    }
+  },
+  "solvers": [
+    {
+      "solver": "euler",
+      "label": "Forward Euler",
+      "order": 1,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.8766069779425705,
+      "std_grad_norm": 2.550276528352919,
+      "final_grad_norm": 0.0012401656702448255,
+      "log_step_noise": 0.28053636462703824,
+      "best_train_mse": 0.00013772401143796742,
+      "noise_rank": 1
+    },
+    {
+      "solver": "rk4",
+      "label": "RK4",
+      "order": 4,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.5853634902224407,
+      "std_grad_norm": 1.9627111118831018,
+      "final_grad_norm": 0.017844326682953292,
+      "log_step_noise": 0.27259762797931547,
+      "best_train_mse": 9.412837243871763e-05,
+      "noise_rank": 2
+    },
+    {
+      "solver": "tsit5",
+      "label": "Tsit5",
+      "order": 5,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.4795934769376386,
+      "std_grad_norm": 1.8989600940491724,
+      "final_grad_norm": 0.012067356398762651,
+      "log_step_noise": 0.26831650417744124,
+      "best_train_mse": 8.832586172502488e-05,
+      "noise_rank": 3
+    },
+    {
+      "solver": "dopri5",
+      "label": "DOPRI5",
+      "order": 5,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.5478218372219916,
+      "std_grad_norm": 1.924328420881841,
+      "final_grad_norm": 0.10367083839204433,
+      "log_step_noise": 0.2659857832016825,
+      "best_train_mse": 9.282823884859681e-05,
+      "noise_rank": 4
+    },
+    {
+      "solver": "midpoint",
+      "label": "Midpoint RK2",
+      "order": 2,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.49898947653621817,
+      "std_grad_norm": 1.9361873262235374,
+      "final_grad_norm": 0.06033918453272344,
+      "log_step_noise": 0.26342948491541757,
+      "best_train_mse": 8.85720073711127e-05,
+      "noise_rank": 5
+    },
+    {
+      "solver": "heun",
+      "label": "Heun RK2",
+      "order": 2,
+      "n_epochs": 10000,
+      "mean_grad_norm": 0.48774179944079177,
+      "std_grad_norm": 1.946588913223645,
+      "final_grad_norm": 0.0006749554748624657,
+      "log_step_noise": 0.26206692167716394,
+      "best_train_mse": 8.315122249769047e-05,
+      "noise_rank": 6
+    }
+  ]
+}
