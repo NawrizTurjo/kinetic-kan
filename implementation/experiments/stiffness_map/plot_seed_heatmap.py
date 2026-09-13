@@ -11,8 +11,8 @@ solver suffix, and "seed<seed>_mu<mu>_euler" if that ever gets created) --
 see seed_test.py's docstring for why the legacy euler folders have no suffix.
 
 Usage: python plot_seed_heatmap.py
-Writes results/phase3/stiffness_map/figures/seed_median_mse_heatmap.png and
-seed_converged_fraction_heatmap.png.
+Writes results/phase3/stiffness_map/figures/seed_heatmaps/seed_median_mse_heatmap.png
+and seed_converged_fraction_heatmap.png.
 """
 import json
 import os
@@ -172,9 +172,10 @@ def main():
     all_mse = [v["median_mse"] for v in agg.values() if v["median_mse"] is not None]
     log_lo, log_hi = np.floor(np.log10(min(all_mse))), np.ceil(np.log10(max(all_mse)))
     tick_exponents = np.arange(log_lo, log_hi + 1)
+    seed_heatmap_dir = os.path.join(OUT_DIR, "seed_heatmaps")
     _heatmap(
         agg, "median_mse", "Median best_train_mse across seeds {42, 1, 7}",
-        os.path.join(OUT_DIR, "seed_median_mse_heatmap.png"),
+        os.path.join(seed_heatmap_dir, "seed_median_mse_heatmap.png"),
         cmap="viridis_r", fmt=lambda v: f"{v:.2e}", log=True,
         vmin=log_lo, vmax=log_hi,
         cbar_label="median best_train_mse (log scale) — lower is better",
@@ -183,7 +184,7 @@ def main():
     )
     _heatmap(
         agg, "converged_fraction", "Converged fraction across seeds {42, 1, 7}",
-        os.path.join(OUT_DIR, "seed_converged_fraction_heatmap.png"),
+        os.path.join(seed_heatmap_dir, "seed_converged_fraction_heatmap.png"),
         cmap="RdYlGn", fmt=lambda v: f"{v:.2f}", vmin=0, vmax=1,
         cbar_label="fraction of 3 seeds classified 'converged' — higher is better",
     )

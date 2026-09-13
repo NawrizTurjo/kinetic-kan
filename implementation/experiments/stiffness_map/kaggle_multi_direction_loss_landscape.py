@@ -23,13 +23,14 @@ below (CHECKPOINT_ROOT must contain probe/<solver>_mu<mu>_dt<dt>/checkpoint.pt
 for every cell, i.e. wherever kaggle_full_retrain.py's output landed).
 
 OUTPUT: rise_multiseed.json ({solver: {mu: {"rises": [...], "mean", "min",
-"max"}}}) PLUS the full loss grid for every (solver, mu, seed) combination
-(grid_<solver>_mu<mu>_seed<seed>.npz -- same format kaggle_loss_landscape.py
-already writes for seed 0), so all 3 direction-pairs' terrains can be
-plotted and visually compared side by side later, not just their rise
-numbers. 72 grid files total (24 cells x 3 seeds) -- each is small (441
-floats), so this adds negligible size to the download. Zipped to
-/kaggle/working/multi_direction_results.zip.
+"max"}}}) at the top of OUT_DIR, PLUS the full loss grid for every (solver,
+mu, seed) combination at OUT_DIR/mu<mu>/<solver>/grid_seed<seed>.npz -- a
+mu/solver hierarchy, not a flat filename, matching the local layout under
+results/phase3/stiffness_map/loss_landscape/ so a downloaded zip merges
+straight in. So all 3 direction-pairs' terrains can be plotted and visually
+compared side by side later, not just their rise numbers. 72 grid files total
+(24 cells x 3 seeds) -- each is small (441 floats), so this adds negligible
+size to the download. Zipped to /kaggle/working/multi_direction_results.zip.
 """
 import os
 
@@ -118,7 +119,8 @@ def _rise_for_seed(solver, mu, direction_seed):
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
-    grid_path = os.path.join(OUT_DIR, f"grid_{solver}_mu{mu}_seed{direction_seed}.npz")
+    cell_dir = os.path.join(OUT_DIR, f"mu{mu}", solver)
+    grid_path = os.path.join(cell_dir, f"grid_seed{direction_seed}.npz")
     if SKIP_EXISTING and os.path.isfile(grid_path):
         d = np.load(grid_path)
         loss, center = d["loss"], float(d["center_loss"])
@@ -143,7 +145,7 @@ def _rise_for_seed(solver, mu, direction_seed):
     max_loss = max(loss_grid.max(), center)
     rise = float(np.log10(max(max_loss, 1e-12)) - np.log10(max(center, 1e-12)))
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(cell_dir, exist_ok=True)
     np.savez(grid_path, alphas=alphas, betas=betas, loss=loss_grid, center_loss=center)
 
     return solver, mu, direction_seed, rise, time.time() - t0

@@ -532,16 +532,20 @@ clearly below its own μ=0.5/5.0/8.0 results. The ranking — trapped models
 sit in flatter basins than converged ones — held up under a direction that,
 by accident, was considerably more aggressive than the other two. Two figures
 make this visible directly rather than asking you to trust the averages:
-`implementation/results/phase3/stiffness_map/loss_landscape/multidirection_comparison_euler_mu2.0.png`
+`implementation/results/phase3/stiffness_map/loss_landscape/mu2.0/euler/direction_comparison.png`
 shows euler's μ=2.0 model under all three direction-pairs side by side — the
 third panel's outlier spike is obvious, but the shallow valley near the
 trained point looks the same in all three. The companion pair,
-`multidirection_comparison_euler_mu1.0.png` and
-`multidirection_comparison_tsit5_mu1.0.png`, shows the same test at μ=1.0 for
-the one solver that failed there versus one that succeeded: euler's dip
-never goes below roughly zero on the log scale in any of the three views,
-while tsit5's drops to around -3 or -4 in every one of them, outlier
-direction included.
+`.../loss_landscape/mu1.0/euler/direction_comparison.png` and
+`.../loss_landscape/mu1.0/tsit5/direction_comparison.png`, shows the same
+test at μ=1.0 for the one solver that failed there versus one that
+succeeded: euler's dip never goes below roughly zero on the log scale in any
+of the three views, while tsit5's drops to around -3 or -4 in every one of
+them, outlier direction included. (Every one of the other 22 cells has the
+same 3-panel comparison too, at `loss_landscape/mu<mu>/<solver>/
+direction_comparison.png`, plus a per-mu collage combining all 4 solvers at
+`loss_landscape/mu<mu>/collage.png` — these three are just the ones the prose
+above singles out.)
 
 So: the exact "rise" figure for any single cell should not be read as a
 precise measurement — a different random direction can move it by an order

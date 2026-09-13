@@ -143,9 +143,16 @@ def loss_at(model, node, data, base_params, d1, d2, alpha, beta):
     return loss
 
 
+def _cell_out_dir(solver, mu):
+    """mu/solver hierarchy, not a flat filename -- matches the local layout
+    under results/phase3/stiffness_map/loss_landscape/mu<mu>/<solver>/ so a
+    downloaded zip merges straight in with no manual reorganizing needed."""
+    return os.path.join(OUT_DIR, f"mu{mu}", solver)
+
+
 def _paths_for(solver, mu):
-    return (os.path.join(OUT_DIR, f"grid_{solver}_mu{mu}.npz"),
-            os.path.join(OUT_DIR, f"loss_landscape_{solver}_mu{mu}.png"))
+    d = _cell_out_dir(solver, mu)
+    return os.path.join(d, "grid_seed0.npz"), os.path.join(d, "landscape.png")
 
 
 def plot_loss_landscape(solver, mu):
@@ -181,7 +188,7 @@ def plot_loss_landscape(solver, mu):
             p.copy_(base)
     center_loss = loss_at(model, node, data, base_params, d1, d2, 0.0, 0.0)
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(_cell_out_dir(solver, mu), exist_ok=True)
     np.savez(npz_path, alphas=alphas, betas=betas, loss=loss_grid, center_loss=center_loss)
 
     A, B = np.meshgrid(alphas, betas, indexing="ij")

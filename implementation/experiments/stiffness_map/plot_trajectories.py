@@ -453,7 +453,7 @@ def main():
     for mu in args.mus:
         panel_dir = os.path.join(out_dir, f"mu{mu}")
         panel_paths = make_panel_images(root, mu, args.dt, panel_dir, args.solvers)
-        collage_path = make_collage(panel_paths, os.path.join(out_dir, f"collage_mu{mu}.png"), mu)
+        collage_path = make_collage(panel_paths, os.path.join(panel_dir, "collage.png"), mu)
         collage_paths[mu] = collage_path
         print(f"  collage: {collage_path}")
 
