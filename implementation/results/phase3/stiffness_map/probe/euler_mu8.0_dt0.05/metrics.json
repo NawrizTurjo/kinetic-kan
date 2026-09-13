@@ -1,0 +1,19 @@
+{
+  "solver": "euler",
+  "mu": 8.0,
+  "dt": 0.05,
+  "num_epochs_requested": 2000,
+  "epochs_run": 2000,
+  "aborted_at_epoch": null,
+  "nonfinite_grad_steps": 0,
+  "first_nonfinite_epoch": null,
+  "best_epoch": 2000,
+  "best_train_mse": 2.102036523865536e-05,
+  "final_train_mse": 2.102036523865536e-05,
+  "full_mse": 2.0142171706538647e-05,
+  "extrap_mse": 1.9255199731560424e-05,
+  "extrap_r2": -32.802608489990234,
+  "grad_norm_max": 39.20557937631278,
+  "seconds": 543.287077665329,
+  "verdict": "converged"
+}

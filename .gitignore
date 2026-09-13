@@ -59,6 +59,10 @@ lightning_logs/
 !implementation/results/**/best_model.pt
 !implementation/results/**/final_model.pt
 
+# Track D checkpoints (~4.7KB each, 73 total, ~584KB) -- backs the f_theta
+# equilibrium claims (docs/16 sec 3) and the loss-landscape analysis (sec 8)
+!implementation/results/phase3/stiffness_map/**/checkpoint.pt
+
 # =============================================================================
 # Intermediate / Raw Data & Numerical Cache
 # =============================================================================

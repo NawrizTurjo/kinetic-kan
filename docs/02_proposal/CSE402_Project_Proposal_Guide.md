@@ -40,7 +40,7 @@ We have synthesized the top **7 flagship project tracks** across 4 major domains
 
 ### 📌 Base Paper & Publication Background
 * **Paper Title:** *KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics*
-* **Authors:** Z. Koenig, J. Kim, Y. Deng (MIT)
+* **Authors:** Benjamin C. Koenig, Suyong Kim, Sili Deng (MIT)
 * **Venue & Date:** *Computer Methods in Applied Mechanics and Engineering (CMAME)*, Vol. 432, Article 117397, **2024 (Peer-Reviewed Journal)**.
 * **Recency:** ~2 years recent; represents the cutting edge of Scientific Machine Learning (SciML) combining Kolmogorov-Arnold Networks with continuous-depth Neural ODEs.
 

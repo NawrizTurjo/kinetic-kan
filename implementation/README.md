@@ -45,32 +45,70 @@ Our project systematically stress-tests both design choices through comprehensiv
 
 ## 📋 What Needs to Be Done (Team TODOs)
 
-### 1. Re-run benchmarks affected by recent bug fixes
-- [ ] **B-spline ablation re-run (priority):** The catastrophic B-spline result in `docs/05_phase2_benchmark_analysis.md` (R² = −2.30) was produced with a boundary bug that has since been fixed — that basis needs to be re-benchmarked before drawing conclusions about its extrapolation behavior.
-- [ ] **Flagship KAN-vs-MLP comparison re-run:** `results/benchmarks/kanode_flagship/` and the ablation-sweep RBF+Tsit5 run report a ~1000x MSE discrepancy despite an identical stated config. Root cause identified as a learning-rate mismatch (`train.py` defaults to `lr=5e-4`, `test_facility.py` defaults to `lr=2e-3`) — the team needs to decide on one LR and re-run Table 3 of the benchmark doc on equal footing with Tables 1 & 2.
+> **This section was significantly out of date** (it still listed several items as
+> pending that `docs/07_fix_changelog.md`–`docs/11_phase2_closeout.md` had already
+> resolved) and has been reconciled against those docs. See `docs/09_stability_fix_results.md`
+> §Repo hygiene for the audit that caught this.
 
-### 2. Adaptive Step-Size Integration
-- [ ] `step_tsit5`/`step_dopri5` are currently **fixed-step** methods (run a fixed number of `substeps` per reporting interval); they don't yet use the embedded error estimator (`TSIT5_E`, now corrected) for actual adaptive step-size control. Implementing true adaptivity (step accept/reject, error-based step resizing) is still open if the paper's adaptive-solver behavior needs to be reproduced exactly.
+### ✅ Resolved since this list was last accurate
+- **B-spline ablation re-run** — done; the boundary/NaN-gradient fixes described in
+  "What is Done" above landed, and `results/benchmarks/kanode_bspline/` (and the
+  ablation-sweep entry) reflect the corrected basis, not the old R² = −2.30 result.
+- **Flagship KAN-vs-MLP LR mismatch** — resolved. Both `train.py` and
+  `test_facility.py` now default to `lr=2e-3` ("standardised across the project," per
+  `test_facility.py`'s own comment), and `results/benchmarks/kanode_flagship/metrics.json`
+  now matches `ablation_solvers/solver_tsit5/metrics.json` to the same `train_mse`
+  (`8.832586172502488e-05`) — the five-way determinism check documented in
+  `docs/05_phase2_benchmark_analysis.md`.
+- **Noise robustness sweep** — done (`results/benchmarks/noise/sigma*/`).
+- **`--dataset` CLI wiring for damped pendulum, Lorenz, SIR** — done for the *dataset
+  choice itself*; `train.py`'s `DATASETS` registry now drives all four via
+  `--dataset {lotka_volterra,damped_pendulum,lorenz,sir}`. **Caveat, still relevant for
+  Phase 3 Track D:** only Lotka-Volterra's own kwargs (`alpha, beta, gamma, delta`) are
+  threaded through to the generator — there is still no `--mu` flag for the damped
+  pendulum, so a μ-sweep cannot be done through this CLI (confirmed by reading
+  `train_kan_ode`). Track D needs its own thin script, per
+  `docs/12_phase3_roadmap.md`.
+- **`evaluate.py` silent-data-mismatch bug** — fixed; it now rebuilds the field
+  honouring `grid_lims`, `time_scale`, `conserve_mode`, and `vanish_dim` from the saved
+  config rather than regenerating data with hardcoded defaults (`docs/10_sir_root_cause_and_fix.md`
+  §Part 5 catalogues the three related bugs found and fixed here).
+- **RBF basis formula** — fixed; `kan/basis.py::rbf` now implements the paper's Eq. 5
+  exactly (`exp(-r²/(2h²))`), with the old bug documented in the function's own
+  docstring for the record.
 
-### 3. Remaining Ablations & Robustness
-- [ ] **Noise Robustness Sweep:** Evaluate sensitivity and generalization under measurement noise ($\sigma \le 0.10$) — not yet run.
-- [ ] Wire up CLI/`train.py` support for the damped pendulum, Lorenz, and SIR datasets (currently only Lotka-Volterra is exposed via `--dataset`-style flags; the other generators exist in `data/` but aren't yet driveable from `train.py`/`test_facility.py`).
-- [ ] `evaluate.py` regenerates ground-truth data with hardcoded defaults (`generate_lotka_volterra_data()` with no args) rather than reading the data-generation parameters from the saved checkpoint — fine for the default run, but will silently score against the wrong trajectory if a checkpoint was ever trained with a non-default seed/noise/equation parameters.
+### 🔓 Still genuinely open
+- **Adaptive Step-Size Integration.** `step_tsit5`/`step_dopri5` are still fixed-step
+  (a fixed number of `substeps` per interval); the embedded error estimator (`TSIT5_E`,
+  now corrected to canonical values) still isn't used for real step accept/reject
+  logic. The solver docstrings now say this honestly rather than overclaiming
+  adaptivity. Implementing true adaptivity remains open if exact reproduction of the
+  paper's adaptive-solver behavior is ever needed.
+- **No adjoint sensitivity method (paper's Eq. 10)** — still a deliberate, documented
+  choice (see Technical Setup above), not a bug. Phase 3 Track A is where this
+  actually gets tested empirically (see below).
+- **$L_1$ edge-pruning step** — still doesn't exist anywhere in the code.
+  `kan/model.py::regularization_loss` only *penalizes* parameter magnitude during
+  training; nothing zeros out edges afterward. Needed by Phase 3 Track E.
 
-### 4. Fidelity to the Paper (optional, larger scope)
-- [ ] The RBF basis formula (`kan/basis.py::rbf`) is `exp(-((x-z)/h)^2)`, which differs from the paper's Eq. 5 `exp(-r²/(2h²))` by a factor of 2 in the exponent denominator. The learned amplitude weights can partially compensate, but it's not a literal match if exact paper reproduction matters.
-- [ ] No adjoint sensitivity method (paper's Eq. 10) — currently using direct autograd backprop through the unrolled solver, which is a deliberate, documented choice for this problem's short trajectories (see Technical Setup above), not a bug.
+### 🌟 Phase 3 — Novel Research Contributions (not yet started, no `experiments/` dir exists)
+The 6-novelty list once here has been **superseded** by
+[`docs/12_phase3_roadmap.md`](../docs/12_phase3_roadmap.md), which is now authoritative
+for Phase 3 scope and ownership. Key differences from the original plan: the Lorenz
+track has been **dropped entirely** (not deferred), and the SINDy/real-epidemic work
+is merged into a single track. Current tracks:
 
-### 5. Novel Research Contributions (Phase 3 — not yet started, no `experiments/` dir exists)
-These 6 novelties are planned in `docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md` (Phase 3) as the project's original-contribution layer beyond reproducing the paper, each targeting its own results table/figure:
-- [ ] **[Novelty 1] Gradient Norm Dynamics vs. Solver Order:** Log $\|\nabla_\theta \mathcal{L}\|_2$ every epoch across Euler/RK2/RK4/Tsit5 and show that lower-order solvers inject higher-frequency gradient noise into backprop. (`utils/metrics.py`'s `compute_gradient_norm` already exists and is usable as-is.)
-- [ ] **[Novelty 2] Learnable Softmax Hybrid Basis Layer:** Add a new basis in `kan/basis.py` that blends B-spline and RBF via learnable softmax gate weights ($\alpha \cdot \text{Spline} + \beta \cdot \text{RBF}$); track how $\alpha(t)$/$\beta(t)$ evolve during training and whether the hybrid converges faster than either pure basis.
-- [ ] **[Novelty 3] Stiffness–Solver Stability Phase Map:** Sweep the Damped Pendulum's damping ratio $\mu \in \{0.1, 0.5, 1.0, 2.0, 5.0, 8.0\}$ across all solvers and step sizes; produce a 2D stable-vs-exploded stability heatmap (→ Table 5).
-- [ ] **[Novelty 4] SINDy Baseline Comparison under Noise:** Fit `pysindy.SINDy` on noisy Lotka-Volterra trajectories ($\sigma \in \{0.00, 0.01, 0.05, 0.10\}$) and compare its recovered symbolic equations against KAN-ODE's $L_1$-pruned edge formulas (→ Table 3). Note: this depends on an $L_1$-pruning step for KAN edges that doesn't exist yet either (see below).
-- [ ] **[Novelty 5] Adjoint vs. Autograd Memory/Speed Profiling:** Benchmark `torchdiffeq.odeint_adjoint` ($O(1)$ memory) against the current unrolled `loss.backward()` ($O(N_t)$ memory) — peak VRAM, wall-clock per 1000 epochs, and gradient accuracy across state dimensions $d \in \{2, 8\}$ (→ Table 4). This is the natural place to finally test whether adjoint sensitivity (see Technical Setup / Fidelity to the Paper above) matters at larger scale.
-- [ ] **[Novelty 6] 3D Lorenz Chaos Evaluation & Real-Data Fit:** `data/lorenz.py` and `data/real_epidemic.py` already exist — still needed: actually train a 3D KAN-ODE on the Lorenz attractor, render the true-vs-predicted strange-attractor geometry, and fit the real epidemic data end-to-end (currently only the data generators exist, not a trained model/evaluation for either).
-- [ ] **Supporting building block:** none of the above have a real `experiments/` directory yet — the blueprint names specific scripts (`experiments/04_gradient_dynamics.py` through `experiments/09_lorenz_chaos_eval.py`) that don't exist in the repo yet.
-- [ ] **Supporting building block for Novelty 4:** an $L_1$-pruning step over KAN edges (node-magnitude-based, per the original paper's Sec. III A 2) doesn't exist anywhere in the code yet — regularization currently only penalizes parameter magnitude (`kan/model.py::regularization_loss`), it doesn't prune nodes/edges afterward.
+| Track | Contribution | Owner |
+| :-: | :--- | :--- |
+| A | Adjoint vs. autograd memory/speed profiling (Table 4) | Nawriz Ahmed Turjo |
+| B | Gradient norm dynamics vs. solver order | Abhishek Roy |
+| C | Learnable softmax hybrid basis (spline + RBF) | Shams Hossain Simanto |
+| D | Stiffness–solver stability phase map (Table 5) | Abrar Jahin |
+| E | SINDy comparison under noise + real epidemic fit (Table 3) | Monjur Hossain Khan |
+
+Each track is new files only, in its own `experiments/<slug>/` and
+`results/phase3/<slug>/` folder — see the roadmap's §Part 2 for the zero-conflict
+folder architecture and exactly what existing code each track reuses.
 
 ---
 
@@ -108,7 +146,12 @@ tests/                     # Project-wide PyTest suite (143/143 passing)
 ├── test_pipeline.py       # End-to-end forward/backward pipeline
 └── test_plotting.py       # Plotting utilities
 
-docs/06_codebase_audit.md  # Detailed bug audit: what was found, root causes, fixes applied
+docs/06_suggested_fixes.md    # Cross-domain stability diagnosis (pendulum, SIR)
+docs/07_fix_changelog.md      # What changed in train.py / run_phase2.ps1 to fix it
+docs/09_stability_fix_results.md  # Pendulum fix verdict + repo hygiene audit
+docs/10_sir_root_cause_and_fix.md # SIR root cause, fix, and 3 collateral bugs found
+docs/11_phase2_closeout.md    # Extrapolation-to-t=28, energy diagnostics, figures
+docs/12_phase3_roadmap.md     # Authoritative Phase 3 scope, tracks, and ownership
 ```
 
 ---

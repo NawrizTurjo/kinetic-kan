@@ -1,0 +1,19 @@
+{
+  "solver": "rk4",
+  "mu": 2.0,
+  "dt": 0.05,
+  "num_epochs_requested": 2000,
+  "epochs_run": 2000,
+  "aborted_at_epoch": null,
+  "nonfinite_grad_steps": 0,
+  "first_nonfinite_epoch": null,
+  "best_epoch": 2000,
+  "best_train_mse": 6.72608075547032e-05,
+  "final_train_mse": 6.72608075547032e-05,
+  "full_mse": 6.976577424211428e-05,
+  "extrap_mse": 7.229577022371814e-05,
+  "extrap_r2": -0.3517296314239502,
+  "grad_norm_max": 308.1674682382167,
+  "seconds": 2201.262051820755,
+  "verdict": "converged"
+}

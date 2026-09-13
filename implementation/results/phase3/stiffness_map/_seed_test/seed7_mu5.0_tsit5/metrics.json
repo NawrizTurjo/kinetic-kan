@@ -1,0 +1,19 @@
+{
+  "solver": "tsit5",
+  "mu": 5.0,
+  "dt": 0.05,
+  "num_epochs_requested": 2000,
+  "epochs_run": 2000,
+  "aborted_at_epoch": null,
+  "nonfinite_grad_steps": 0,
+  "first_nonfinite_epoch": null,
+  "best_epoch": 2000,
+  "best_train_mse": 5.135971514391713e-05,
+  "final_train_mse": 5.135971514391713e-05,
+  "full_mse": 4.1882518416969106e-05,
+  "extrap_mse": 3.2310552342096344e-05,
+  "extrap_r2": -846617.1875,
+  "grad_norm_max": 307.0277605759586,
+  "seconds": 3855.4255261421204,
+  "verdict": "converged"
+}
