@@ -60,8 +60,8 @@ import torch
 import torch.nn.functional as F
 
 # Make `implementation/` importable regardless of the cwd this script is invoked
-# from -- experiments/stiffness_map/ is two levels below implementation/'s parent.
-_IMPL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "implementation"))
+# from -- implementation/experiments/stiffness_map/ is two levels below implementation/.
+_IMPL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _IMPL_DIR not in sys.path:
     sys.path.insert(0, _IMPL_DIR)
 

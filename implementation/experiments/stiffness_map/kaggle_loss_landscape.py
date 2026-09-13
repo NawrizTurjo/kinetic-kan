@@ -57,7 +57,7 @@ import os
 # CONFIGURE THIS before running
 # ==============================================================================
 REPO_ROOT = "/kaggle/input/kinetic-kan/kinetic-kan"  # <-- adjust to your dataset's mount path
-CHECKPOINT_ROOT = "/kaggle/working/results/phase3/stiffness_map"  # where probe/<solver>_mu<mu>_dt<dt>/checkpoint.pt lives
+CHECKPOINT_ROOT = "/kaggle/working/implementation/results/phase3/stiffness_map"  # where probe/<solver>_mu<mu>_dt<dt>/checkpoint.pt lives
 OUT_DIR = "/kaggle/working/loss_landscape_results"
 DT = 0.05
 MUS = [0.1, 0.5, 1.0, 2.0, 5.0, 8.0]
@@ -82,7 +82,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "implementation"))
-sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "stiffness_map"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "implementation", "experiments", "stiffness_map"))
 
 import matplotlib
 matplotlib.use("Agg")

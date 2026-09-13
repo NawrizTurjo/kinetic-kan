@@ -14,7 +14,7 @@ four solvers {Euler, Midpoint, RK4, Tsit5} at a fixed step size (Δt=0.05): whic
 
 `run_sweep.py` passes 19 smoke tests (`tests/test_p3_stiffness_map.py`). The real
 24-cell probe sweep (4 solvers × 6 μ, Δt=0.05, 2,000 epochs) has been run and
-aggregated — `results/phase3/stiffness_map/table5.json` and
+aggregated — `implementation/results/phase3/stiffness_map/table5.json` and
 `stability_heatmap_dt0.05.png` both exist, built via `--stage aggregate`. The full
 write-up is `docs/16_p3_stiffness_map_findings.md` — read that for the actual
 findings; this file only tracks what's been built and where it lives.
@@ -22,9 +22,9 @@ findings; this file only tracks what's been built and where it lives.
 **Everything that grew out of the original μ=2.0 anomaly, now finished:**
 - **Multi-seed check, all 4 solvers × 6 μ × 3 seeds (72 cells)**, uniformly
   retrained with checkpoints saved for every cell (`kaggle_full_retrain.py`),
-  merged into `results/phase3/stiffness_map/probe/` and `_seed_test/`.
+  merged into `implementation/results/phase3/stiffness_map/probe/` and `_seed_test/`.
   Aggregated by `plot_seed_heatmap.py` into median-MSE and converged-fraction
-  heatmaps (`results/phase3/stiffness_map/figures/`).
+  heatmaps (`implementation/results/phase3/stiffness_map/figures/`).
 - **Vector-field "landscape" plots** (`plot_landscape.py`) for all 6 μ, each
   solver rendered from its own checkpoint (`plot_landscape.plot_landscape_grid`,
   wired into `plot_trajectories.py`'s phase-portrait panel) — shows the learned
@@ -36,7 +36,7 @@ findings; this file only tracks what's been built and where it lives.
   for the distinction), `kaggle_loss_landscape.py`, run for all 24 cells, plus a
   robustness follow-up (`kaggle_multi_direction_loss_landscape.py`) checking the
   result against 2 more random direction choices per cell. Comparison figures in
-  `results/phase3/stiffness_map/loss_landscape/`.
+  `implementation/results/phase3/stiffness_map/loss_landscape/`.
 
 **Sanity check** ((Tsit5, μ=0.5, Δt=0.05) vs. `pendulum_control_win5`, `--stage
 sanity`) — run on Kaggle; did **not** cleanly reproduce (see docs/16 §7) —
@@ -76,7 +76,7 @@ pendulum's already-diagnosed optimization failure at every μ, not stiffness —
 ### Sequential (single process, simplest)
 
 ```powershell
-cd experiments/stiffness_map
+cd implementation/experiments/stiffness_map
 
 # 1. Probe every cell at 2,000 epochs (~cheap — the OFAT discipline from docs/09)
 python run_sweep.py --stage probe
@@ -106,7 +106,7 @@ rk4 1.82s, tsit5 3.02s. Full sequential 4×6 probe grid (24 cells × 2,000 epoch
 ### Parallel (recommended — `run_parallel.ps1`)
 
 ```powershell
-cd experiments/stiffness_map
+cd implementation/experiments/stiffness_map
 
 # Default: one SEPARATE console window per solver (4-way parallel), no
 # Windows Terminal needed. Auto-sizes threads-per-job to the machine's core

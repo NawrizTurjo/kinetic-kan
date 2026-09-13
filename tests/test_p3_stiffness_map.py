@@ -1,9 +1,10 @@
 """
 Fast smoke tests for Track D's stiffness-map sweep script
-(experiments/stiffness_map/run_sweep.py). These run in seconds -- a handful of
-epochs on one or two cells -- and exist to catch mechanical bugs (import errors,
-shape mismatches, a broken guard) BEFORE committing to the real sweep's multi-hour
-compute budget. They do not assert anything about convergence quality.
+(implementation/experiments/stiffness_map/run_sweep.py). These run in seconds --
+a handful of epochs on one or two cells -- and exist to catch mechanical bugs
+(import errors, shape mismatches, a broken guard) BEFORE committing to the real
+sweep's multi-hour compute budget. They do not assert anything about
+convergence quality.
 """
 import json
 import math
@@ -12,7 +13,7 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "experiments", "stiffness_map"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "implementation", "experiments", "stiffness_map"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "implementation"))
 
 import run_sweep  # noqa: E402

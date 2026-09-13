@@ -29,7 +29,7 @@ import os
 # CONFIGURE THIS before running
 # ==============================================================================
 REPO_ROOT = "/kaggle/input/kinetic-kan/kinetic-kan"  # <-- adjust to your dataset's mount path
-OUT_ROOT = "/kaggle/working/results/phase3/stiffness_map"
+OUT_ROOT = "/kaggle/working/implementation/results/phase3/stiffness_map"
 NUM_EPOCHS = 10000  # FULL_EPOCHS -- the real budget this check requires, not a shortcut
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -41,7 +41,7 @@ import json
 import shutil
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "implementation"))
-sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "stiffness_map"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "implementation", "experiments", "stiffness_map"))
 
 import run_sweep as rs
 
@@ -67,7 +67,7 @@ def main():
     zip_base = "/kaggle/working/sanity_check_result"
     shutil.make_archive(zip_base, "zip", OUT_ROOT)
     print(f"\nZipped to {zip_base}.zip -- download from the notebook's Output tab, then extract "
-          f"straight into results/phase3/stiffness_map/ locally.")
+          f"straight into implementation/results/phase3/stiffness_map/ locally.")
 
 
 if __name__ == "__main__":

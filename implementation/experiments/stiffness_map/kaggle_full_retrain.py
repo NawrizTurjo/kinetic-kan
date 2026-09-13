@@ -62,7 +62,7 @@ import os
 # CONFIGURE THIS before running
 # ==============================================================================
 REPO_ROOT = "/kaggle/input/kinetic-kan/kinetic-kan"  # <-- adjust to your dataset's mount path
-OUT_ROOT = "/kaggle/working/results/phase3/stiffness_map"
+OUT_ROOT = "/kaggle/working/implementation/results/phase3/stiffness_map"
 MUS = [0.1, 0.5, 1.0, 2.0, 5.0, 8.0]
 SEEDS = [42, 1, 7]
 SOLVERS = ["euler", "midpoint", "rk4", "tsit5"]
@@ -82,7 +82,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "implementation"))
-sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "stiffness_map"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "implementation", "experiments", "stiffness_map"))
 
 
 def _fmt_mu(mu):
@@ -169,7 +169,7 @@ def main():
     zip_base = "/kaggle/working/full_retrain_results"
     shutil.make_archive(zip_base, "zip", OUT_ROOT)
     print(f"Zipped to {zip_base}.zip -- download it from the notebook's Output tab, then extract "
-          f"straight into results/phase3/stiffness_map/ locally (it merges into probe/ and "
+          f"straight into implementation/results/phase3/stiffness_map/ locally (it merges into probe/ and "
           f"_seed_test/ alongside what's already there).")
 
 

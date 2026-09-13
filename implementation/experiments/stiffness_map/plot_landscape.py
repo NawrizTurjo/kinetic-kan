@@ -33,7 +33,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 -- registers the 3d projec
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "implementation"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from kan import KAN  # noqa: E402
 
 

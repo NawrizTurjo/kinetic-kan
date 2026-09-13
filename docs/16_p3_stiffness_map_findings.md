@@ -35,12 +35,13 @@ lives.** §3 shows directly, from every solver's own trained weights, that a bad
 μ=2.0 produces a genuine second equilibrium in the learned dynamics — a
 spurious fixed point ~0.05 units from the true one — verified independently
 for all 4 solvers via the vector-field "landscape" plots
-(`results/phase3/stiffness_map/figures/mu*/phase_portrait_3d_mu*.png`). The
+(`implementation/results/phase3/stiffness_map/figures/mu*/phase_portrait_3d_mu*.png`). The
 converged-fraction numbers in §4 are real but statistically weak (n=3 seeds,
 §6) — the mechanistic confirmation in §3 is what this track can actually
 defend without needing a larger seed count. §7 reports an incidental but
 real cross-platform reproducibility gap found while scaling this up on
-Kaggle; §8 previews a still-pending training-loss-landscape analysis.
+Kaggle; §8 covers the training-loss-landscape analysis, checked against
+multiple random measurement choices to confirm it wasn't a fluke.
 
 ---
 
@@ -177,7 +178,7 @@ distinction) with the real trajectory drawn as a path across it. At μ=2.0,
 every solver's own terrain shows the true equilibrium (marked with a star)
 sitting on a slope, not in the bottom of a valley, while the trajectory
 visibly settles into a nearby, separate low point instead
-(`results/phase3/stiffness_map/figures/mu2.0/phase_portrait_3d_mu2.0.png`).
+(`implementation/results/phase3/stiffness_map/figures/mu2.0/phase_portrait_3d_mu2.0.png`).
 The same tool applied at μ=1.0 shows the more interesting mixed case
 directly: euler's own terrain traps its trajectory away from the true
 equilibrium while midpoint/rk4/tsit5's own terrains each show a clean dive
@@ -384,7 +385,7 @@ verified.
 While extending this track's infrastructure to run on Kaggle (for compute the
 local machine couldn't provide in reasonable time), the same (solver=tsit5,
 μ=0.5, Δt=0.05) sanity cell already validated locally against
-`pendulum_control_win5` (see `experiments/stiffness_map/README.md`) was run
+`pendulum_control_win5` (see `implementation/experiments/stiffness_map/README.md`) was run
 again on Kaggle, same seed, same code, same epoch budget:
 
 | Metric | Reference (`pendulum_control_win5`) | Kaggle re-run | Ratio |
@@ -531,7 +532,7 @@ clearly below its own μ=0.5/5.0/8.0 results. The ranking — trapped models
 sit in flatter basins than converged ones — held up under a direction that,
 by accident, was considerably more aggressive than the other two. Two figures
 make this visible directly rather than asking you to trust the averages:
-`results/phase3/stiffness_map/loss_landscape/multidirection_comparison_euler_mu2.0.png`
+`implementation/results/phase3/stiffness_map/loss_landscape/multidirection_comparison_euler_mu2.0.png`
 shows euler's μ=2.0 model under all three direction-pairs side by side — the
 third panel's outlier spike is obvious, but the shallow valley near the
 trained point looks the same in all three. The companion pair,
