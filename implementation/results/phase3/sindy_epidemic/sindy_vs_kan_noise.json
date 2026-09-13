@@ -1,0 +1,2001 @@
+{
+  "track": "E1 -- SINDy comparison under noise + L1 edge pruning",
+  "owner": {
+    "name": "Monjur Hossain Khan (Shovon)",
+    "id": "2105043"
+  },
+  "pysindy_version": "2.1.0",
+  "torch_version": "2.11.0+cpu",
+  "sindy_config": {
+    "library": "PolynomialLibrary(degree=2)",
+    "optimizer": "STLSQ(threshold=0.05)",
+    "note": "threshold held fixed across sigma so the sweep measures noise sensitivity, not per-level tuning"
+  },
+  "prune_percentiles": [
+    0.0,
+    5.0,
+    10.0,
+    25.0,
+    50.0,
+    75.0
+  ],
+  "levels": [
+    {
+      "sigma": 0.0,
+      "checkpoint": "results/benchmarks/noise/sigma0/best_model.pt",
+      "n_train_points": 36,
+      "n_full_points": 141,
+      "sindy": {
+        "fd": {
+          "equations": [
+            " 1.4695 x + -0.9796 x y",
+            "-0.1752 1 +  0.0600 x + -2.8402 y +  0.9464 x y"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.004782875414170708,
+          "extrap_mse": 0.09900492799357039,
+          "full_mse": 0.07494823371797898,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 1.4695377269020786,
+                "rel_error": 0.020308182065280917
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.9796231041153266,
+                "rel_error": 0.020376895884673396
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -2.840224324285254,
+                "rel_error": 0.05325855857158205
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.946363651688137,
+                "rel_error": 0.053636348311863036
+              }
+            },
+            "spurious_terms": 2,
+            "spurious_detail": [
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": -0.17515403588071282
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": 0.060045171020359854
+              }
+            ],
+            "max_rel_error": 0.053636348311863036
+          }
+        },
+        "smoothed": {
+          "equations": [
+            "-2.1915 1 +  2.8042 x +  1.2903 y + -0.2129 x^2 + -0.8091 x y + -0.4201 y^2",
+            " 2.2754 1 + -1.3123 x + -4.4106 y +  0.2107 x^2 +  0.8124 x y +  0.4535 y^2"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.09096905750955026,
+          "extrap_mse": 0.12379762153757769,
+          "full_mse": 0.11541586050914517,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 2.804210400240748,
+                "rel_error": 0.8694736001604987
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.809111198424317,
+                "rel_error": 0.190888801575683
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -4.410557318733068,
+                "rel_error": 0.47018577291102276
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.8123916222335124,
+                "rel_error": 0.18760837776648764
+              }
+            },
+            "spurious_terms": 8,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -2.191496231441154
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 1.2902580328150515
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.21286295446568904
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.4201195287315749
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 2.275398924461761
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -1.3122730931416717
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.21067710431283038
+              },
+              {
+                "eq": 1,
+                "feature": "y^2",
+                "coef": 0.4535395968184093
+              }
+            ],
+            "max_rel_error": 0.8694736001604987
+          }
+        }
+      },
+      "kan": {
+        "spline_only": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.2009872943162918,
+              0.11883755773305893
+            ],
+            "train_mse": 8.832586172502488e-05,
+            "extrap_mse": 8.922593406168744e-05,
+            "full_mse": 8.899613749235868e-05,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.2245553731918335,
+              0.1306706666946411
+            ],
+            "train_mse": 0.49988141655921936,
+            "extrap_mse": 4.437994003295898,
+            "full_mse": 3.432518720626831,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.22768737375736237,
+              0.19997818768024445
+            ],
+            "train_mse": 0.3917258679866791,
+            "extrap_mse": 1.4228802919387817,
+            "full_mse": 1.15960693359375,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.2630273401737213,
+              0.30557501316070557
+            ],
+            "train_mse": 1.5258958339691162,
+            "extrap_mse": 3.0996320247650146,
+            "full_mse": 2.697827100753784,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.2965752184391022,
+              0.5140376091003418
+            ],
+            "train_mse": 4.6800384521484375,
+            "extrap_mse": 3.4567737579345703,
+            "full_mse": 3.769096612930298,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5413330793380737,
+              0.6640528440475464
+            ],
+            "train_mse": 3.571719169616699,
+            "extrap_mse": 3.832383871078491,
+            "full_mse": 3.7658309936523438,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.6865100264549255,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.9947630167007446
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7856299877166748,
+                    0.768996000289917
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.576026976108551
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9311890006065369,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.7343109846115112,
+                    0.0,
+                    0.7169049978256226,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7100319862365723,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.293076992034912,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "prune_base": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.4995976686477661,
+              0.5947571992874146
+            ],
+            "train_mse": 8.832586172502488e-05,
+            "extrap_mse": 8.922593406168744e-05,
+            "full_mse": 8.899613749235868e-05,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5243250131607056,
+              0.6364638805389404
+            ],
+            "train_mse": 1.2393823862075806,
+            "extrap_mse": 3.318887233734131,
+            "full_mse": 2.787950038909912,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5293262600898743,
+              0.6742969155311584
+            ],
+            "train_mse": 3.528012275695801,
+            "extrap_mse": 3.8660035133361816,
+            "full_mse": 3.779707193374634,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5989395976066589,
+              0.748394250869751
+            ],
+            "train_mse": 4.281671524047852,
+            "extrap_mse": 4.45537805557251,
+            "full_mse": 4.411027908325195,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.8455853462219238,
+              0.8881114721298218
+            ],
+            "train_mse": 3.9523959159851074,
+            "extrap_mse": 4.340090751647949,
+            "full_mse": 4.241105079650879,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              1.0416688919067383,
+              1.5069177150726318
+            ],
+            "train_mse": 21.66109275817871,
+            "extrap_mse": 371.496826171875,
+            "full_mse": 282.17706298828125,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.9947630167007446
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7856299877166748,
+                    0.768996000289917
+                  ],
+                  [
+                    0.0,
+                    0.3103710114955902
+                  ],
+                  [
+                    0.0,
+                    0.576026976108551
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9311890006065369,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.5636759996414185,
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7100319862365723,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.293076992034912,
+                    0.0,
+                    0.0,
+                    0.39225301146507263,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sigma": 0.01,
+      "checkpoint": "results/benchmarks/noise/sigma0.01/best_model.pt",
+      "n_train_points": 36,
+      "n_full_points": 141,
+      "sindy": {
+        "fd": {
+          "equations": [
+            " 0.1803 1 +  1.4164 x + -0.1173 y + -0.9475 x y",
+            "-0.1130 1 +  0.0484 x + -2.8542 y +  0.9506 x y"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.017149545060915223,
+          "extrap_mse": 0.1576520485479467,
+          "full_mse": 0.12177906893423653,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 1.416370342028283,
+                "rel_error": 0.055753105314478045
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.9474817103273476,
+                "rel_error": 0.052518289672652374
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -2.8542190949052677,
+                "rel_error": 0.04859363503157743
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.9505637856843684,
+                "rel_error": 0.04943621431563161
+              }
+            },
+            "spurious_terms": 4,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": 0.18027786346186495
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": -0.11728616469506667
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": -0.11302720611000995
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": 0.04839940147976626
+              }
+            ],
+            "max_rel_error": 0.055753105314478045
+          }
+        },
+        "smoothed": {
+          "equations": [
+            "-2.2210 1 +  2.8244 x +  1.3100 y + -0.2159 x^2 + -0.8120 x y + -0.4231 y^2",
+            " 2.2702 1 + -1.3122 x + -4.3851 y +  0.2100 x^2 +  0.8156 x y +  0.4465 y^2"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.08930253958328421,
+          "extrap_mse": 0.13348285975239435,
+          "full_mse": 0.12220277800708963,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 2.8244143675256566,
+                "rel_error": 0.882942911683771
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.8119657347556527,
+                "rel_error": 0.1880342652443473
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -4.38512195018812,
+                "rel_error": 0.4617073167293733
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.8155732536487283,
+                "rel_error": 0.18442674635127165
+              }
+            },
+            "spurious_terms": 8,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -2.220990539167
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 1.3099748892254532
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.21589174045382808
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.4231134599990477
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 2.2701636761307262
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -1.3121726043569715
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.21000888838994736
+              },
+              {
+                "eq": 1,
+                "feature": "y^2",
+                "coef": 0.44647348704517953
+              }
+            ],
+            "max_rel_error": 0.882942911683771
+          }
+        }
+      },
+      "kan": {
+        "spline_only": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.18339237570762634,
+              0.11777409166097641
+            ],
+            "train_mse": 0.0001225078449351713,
+            "extrap_mse": 0.001216938253492117,
+            "full_mse": 0.0009375091758556664,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.21745871007442474,
+              0.12792477011680603
+            ],
+            "train_mse": 0.5267236232757568,
+            "extrap_mse": 4.604269027709961,
+            "full_mse": 3.5631935596466064,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.21955162286758423,
+              0.19937323033809662
+            ],
+            "train_mse": 0.774281919002533,
+            "extrap_mse": 5.503793716430664,
+            "full_mse": 4.296258449554443,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.26449054479599,
+              0.3086400628089905
+            ],
+            "train_mse": 1.668133020401001,
+            "extrap_mse": 1.9225571155548096,
+            "full_mse": 1.857597827911377,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.28864163160324097,
+              0.5157330632209778
+            ],
+            "train_mse": 4.464463710784912,
+            "extrap_mse": 3.4447720050811768,
+            "full_mse": 3.705118417739868,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5406157374382019,
+              0.6622943878173828
+            ],
+            "train_mse": 3.570357084274292,
+            "extrap_mse": 3.843291997909546,
+            "full_mse": 3.773606777191162,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.6876490116119385,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0023460388183594
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.773967981338501,
+                    0.7721250057220459
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.5774520039558411
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9319570064544678,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.7271350026130676,
+                    0.0,
+                    0.719864010810852,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7171189785003662,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.2631510496139526,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "prune_base": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.4739842116832733,
+              0.5929834246635437
+            ],
+            "train_mse": 0.0001225078449351713,
+            "extrap_mse": 0.001216938253492117,
+            "full_mse": 0.0009375091758556664,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5270458459854126,
+              0.6510127186775208
+            ],
+            "train_mse": 1.2719711065292358,
+            "extrap_mse": 3.185344696044922,
+            "full_mse": 2.6968235969543457,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5314289927482605,
+              0.6856078505516052
+            ],
+            "train_mse": 3.9501962661743164,
+            "extrap_mse": 4.083497047424316,
+            "full_mse": 4.049462795257568,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.6055898070335388,
+              0.7532675266265869
+            ],
+            "train_mse": 4.269777297973633,
+            "extrap_mse": 4.44753360748291,
+            "full_mse": 4.402148723602295,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.8337497115135193,
+              0.8873116374015808
+            ],
+            "train_mse": 3.991865396499634,
+            "extrap_mse": 4.395609378814697,
+            "full_mse": 4.292525768280029,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              1.0506037473678589,
+              1.4980969429016113
+            ],
+            "train_mse": 21.404483795166016,
+            "extrap_mse": 364.760498046875,
+            "full_mse": 277.0951232910156,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0023460388183594
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.773967981338501,
+                    0.7721250057220459
+                  ],
+                  [
+                    0.0,
+                    0.3079589903354645
+                  ],
+                  [
+                    0.0,
+                    0.5774520039558411
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9319570064544678,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.5588979721069336,
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7171189785003662,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.2631510496139526,
+                    0.0,
+                    0.0,
+                    0.3867020010948181,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sigma": 0.05,
+      "checkpoint": "results/benchmarks/noise/sigma0.05/best_model.pt",
+      "n_train_points": 36,
+      "n_full_points": 141,
+      "sindy": {
+        "fd": {
+          "equations": [
+            "-0.6395 1 +  1.9250 x +  0.2890 y + -0.0728 x^2 + -0.9479 x y + -0.0916 y^2",
+            " 1.0353 1 + -0.5540 x + -3.3560 y +  0.0767 x^2 +  0.9629 x y +  0.1066 y^2"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.08555480464134381,
+          "extrap_mse": 0.14754991125810438,
+          "full_mse": 0.1317213733985059,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 1.9250035707301687,
+                "rel_error": 0.28333571382011247
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.9479351018989084,
+                "rel_error": 0.052064898101091606
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -3.3559730570526494,
+                "rel_error": 0.11865768568421646
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.9629126112174919,
+                "rel_error": 0.03708738878250806
+              }
+            },
+            "spurious_terms": 8,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -0.6394882900036601
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 0.28895952105175243
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.0727579523505466
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.09155505594665919
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 1.035250194644155
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -0.554042663001465
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.07665942680095217
+              },
+              {
+                "eq": 1,
+                "feature": "y^2",
+                "coef": 0.10661590424801193
+              }
+            ],
+            "max_rel_error": 0.28333571382011247
+          }
+        },
+        "smoothed": {
+          "equations": [
+            "-2.3430 1 +  2.9082 x +  1.3907 y + -0.2284 x^2 + -0.8236 x y + -0.4355 y^2",
+            " 2.1544 1 + -1.2624 x + -4.2199 y +  0.2009 x^2 +  0.8265 x y +  0.4044 y^2"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.08175754610264442,
+          "extrap_mse": 0.25291887259925544,
+          "full_mse": 0.20921810838735475,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 2.908173874974693,
+                "rel_error": 0.9387825833164619
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.8235840425001617,
+                "rel_error": 0.1764159574998383
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -4.219908021221962,
+                "rel_error": 0.4066360070739874
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.8265075778689599,
+                "rel_error": 0.1734924221310401
+              }
+            },
+            "spurious_terms": 8,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -2.3429898283005484
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 1.3907348538223898
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.22840504897005065
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.4354830866595608
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 2.1544377123399454
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -1.2623552535014586
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.20094755011941223
+              },
+              {
+                "eq": 1,
+                "feature": "y^2",
+                "coef": 0.40441804696774963
+              }
+            ],
+            "max_rel_error": 0.9387825833164619
+          }
+        }
+      },
+      "kan": {
+        "spline_only": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.1645464152097702,
+              0.1172478049993515
+            ],
+            "train_mse": 0.0007407193188555539,
+            "extrap_mse": 0.02537037804722786,
+            "full_mse": 0.019081955775618553,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.1882757693529129,
+              0.1260237842798233
+            ],
+            "train_mse": 1.077972412109375,
+            "extrap_mse": 7.747526168823242,
+            "full_mse": 6.044660568237305,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.20226161181926727,
+              0.19992466270923615
+            ],
+            "train_mse": 1.3268542289733887,
+            "extrap_mse": 8.606026649475098,
+            "full_mse": 6.7475152015686035,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.26456841826438904,
+              0.32022276520729065
+            ],
+            "train_mse": 1.082646369934082,
+            "extrap_mse": 1.8790963888168335,
+            "full_mse": 1.675747275352478,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.2865263819694519,
+              0.5406354665756226
+            ],
+            "train_mse": 4.257280349731445,
+            "extrap_mse": 3.447660207748413,
+            "full_mse": 3.654372215270996,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5423731207847595,
+              0.669359028339386
+            ],
+            "train_mse": 3.3930320739746094,
+            "extrap_mse": 3.7604172229766846,
+            "full_mse": 3.666616916656494,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.6764270067214966,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0160889625549316
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7309470176696777,
+                    0.7584580183029175
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.5737640261650085
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9231579899787903,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.6900280117988586,
+                    0.0,
+                    0.7462400197982788,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7202979922294617,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.190801978111267,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "prune_base": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.37237775325775146,
+              0.5835646390914917
+            ],
+            "train_mse": 0.0007407193188555539,
+            "extrap_mse": 0.02537037804722786,
+            "full_mse": 0.019081955775618553,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5058961510658264,
+              0.6693410873413086
+            ],
+            "train_mse": 1.396952748298645,
+            "extrap_mse": 3.045203685760498,
+            "full_mse": 2.6243736743927,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5592477321624756,
+              0.6836207509040833
+            ],
+            "train_mse": 0.3122985064983368,
+            "extrap_mse": 4.048615455627441,
+            "full_mse": 3.0946624279022217,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.6191023588180542,
+              0.7945582866668701
+            ],
+            "train_mse": 4.706958293914795,
+            "extrap_mse": 4.855712413787842,
+            "full_mse": 4.817732810974121,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.789734423160553,
+              0.8834789991378784
+            ],
+            "train_mse": 4.187692642211914,
+            "extrap_mse": 4.552252292633057,
+            "full_mse": 4.459173202514648,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              1.08111572265625,
+              1.4912563562393188
+            ],
+            "train_mse": 20.1170597076416,
+            "extrap_mse": 331.5794982910156,
+            "full_mse": 252.0571746826172,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0160889625549316
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.2510629892349243,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7309470176696777,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.3008419871330261
+                  ],
+                  [
+                    0.0,
+                    0.5737640261650085
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9231579899787903,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.5430319905281067,
+                    0.0,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7202979922294617,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.190801978111267,
+                    0.0,
+                    0.0,
+                    0.37200599908828735,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "sigma": 0.1,
+      "checkpoint": "results/benchmarks/noise/sigma0.1/best_model.pt",
+      "n_train_points": 36,
+      "n_full_points": 141,
+      "sindy": {
+        "fd": {
+          "equations": [
+            "-1.0518 1 +  2.1695 x +  0.5373 y + -0.1113 x^2 + -0.9429 x y + -0.1491 y^2",
+            " 0.8620 1 + -0.4572 x + -2.9139 y +  0.0589 x^2 +  0.9694 x y"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.23203647887543136,
+          "extrap_mse": 0.8891012088767233,
+          "full_mse": 0.721340001216819,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 2.1694662927809265,
+                "rel_error": 0.446310861853951
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.9429354858675519,
+                "rel_error": 0.05706451413244806
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -2.913870707272373,
+                "rel_error": 0.028709764242542384
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.9693852379077857,
+                "rel_error": 0.030614762092214254
+              }
+            },
+            "spurious_terms": 7,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -1.051768599949458
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 0.5372661381140833
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.11133958824744727
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.1491412521963833
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 0.8619526916322898
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -0.4571785649204002
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.058881299743688
+              }
+            ],
+            "max_rel_error": 0.446310861853951
+          }
+        },
+        "smoothed": {
+          "equations": [
+            "-2.4956 1 +  3.0149 x +  1.4898 y + -0.2443 x^2 + -0.8384 x y + -0.4505 y^2",
+            " 1.8132 1 + -1.0957 x + -3.8861 y +  0.1763 x^2 +  0.8357 x y +  0.3246 y^2"
+          ],
+          "simulation_status": "ok",
+          "train_mse": 0.07029159651053418,
+          "extrap_mse": 0.9863801039406053,
+          "full_mse": 0.752485165873353,
+          "finite": true,
+          "coefficients": {
+            "terms": {
+              "eq0:x": {
+                "true": 1.5,
+                "recovered": 3.014904938033821,
+                "rel_error": 1.0099366253558806
+              },
+              "eq0:x y": {
+                "true": -1.0,
+                "recovered": -0.8384389656409402,
+                "rel_error": 0.16156103435905977
+              },
+              "eq1:y": {
+                "true": -3.0,
+                "recovered": -3.886121878793124,
+                "rel_error": 0.29537395959770807
+              },
+              "eq1:x y": {
+                "true": 1.0,
+                "recovered": 0.8356855559727772,
+                "rel_error": 0.16431444402722284
+              }
+            },
+            "spurious_terms": 8,
+            "spurious_detail": [
+              {
+                "eq": 0,
+                "feature": "1",
+                "coef": -2.495599626468431
+              },
+              {
+                "eq": 0,
+                "feature": "y",
+                "coef": 1.4898014155406645
+              },
+              {
+                "eq": 0,
+                "feature": "x^2",
+                "coef": -0.2443365555800172
+              },
+              {
+                "eq": 0,
+                "feature": "y^2",
+                "coef": -0.45046853715448976
+              },
+              {
+                "eq": 1,
+                "feature": "1",
+                "coef": 1.8132189060950537
+              },
+              {
+                "eq": 1,
+                "feature": "x",
+                "coef": -1.0956842372866935
+              },
+              {
+                "eq": 1,
+                "feature": "x^2",
+                "coef": 0.1763088385167868
+              },
+              {
+                "eq": 1,
+                "feature": "y^2",
+                "coef": 0.3245572544917093
+              }
+            ],
+            "max_rel_error": 1.0099366253558806
+          }
+        }
+      },
+      "kan": {
+        "spline_only": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.15862059593200684,
+              0.11971776187419891
+            ],
+            "train_mse": 0.002280476503074169,
+            "extrap_mse": 0.13744592666625977,
+            "full_mse": 0.10293558984994888,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.1853218376636505,
+              0.1256026327610016
+            ],
+            "train_mse": 1.2120306491851807,
+            "extrap_mse": 8.749418258666992,
+            "full_mse": 6.824979782104492,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.1952565461397171,
+              0.2029046267271042
+            ],
+            "train_mse": 1.3978933095932007,
+            "extrap_mse": 9.327998161315918,
+            "full_mse": 7.303290843963623,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.26397430896759033,
+              0.32438361644744873
+            ],
+            "train_mse": 2.484198570251465,
+            "extrap_mse": 8.43239974975586,
+            "full_mse": 6.91370964050293,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.287748247385025,
+              0.5691357254981995
+            ],
+            "train_mse": 5.006261825561523,
+            "extrap_mse": 3.019591808319092,
+            "full_mse": 3.526826858520508,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.548927366733551,
+              0.6947510838508606
+            ],
+            "train_mse": 3.110602855682373,
+            "extrap_mse": 3.640408754348755,
+            "full_mse": 3.5051395893096924,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.6205570101737976,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0154789686203003
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.716202974319458,
+                    0.7747399806976318
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.5681729912757874
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9144960045814514,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.7029370069503784,
+                    0.0,
+                    0.809194028377533,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7271379828453064,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.1920570135116577,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "prune_base": [
+          {
+            "threshold_percentile": 0.0,
+            "sparsity": 0.0,
+            "edges_pruned": 0,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.33498474955558777,
+              0.5730138421058655
+            ],
+            "train_mse": 0.002280476503074169,
+            "extrap_mse": 0.13744592666625977,
+            "full_mse": 0.10293558984994888,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 5.0,
+            "sparsity": 0.05,
+            "edges_pruned": 2,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.49828040599823,
+              0.6539366245269775
+            ],
+            "train_mse": 1.5170618295669556,
+            "extrap_mse": 3.317797899246216,
+            "full_mse": 2.8580353260040283,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 10.0,
+            "sparsity": 0.1,
+            "edges_pruned": 4,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5253190994262695,
+              0.6796424388885498
+            ],
+            "train_mse": 1.6790050268173218,
+            "extrap_mse": 4.139978885650635,
+            "full_mse": 3.5116450786590576,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 25.0,
+            "sparsity": 0.25,
+            "edges_pruned": 10,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.5897785425186157,
+              0.8356035947799683
+            ],
+            "train_mse": 65.05884552001953,
+            "extrap_mse": 1302.1845703125,
+            "full_mse": 986.3226928710938,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 50.0,
+            "sparsity": 0.5,
+            "edges_pruned": 20,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              0.833877682685852,
+              0.9387121200561523
+            ],
+            "train_mse": 7.144248008728027,
+            "extrap_mse": 10.526655197143555,
+            "full_mse": 9.66306209564209,
+            "finite": true
+          },
+          {
+            "threshold_percentile": 75.0,
+            "sparsity": 0.75,
+            "edges_pruned": 30,
+            "total_edges": 40,
+            "magnitude_cutoffs": [
+              1.0964300632476807,
+              1.4599995613098145
+            ],
+            "train_mse": 10.106258392333984,
+            "extrap_mse": 54.041847229003906,
+            "full_mse": 42.82425308227539,
+            "finite": true,
+            "surviving_edges": [
+              {
+                "layer": 0,
+                "in_features": 2,
+                "out_features": 10,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    1.0154789686203003
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.2603749930858612,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.716202974319458,
+                    0.0
+                  ],
+                  [
+                    0.0,
+                    0.29031598567962646
+                  ],
+                  [
+                    0.0,
+                    0.5681729912757874
+                  ]
+                ]
+              },
+              {
+                "layer": 1,
+                "in_features": 10,
+                "out_features": 2,
+                "alive_edges": 5,
+                "total_edges": 20,
+                "strength_matrix": [
+                  [
+                    0.0,
+                    0.9144960045814514,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.534246027469635,
+                    0.809194028377533,
+                    0.0,
+                    0.0
+                  ],
+                  [
+                    0.7271379828453064,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.1920570135116577,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
