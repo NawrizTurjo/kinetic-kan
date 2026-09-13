@@ -569,11 +569,15 @@ its seed-to-seed range as an error bar, colored by verdict. Don't expect a
 dramatic before/after picture from it. μ=2.0's bars and euler's own μ=1.0 bar
 do sit toward the bottom of the chart, but the error bars on almost every bar
 overlap heavily with their neighbors. So the finding here is really just:
-trapped or unstable cells sit somewhat lower on this chart than converged
-ones, by around 20-30% in the mean — not an order of magnitude, and not tied
-to μ=2.0 specifically. It's a real, measured pattern, just a modest one, and
-the stronger-sounding prose earlier in this section should be read with that
-in mind.
+the cells trapped by the spurious-equilibrium mechanism — μ=2.0 across all
+solvers, and euler's own μ=1.0 — sit somewhat lower on this chart than
+converged cells, by around 20-30% in the mean, not an order of magnitude.
+μ=0.1, also labeled "unstable" but for the unrelated reason that its
+trajectory never settles within the training window (§4), does not show this
+pattern: its bars sit in the same range as the converged μ=5.0/8.0 cells,
+sometimes above them. It's a real, measured pattern for the trap cases
+specifically, just a modest one, and the stronger-sounding prose earlier in
+this section should be read with that in mind.
 
 The rise numbers are also affected by how small each model's starting error
 already was — μ=8.0's errors are tiny to begin with (around 0.00002), so even
