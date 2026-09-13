@@ -32,25 +32,43 @@ def _cell_dir(mu, solver):
 
 
 def plot_comparison(solver, mu, out_path, seeds=(0, 1, 2)):
-    fig = plt.figure(figsize=(7 * len(seeds), 6))
-    for i, seed in enumerate(seeds):
+    """
+    All 3 seed panels share ONE z-axis scale, computed from this cell's own
+    3 grids (not matplotlib's per-panel auto-scale). Without this, each
+    subplot independently stretches its own z-range to fill the box -- a
+    seed whose rise is 4 orders of magnitude and one whose rise is 13 end up
+    LOOKING equally steep, because the axis just rescales to whatever data it
+    got. That silently hid the exact comparison this plot exists to show.
+    """
+    grids = []
+    for seed in seeds:
         path = os.path.join(_cell_dir(mu, solver), f"grid_seed{seed}.npz")
         d = np.load(path)
-        alphas, betas, loss, center = d["alphas"], d["betas"], d["loss"], float(d["center_loss"])
-        log_loss = np.log10(np.clip(loss, 1e-12, None))
+        log_loss = np.log10(np.clip(d["loss"], 1e-12, None))
+        center = float(d["center_loss"])
+        grids.append((seed, d["alphas"], d["betas"], log_loss, center))
+
+    z_lo = min(g[3].min() for g in grids)
+    z_hi = max(g[3].max() for g in grids)
+
+    fig = plt.figure(figsize=(7 * len(seeds), 6))
+    for i, (seed, alphas, betas, log_loss, center) in enumerate(grids):
         rise = log_loss.max() - np.log10(max(center, 1e-12))
 
         ax = fig.add_subplot(1, len(seeds), i + 1, projection="3d")
         ax.computed_zorder = False
         A, B = np.meshgrid(alphas, betas, indexing="ij")
         surf = ax.plot_surface(A, B, log_loss, cmap="viridis", alpha=0.9, linewidth=0.15,
-                                edgecolor="#00000022", antialiased=True, zorder=0)
+                                edgecolor="#00000022", antialiased=True, zorder=0,
+                                vmin=z_lo, vmax=z_hi)
+        ax.set_zlim(z_lo, z_hi)
         ax.scatter(0, 0, np.log10(max(center, 1e-12)), color="red", s=90, marker="*",
                    edgecolor="black", linewidth=0.8, zorder=10)
         ax.set_xlabel("alpha"); ax.set_ylabel("beta"); ax.set_zlabel("log10(loss)")
         ax.set_title(f"direction-pair seed={seed}\nrise={rise:.2f}", fontsize=11, fontweight="bold")
 
-    fig.suptitle(f"{solver}, mu={mu} -- same trained weights, 3 different random direction-pairs",
+    fig.suptitle(f"{solver}, mu={mu} -- same trained weights, 3 different random direction-pairs "
+                 f"(shared z-axis: {z_lo:.1f} to {z_hi:.1f})",
                  fontsize=13, fontweight="bold")
     fig.patch.set_facecolor("white")
     fig.tight_layout()

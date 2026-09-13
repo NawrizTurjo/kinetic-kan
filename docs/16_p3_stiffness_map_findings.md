@@ -486,6 +486,17 @@ better-behaved one):
   intuition that flatter is safer; here, flat is where training gave up, and
   steep is where it actually worked.
 
+The size of this effect depends on how many direction choices are averaged
+together. The roughly 2x gap above (4.2 vs. 8.7-9.15) comes from a single
+direction-pair, seed=0, and is genuinely that clean in the plots. Averaging
+in the other two seeds (below) narrows the gap to roughly 20-30%, because the
+outlier direction found by seed=2 inflates the mean for trapped cells more
+than it inflates the mean for converged ones. The ranking between cells is
+unaffected; only the apparent size of the effect shrinks once a single
+favorable slice is no longer the whole story. The multi-seed average of
+20-30% is the number to trust; the seed=0 plots illustrate the shape of the
+effect, not its true magnitude.
+
 A few honest caveats about the table above. The model itself is small — 360
 parameters in total (two KAN layers, `[2, 10, 2]` with an 8-point grid) — so
 this only looks along two directions out of 360 available in the model's
@@ -552,6 +563,17 @@ precise measurement — a different random direction can move it by an order
 of magnitude or more. What should be trusted is the comparison between
 cells, which is where every claim in this section is actually anchored, and
 which three independent direction choices all agreed on.
+
+`loss_landscape/rise_comparison_bars.png` plots every cell's mean rise, with
+its seed-to-seed range as an error bar, colored by verdict. Don't expect a
+dramatic before/after picture from it. μ=2.0's bars and euler's own μ=1.0 bar
+do sit toward the bottom of the chart, but the error bars on almost every bar
+overlap heavily with their neighbors. So the finding here is really just:
+trapped or unstable cells sit somewhat lower on this chart than converged
+ones, by around 20-30% in the mean — not an order of magnitude, and not tied
+to μ=2.0 specifically. It's a real, measured pattern, just a modest one, and
+the stronger-sounding prose earlier in this section should be read with that
+in mind.
 
 The rise numbers are also affected by how small each model's starting error
 already was — μ=8.0's errors are tiny to begin with (around 0.00002), so even
