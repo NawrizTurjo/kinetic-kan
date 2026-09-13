@@ -1,0 +1,41 @@
+{
+    "config": {
+        "dataset": "damped_pendulum",
+        "basis_func": "hybrid_softmax_bspline_rbf",
+        "layers_hidden": [
+            2,
+            10,
+            2
+        ],
+        "grid_len": 8,
+        "lr": 0.003,
+        "epochs": 10000,
+        "grad_clip": 1.0,
+        "seed": 42,
+        "parameters": 362,
+        "blend_lr_mult": 15.0
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 9987
+    },
+    "best": {
+        "train_mse": 9.437342669116333e-05,
+        "extrap_mse": 0.8085800409317017,
+        "extrap_r2": -2.1715331077575684,
+        "extrap_rel_l2": 1.7776449918746948,
+        "full_mse": 0.4023260176181793
+    },
+    "final": {
+        "train_mse": 0.00013138720532879233,
+        "extrap_mse": 0.8088971972465515,
+        "extrap_r2": -2.172776937484741,
+        "extrap_rel_l2": 1.7779935598373413,
+        "full_mse": 0.4025023877620697
+    },
+    "nonfinite_grad_steps": 0,
+    "final_blend_weights": {
+        "alpha": 0.021204190328717232,
+        "beta": 0.9787958264350891
+    }
+}
