@@ -1,0 +1,19 @@
+{
+  "solver": "midpoint",
+  "mu": 2.0,
+  "dt": 0.05,
+  "num_epochs_requested": 2000,
+  "epochs_run": 2000,
+  "aborted_at_epoch": null,
+  "nonfinite_grad_steps": 0,
+  "first_nonfinite_epoch": null,
+  "best_epoch": 1959,
+  "best_train_mse": 0.01798107475042343,
+  "final_train_mse": 0.0199859831482172,
+  "full_mse": 0.009832104668021202,
+  "extrap_mse": 0.0016016426961869001,
+  "extrap_r2": -28.946258544921875,
+  "grad_norm_max": 61.451901918905214,
+  "seconds": 934.3134572505951,
+  "verdict": "unstable"
+}

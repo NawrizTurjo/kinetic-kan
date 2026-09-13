@@ -8,7 +8,7 @@
 [![Python 3.10+](<https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue.svg>)]()
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
-[![Phase 1 Status](https://img.shields.io/badge/Phase%201-100%25%20Complete-success.svg)]()
+[![Phase 2 Status](https://img.shields.io/badge/Phase%202-Complete%20(Lorenz%20dropped)-success.svg)]()
 [![Target Venue](<https://img.shields.io/badge/Target-CMAME%20%2F%20NeurIPS%20SciML-purple.svg>)]()
 
 ---
@@ -26,21 +26,36 @@ This project performs a comprehensive, two-part investigation:
    - Analyzes **Gradient Norm Dynamics ($\|\nabla_\theta \mathcal{L}\|_2$)** to show how solver truncation errors corrupt backpropagation.
    - Proposes a **Learnable Softmax Hybrid Basis Layer** blending compact B-splines and smooth RBFs.
    - Evaluates a **Stiffness-Solver Stability Map** on the non-linear Damped Pendulum ($\mu \in [0.1, 8.0]$).
-   - Benchmarks symbolic equation discovery against **SINDy** under Gaussian observational noise ($\sigma \le 0.10$).
+   - Benchmarks symbolic equation discovery against **SINDy** under Gaussian observational noise ($\sigma \le 0.10$), plus a fit to real epidemic data.
    - Profiles memory and runtime of **Continuous Adjoint Sensitivity ($O(1)$ memory)** vs. **Direct Autograd ($O(N_t)$ memory)**.
-   - Evaluates multi-scale chaotic attractor dynamics on the **3D Lorenz System**.
+
+> The 3D Lorenz attractor system was explored in early scoping (`data/lorenz.py` still
+> exists, unused) but has been **deliberately dropped** from the final project scope —
+> see [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md) §1.2.
 
 ---
 
 ## 👥 Project Team (Group 05)
 
-|    Student ID    | Full Name                       | Primary Research Role                                                             | Git Feature Branch            |
-| :---------------: | :------------------------------ | :-------------------------------------------------------------------------------- | :---------------------------- |
-| **2105032** | **Nawriz Ahmed Turjo**    | **Lead:** KAN Architecture, B-Spline Layers & Learnable Hybrid Basis (Phase 1 Lead)| `feat/m1-kan-architecture`  |
-| **2105033** | **Abhishek Roy**          | **Lead:** Numerical ODE Solvers, Step-Size Sweeps & Adjoint Profiling       | `feat/m2-numerical-solvers` |
-| **2105043** | **Monjur Hossain Khan**   | **Lead:** SciML Optimization, Loss Landscapes & Gradient Norm Dynamics      | `feat/m3-sciml-pipeline`    |
-| **2105048** | **Shams Hossain Simanto** | **Lead:** Non-linear Stability, Damped Pendulum Stiffness & SINDy Benchmark | `feat/m4-stability-sindy`   |
-| **2105055** | **Abrar Jahin**           | **Lead:** 3D Chaotic Lorenz Dynamics, Real Epidemiological Fit & Synthesis  | `feat/m5-chaos-visuals`     |
+Phase 1/2 (base reproduction and ablation studies) were completed collaboratively.
+Phase 3 (novel contributions) is organized into five independent, folder-isolated
+tracks per [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md) — the
+authoritative source for current ownership and scope; the table below mirrors it so
+this file does not drift out of sync again.
+
+|    Student ID    | Full Name                       | Phase 3 Track                                                    | Git Feature Branch            |
+| :---------------: | :------------------------------ | :---------------------------------------------------------------- | :---------------------------- |
+| **2105032** | **Nawriz Ahmed Turjo**    | **A** — Adjoint vs. Autograd Memory/Speed Profiling                       | `feat/p3-adjoint-profiling` |
+| **2105033** | **Abhishek Roy**          | **B** — Gradient Norm Dynamics vs. Solver Order                          | `feat/p3-gradient-dynamics` |
+| **2105048** | **Shams Hossain Simanto** | **C** — Learnable Softmax Hybrid Basis (Spline + RBF)                    | `feat/p3-hybrid-basis`      |
+| **2105055** | **Abrar Jahin**           | **D** — Stiffness–Solver Stability Phase Map (Damped Pendulum)           | `feat/p3-stiffness-map`     |
+| **2105043** | **Monjur Hossain Khan**   | **E** — SINDy Comparison under Noise + Real Epidemic Fit                 | `feat/p3-sindy-epidemic`    |
+
+> Note: the 3D Lorenz attractor track from the original proposal has been
+> **deliberately dropped** from project scope (not deferred) — see
+> [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md) §1.2. `data/lorenz.py`
+> remains in the repository as unused, harmless code; no team member or Phase 3 track
+> depends on it.
 
 ---
 
@@ -77,21 +92,35 @@ kinetic-kan/
 │   │   ├── metrics.py              # MSE, NFE tracker, parameter counter, Lipschitz bounds
 │   │   └── plotting.py             # Phase portraits, streamplots, loss curves & 3D renders
 │   │
-│   ├── results/                    # Validated experimental artifacts & checkpoint stores
-│   │   ├── kanode_rbf_tsit5/       # Validated 10,000-epoch baseline run artifacts
-│   │   └── quick_benchmarks/       # Preliminary activation and solver comparison runs
+│   ├── experiments/                # Phase 3 tracks land here, one folder per track (not yet created —
+│   │                                #   see docs/12_phase3_roadmap.md §Part 2 for the planned layout)
 │   │
-│   ├── train.py                    # Main KAN-ODE training loop with gradient norm logging
+│   ├── results/                    # Experimental artifacts & checkpoint stores
+│   │   ├── kanode_rbf_tsit5/       # Original 10,000-epoch baseline run artifacts
+│   │   ├── benchmarks/             # Phase 2 production sweeps: solvers, bases, noise, step-size, etc.
+│   │   ├── _probe/, _fixed/        # Cross-domain stability fix probes & full runs (pendulum, SIR)
+│   │   ├── phase2_closeout/        # Extrapolation-to-t=28, energy-dissipation JSON
+│   │   ├── figures/                # 300 DPI publication figures (Task 2.5)
+│   │   ├── tables/                 # Collated per-run and summary CSVs
+│   │   └── phase3/                 # Phase 3 track outputs land here (not yet created)
+│   │
+│   ├── train.py                    # Main KAN-ODE / MLP-ODE training loop with stability guards & gradient-norm logging
 │   ├── evaluate.py                 # Checkpoint evaluation, metric extraction & trajectory plotting
 │   ├── test_facility.py            # Automated ablation benchmark suite (--mode solvers/activations)
+│   ├── analyze_fixes.py            # Read-only diagnostic reader for any results tree
+│   ├── phase2_closeout.py          # Extrapolation/energy/figure generation, no new training
 │   └── README.md                   # Implementation quickstart guide & modularity documentation
 │
-├── tests/                          # Production-grade PyTest validation suite
+├── tests/                          # Production-grade PyTest validation suite (143/143 passing)
 │   ├── test_solvers.py             # Numerical order verification O(h^p) & energy conservation
 │   ├── test_kan_layers.py          # Autograd gradcheck, partition of unity & NaN immunity
 │   ├── test_pipeline.py            # End-to-end forward/backward & overfit sanity check
-│   ├── test_adjoint.py             # Continuous Adjoint vs Autograd parity & O(1) memory test
+│   ├── test_mlp_ode.py             # MLP-ODE parameter-matching to paper Table I
+│   ├── test_metrics.py             # SciML metrics correctness
+│   ├── test_plotting.py            # Plotting utilities
 │   └── test_datasets.py            # Deterministic seed reproducibility & physical invariants
+│   # test_p3_<slug>.py files land here as each Phase 3 track (below) is implemented —
+│   # e.g. Track A's test_adjoint.py does not exist yet; see docs/12_phase3_roadmap.md
 │
 ├── pyproject.toml                  # Tool configs (pytest, ruff, mypy, coverage)
 ├── requirements.txt                # Pinned dependency manifest
@@ -127,8 +156,13 @@ pip install -r requirements.txt
 
 ```bash
 cd implementation
-python train.py --basis rbf --solver tsit5 --epochs 10000 --lr 5e-4
+python train.py --basis rbf --solver tsit5 --epochs 10000 --lr 2e-3
 ```
+
+(`--lr 2e-3` is the project-standardized learning rate — both `train.py` and
+`test_facility.py` default to it, resolving an earlier LR mismatch between the two
+that produced a spurious ~1000x MSE discrepancy; the flag above is shown explicitly
+but may be omitted.)
 
 ### 3. Checkpoint Evaluation & Metrics
 
@@ -154,7 +188,8 @@ python test_facility.py --mode activations --epochs 10000
 
 All comprehensive documentation, research plans, and slides are located in the [`docs/`](./docs) directory:
 
-* 📖 **Master Project Implementation Plan:** [`docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md`](./docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md)
+* 🌟 **Phase 3 Roadmap (current, authoritative for Phase 3 scope & ownership):** [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md)
+* 📖 **Original Project Implementation Plan** (Phases 1–2 authoritative; Phase 3 section superseded by the roadmap above): [`docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md`](./docs/04_project_blueprint/PROJECT_IMPLEMENTATION_PLAN.md)
 * 🔬 **Mathematical Deep Dive & Research Blueprint:** [`docs/04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md`](./docs/04_project_blueprint/KAN_ODE_Project_Deep_Dive_FINAL.md)
 * 📊 **Presentation Scope vs. Final Plan Comparison:** [`docs/04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md`](./docs/04_project_blueprint/Presentation_vs_Final_Plan_Comparison.md)
 * 📽️ **Proposal Presentation Slide Deck:** [`docs/03_presentation/KAN-ODE.pdf`](./docs/03_presentation/KAN-ODE.pdf) ([Source `.tex`](./docs/03_presentation/KAN-ODE.tex))
@@ -167,7 +202,7 @@ All comprehensive documentation, research plans, and slides are located in the [
 ### Primary Base Paper
 
 * **Title:** *KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics*
-* **Authors:** Zachary Koenig, Jihoon Kim, and Yuntian Deng
+* **Authors:** Benjamin C. Koenig, Suyong Kim, and Sili Deng
 * **Affiliation:** Massachusetts Institute of Technology (MIT)
 * **Venue:** *Computer Methods in Applied Mechanics and Engineering* (Elsevier), Volume 432, Part A, Article 117397, December 2024.
 * **DOI:** [`10.1016/j.cma.2024.117397`](https://doi.org/10.1016/j.cma.2024.117397)
@@ -177,7 +212,7 @@ All comprehensive documentation, research plans, and slides are located in the [
 ```bibtex
 @article{koenig2024kanodes,
   title     = {KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics},
-  author    = {Koenig, Zachary and Kim, Jihoon and Deng, Yuntian},
+  author    = {Koenig, Benjamin C. and Kim, Suyong and Deng, Sili},
   journal   = {Computer Methods in Applied Mechanics and Engineering},
   volume    = {432},
   pages     = {117397},

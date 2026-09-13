@@ -16,7 +16,7 @@
 │   Integrators in Kolmogorov-Arnold Network Ordinary Differential Equations (KAN-ODEs)                  │
 │ • Base Paper: "KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning        │
 │   Dynamical Systems and Hidden Physics", CMAME (Elsevier), Vol. 432, 117397, 2024.                      │
-│ • Primary Authors: Zachary Koenig, Jihoon Kim, Yuntian Deng (Massachusetts Institute of Technology)   │
+│ • Primary Authors: Benjamin C. Koenig, Suyong Kim, Sili Deng (Massachusetts Institute of Technology) │
 │ • Open Access arXiv: arXiv:2407.04192 | Codebase: https://github.com/DENG-MIT/KAN-ODEs                 │
 │ • Project Direction: Methodological Extension + Cross-Domain Application + Comparative Benchmarking    │
 │ • Compute Footprint: 100% Lightweight (Runs in minutes on Kaggle T4 GPU or standard Laptop CPU)       │
