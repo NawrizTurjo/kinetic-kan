@@ -59,7 +59,7 @@ not touch `kan/`, `ode/`, `data/`, or `utils/`.
 ## The baseline every cell starts from
 
 The `pendulum_control_win5` recipe from `docs/09_stability_fix_results.md`,
-confirmed against that run's own `results/_fixed/pendulum_control_win5/metrics.json`
+confirmed against that run's own `implementation/results/_fixed/pendulum_control_win5/metrics.json`
 config block (not retyped from the doc's prose):
 
 ```
