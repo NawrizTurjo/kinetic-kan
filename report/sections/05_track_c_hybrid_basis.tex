@@ -28,6 +28,42 @@ bases, it would suggest the basis-function choice in Equation~\ref{eq:kan-edge}
 is itself worth learning rather than fixing by hand, for every future
 KAN-ODE application.
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=10mm, font=\small,
+  boxnd/.style={draw=ink, fill=accentsoft, minimum size=7mm, rounded corners=2pt},
+  fnbox/.style={draw=ink!60, fill=codebg, minimum width=20mm, minimum height=7mm, rounded corners=2pt},
+  gatend/.style={draw=accent, fill=white, circle, minimum size=6mm, inner sep=0pt, font=\bfseries\small\color{accent}},
+  sumnd/.style={draw=accent, fill=accentsoft, circle, minimum size=7mm, inner sep=0pt, font=\bfseries\color{accent}},
+  arr/.style={-{Stealth[length=2mm]}, draw=ink!65, thick}
+]
+  \node[boxnd] (x) at (0,0) {$x$};
+  \node[fnbox] (sp) at (2.6,1.1) {$\mathrm{Spline}(x)$};
+  \node[fnbox] (rbf) at (2.6,-1.1) {$\mathrm{RBF}(x)$};
+  \node[gatend] (gA) at (5.0,1.1) {$\times$};
+  \node[gatend] (gB) at (5.0,-1.1) {$\times$};
+  \node[sumnd] (sum) at (7.2,0) {$+$};
+  \node[boxnd] (phi) at (9.2,0) {$\phi(x)$};
+  \node[fnbox, minimum width=19mm, minimum height=6mm, font=\scriptsize] (softmax) at (2.6,0) {$\operatorname{softmax}(\text{logits})$};
+
+  \draw[arr] (x) -- (sp);
+  \draw[arr] (x) -- (rbf);
+  \draw[arr] (sp) -- (gA);
+  \draw[arr] (rbf) -- (gB);
+  \draw[arr] (gA) -- (sum);
+  \draw[arr] (gB) -- (sum);
+  \draw[arr] (sum) -- (phi);
+  \draw[arr, accent!85] (softmax.north) -- node[right, font=\tiny\sffamily\color{accent!85}, pos=0.7]{$\alpha$} (gA.south);
+  \draw[arr, accent!85] (softmax.south) -- node[right, font=\tiny\sffamily\color{accent!85}, pos=0.7]{$\beta$} (gB.north);
+\end{tikzpicture}
+\caption{The hybrid-basis edge of Equation~\ref{eq:hybrid-basis}: every edge
+evaluates both bases in parallel, and a shared softmax gate produces the
+scalar weights $\alpha,\beta$ that multiply each basis's output before they
+are summed into $\phi(x)$ -- the choice of basis is a trained quantity, not a
+decision fixed at construction time.}
+\label{fig:hybrid-schematic}
+\end{figure}
+
 \begin{expectbox}
 \expectrow{Question}{Can a network do better by learning its own blend of B-spline and RBF, rather than committing to one basis in advance?}
 \expectrow{Expected}{A learned blend should match or beat the better pure basis, by adaptively favoring local support where useful and global support elsewhere.}

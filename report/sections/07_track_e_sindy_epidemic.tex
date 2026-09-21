@@ -86,9 +86,19 @@ in phase.}
 Part of the original motivation for a smooth, globally-supported basis such
 as RBF is that a sparse, pruned KAN edge structure could in principle be read
 back as a closed-form symbolic law, the same interpretability goal sparse
-regression achieves by construction. A KAN-ODE analogue of a sparse
-coefficient list would come from pruning weak edges and reading off what
-survives. Ranking each edge by mean
+regression achieves by construction. The base paper reaches this by adding an
+$L_1$ penalty on every spline coefficient to the training loss,
+\begin{equation}
+\mathcal{L} = \mathrm{MSE}(\mathbf{u}_{\text{true}}, \mathbf{u}_{\text{pred}}) + \lambda\sum_{i} |c_i|,
+\label{eq:l1-sparsity}
+\end{equation}
+where $c_i$ ranges over every spline coefficient in Equation~\ref{eq:kan-edge}
+and $\lambda$ trades off trajectory accuracy against how many edges the
+penalty drives toward zero. Every checkpoint trained for this project used
+$\lambda=0$: the plain mean-squared-error term alone, with no sparsity
+pressure ever added to Equation~\ref{eq:l1-sparsity}. A KAN-ODE analogue of a
+sparse coefficient list would instead come from pruning weak edges
+\emph{post hoc} and reading off what survives. Ranking each edge by mean
 spline-coefficient magnitude and masking the weakest, applied to the existing
 (never retrained) noise-sweep checkpoints, removes the two weakest of forty
 edges and raises the noise-free full-horizon MSE from $8.90\times10^{-5}$ to

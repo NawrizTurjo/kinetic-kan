@@ -29,6 +29,45 @@ fixed (classical RK4 at matched step size on both paths; a forward-trajectory
 check confirms the two implementations agree to $\sim10^{-7}$ relative
 error) so that only the differentiation method varies.
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  statend/.style={draw=ink, fill=accentsoft, minimum width=9mm, minimum height=7mm, rounded corners=2pt},
+  adjnd/.style={draw=ink!60, fill=codebg, minimum width=11mm, minimum height=7mm, rounded corners=2pt},
+  arr/.style={-{Stealth[length=2.2mm]}, draw=ink!70, thick},
+  panellbl/.style={font=\small\sffamily\bfseries\color{ink}}
+]
+  % ===== top panel: direct autograd =====
+  \node[statend] (u0) at (0,0) {$u_0$};
+  \foreach \i/\x in {1/1.5,2/3.0,3/4.5,4/6.0} {
+    \node[statend] (u\i) at (\x,0) {$u_\i$};
+  }
+  \draw[arr] (u0) -- (u1); \draw[arr] (u1) -- (u2);
+  \draw[arr] (u2) -- (u3); \draw[arr] (u3) -- (u4);
+  \draw[{Stealth[length=2.2mm]}-, dashed, accent, thick]
+    (u0.south) .. controls +(0,-0.9) and +(0,-0.9) .. (u4.south)
+    node[midway, below, font=\tiny\sffamily\color{accent}] {backward pass walks every stored $u_i$};
+  \node[panellbl, above=3pt of u2.north, xshift=7mm] {Direct autograd: every $u_i$ stored, $O(N_t)$ memory};
+
+  % ===== bottom panel: adjoint sensitivity, drawn as its own well-separated block =====
+  \begin{scope}[yshift=-2.6cm]
+    \node[adjnd] (a0) at (0,0) {$\mathbf{a}(t_0)$};
+    \node[adjnd] (a1) at (6.0,0) {$\mathbf{a}(t_1)$};
+    \draw[arr, ink!65] (a1) -- (a0);
+    \node[font=\tiny\sffamily\color{ink!70}] at (3.0,0.55) {adjoint ODE (Eq.~\ref{eq:adjoint}) integrated backward};
+    \node[font=\tiny\sffamily\color{ink!70}] at (3.0,-0.55) {$u(t)$ recomputed as needed, nothing stored};
+    \node[panellbl, above=6pt of a0.north, xshift=30mm] {Adjoint sensitivity: $O(1)$ memory, independent of $N_t$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Direct autograd (top) keeps every intermediate state $u_i$ in memory
+so the backward pass can reuse it, giving $O(N_t)$ memory. Adjoint
+sensitivity (bottom) instead solves the backward-time equation of
+Equation~\ref{eq:adjoint}, recomputing $u(t)$ as needed rather than storing
+it, giving $O(1)$ memory regardless of $N_t$.}
+\label{fig:adjoint-schematic}
+\end{figure}
+
 \begin{expectbox}
 \expectrow{Question}{Does adjoint sensitivity's constant memory cost make it the better choice at this project's trajectory lengths, as the project's own documentation assumes?}
 \expectrow{Expected}{Direct autograd should be cheaper in memory at these short lengths, with adjoint's advantage only appearing once trajectories grow much longer.}
@@ -41,7 +80,7 @@ error) so that only the differentiation method varies.
 \renewcommand{\arraystretch}{1.15}
 \caption{Peak VRAM and wall-clock, direct autograd vs.\ adjoint sensitivity.}
 \label{tab:adjoint-profiling}
-\begin{tabularx}{\textwidth}{@{}X C{1.2cm} L{3.0cm} C{2.4cm} C{2.6cm}@{}}
+\begin{tabularx}{\textwidth}{@{}X C{2.1cm} L{2.8cm} C{2.2cm} C{2.4cm}@{}}
 \toprule
 \hdrrow \thh{System} & \thh{Trajectory length $N_t$} & \thh{Method} & \thh{Peak VRAM (MB)} & \thh{Seconds per 1000 epochs}\\
 \midrule

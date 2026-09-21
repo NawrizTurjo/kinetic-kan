@@ -1,19 +1,58 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This project reproduced a published KAN-ODE recipe, diagnosed and fixed two
-genuine cross-domain training failures, and ran five further studies that
-each isolated a specific question about solver behavior, gradient dynamics,
-basis-function design, and stiffness. Every quantitative claim in this report
-traces to a checked-in metrics file or a regenerable figure, and every study
-that tested a specific mechanistic hypothesis reports the outcome of a direct
-control arm rather than the hypothesis alone.
+This project reproduced a published KAN-ODE recipe on the Lotka-Volterra
+predator-prey system, extended it to two additional dynamical systems (a
+damped pendulum and an SIR epidemic model), and diagnosed and fixed two
+genuine cross-domain training failures before running five further studies
+that each isolated a specific question about solver behavior, gradient
+dynamics, basis-function design, stiffness, and comparison against a
+fundamentally different modeling paradigm.
+
+The principal quantitative findings are:
+
+\begin{itemize}
+\item KAN-ODE extrapolation error on Lotka-Volterra is essentially flat
+  across eight limit-cycle periods ($1.1\times$ degradation, training to
+  double horizon), while a parameter-matched MLP degrades $8.3\times$ over
+  the same extension -- a $40.6\times$ KAN-ODE advantage at the longest
+  horizon tested (Table~\ref{tab:extrap-horizon}).
+\item SIR's training failure traced to a $19\times$ unit-scale mismatch
+  between the network's initial field and the true dynamics, fixable by a
+  change of time units and a conservation projection -- two interventions
+  that assume nothing about the system beyond what its own equations state.
+  Extrapolation $R^2$ moved from $-20.97$ to $+0.9981$.
+\item Direct autograd is the correct default for this project's scale:
+  adjoint sensitivity already uses less memory at every tested trajectory
+  length but costs a consistent $1.9$--$2.1\times$ wall-clock overhead.
+\item Gradient-norm roughness does not explain Forward Euler's convergence
+  floor (Spearman $\rho=-0.088$, $p=0.87$); the more likely mechanism is a
+  systematic bias in the learned field, consistent with the solver ablation's
+  own Lipschitz-constant measurements.
+\item A learnable blend of B-spline and RBF basis functions never outperforms
+  the better pure basis on either system tested.
+\item Stiffness-map failures at transitional damping ratios trace to random
+  initialization rather than solver order or numerical stiffness, confirmed
+  mechanistically by a genuine spurious equilibrium in the learned vector
+  field.
+\item KAN-ODE is more accurate than sparse symbolic regression at every noise
+  level tested, but sparse regression is far more robust ($9\times$ vs.\
+  $1540\times$ degradation from clean to $\sigma=0.1$). Two of the SIR
+  stability fixes transfer to a real, non-mechanistic epidemic curve; the
+  one that transfers best was predicted inapplicable.
+\end{itemize}
+
+Every quantitative claim in this report traces to a saved metrics file or a
+regenerable figure, and every study that tested a specific mechanistic
+hypothesis reports the outcome of a direct control arm rather than the
+hypothesis alone.
 
 The validation stage (Section~\ref{sec:phase4}) is the project's principal
 open item: the results in Sections~\ref{sec:track-a}--\ref{sec:track-e} rest
-on a single random seed and a fixed 10{,}000-epoch training budget, and the
-epoch-budget sensitivity check and paper-implementation audit designed to
-test those two assumptions have not yet been executed. Completing them is the
-natural next step for extending the confidence of every result reported here.
+on a single random seed and a fixed 10{,}000-epoch training budget.
+Completing the epoch-budget sensitivity check and the paper-implementation
+audit would extend confidence in every result reported here; the stiffness
+study's own experience -- where extending from one seed to three dissolved a
+headline finding -- demonstrates concretely why that extension matters.
 
 \FloatBarrier

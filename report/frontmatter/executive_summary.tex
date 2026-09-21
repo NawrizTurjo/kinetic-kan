@@ -2,41 +2,51 @@
 \addcontentsline{toc}{section}{Executive Summary}
 
 This report documents a Kolmogorov-Arnold Network Neural ODE (KAN-ODE)
-\cite{koenig2024kanode,liu2024kan,chen2018neuralode} project in four stages:
-a baseline recipe reproducing the base paper's Lotka-Volterra and SIR
-benchmarks; a diagnosis-and-fix cycle that resolved two cross-domain training
-failures (damped pendulum, SIR); five independent follow-on studies probing
-solver order, differentiation method, basis-function design, and stiffness;
-and a validation stage (epoch-budget sensitivity, paper-implementation audit)
-whose infrastructure is complete but whose runs have not yet executed.
+\cite{koenig2024kanode,liu2024kan,chen2018neuralode} project that
+reproduces the base paper's Lotka-Volterra benchmark, extends it to two
+additional dynamical systems (a damped pendulum and an SIR epidemic model),
+diagnoses and fixes two genuine cross-domain training failures, and runs
+five independent follow-on studies probing solver order, differentiation
+method, basis-function design, stiffness, and comparison against sparse
+symbolic regression.
 
 \begin{keypoint}[Headline results]
 \begin{itemize}
+\item KAN-ODE's extrapolation error is essentially flat across eight
+  limit-cycle periods ($1.1\times$ degradation), while a parameter-matched
+  MLP degrades $8.3\times$ --- a $\mathbf{40.6\times}$ KAN-ODE advantage at
+  the longest horizon tested, materially stronger than the $5.4\times$
+  near-horizon comparison.
 \item The pendulum failure ($R^2=-1.318$) was fixed by extending the
-  training window, reaching $R^2=+0.647$ --- a $20\times$ full-horizon MSE
-  improvement. SIR's failure traced to a unit-scale mismatch between the
-  network's initial field and the true dynamics.
-\item Adjoint sensitivity is strictly worse than direct autograd at this project's
-  scale: it already uses less memory ($17.1$ vs.\ $18.6$--$21.5$~MB) but costs
-  $1.9$--$2.1\times$ wall-clock, and no crossover point exists inside four orders
-  of magnitude of trajectory length.
-\item Gradient-norm roughness fails to explain Euler's convergence floor
-  (Spearman $\rho=-0.088$, $p=0.87$); a shared, order-independent spike-burst
-  structure dominates all six solvers' gradient traces.
+  training window; SIR's divergence traced to a $19\times$ unit-scale
+  mismatch at initialization, fixable by a change of time units and a
+  conservation projection. SIR extrapolation $R^2$ moved from $-20.97$ to
+  $+0.9981$.
+\item Adjoint sensitivity already uses less memory than direct autograd at
+  every trajectory length tested ($17.1$ vs.\ $18.6$--$21.5$~MB), but costs
+  $1.9$--$2.1\times$ wall-clock --- direct autograd remains the correct
+  default at this project's scale.
+\item Gradient-norm roughness does not explain Euler's convergence floor
+  (Spearman $\rho=-0.088$, $p=0.87$); shared, order-independent spike bursts
+  dominate all six solvers' gradient traces.
 \item A learnable spline/RBF basis blend never beats the better pure basis on
   either system tested, and on the pendulum it overfits catastrophically past
   $\sim$3{,}000 epochs in a way pure RBF does not.
 \item The stiffness--solver stability analysis traced failures at
-  $\mu\in\{0.5,1.0,2.0\}$ to random seed rather than solver order or numerical
-  stiffness; the $\mu=2.0$ trap is a genuine, solver-independent spurious
-  equilibrium in the learned vector field, confirmed directly from trained weights
-  and from an independent weight-space loss-landscape analysis.
-\item SINDy is far more noise-robust than KAN-ODE ($9\times$ vs.\ $1540\times$
-  degradation, $\sigma=0\to0.1$) but strictly less accurate at every noise level
-  tested; a real, non-mechanistic epidemic curve confirmed that two of SIR's
-  three stability fixes transfer by the same mechanism that fixed SIR itself.
+  $\mu\in\{0.5,1.0,2.0\}$ to random seed rather than solver order; the
+  $\mu=2.0$ trap is a genuine, solver-independent spurious equilibrium
+  confirmed from trained weights and from an independent loss-landscape
+  analysis.
+\item Sparse symbolic regression is far more noise-robust than KAN-ODE
+  ($9\times$ vs.\ $1540\times$ degradation, $\sigma=0\to0.1$) but strictly
+  less accurate at every level tested; a real, non-mechanistic epidemic curve
+  confirmed that two of SIR's three stability fixes transfer by their
+  original mechanism.
 \end{itemize}
 \end{keypoint}
 
 Every number and figure in this report is traceable to a saved training
 record or a regenerable figure from this project's own experiment logs.
+A validation stage (epoch-budget sensitivity, paper-implementation audit)
+is fully designed but has not yet executed; its completion is the natural
+next step for extending confidence in the results above.
