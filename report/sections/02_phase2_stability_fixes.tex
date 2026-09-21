@@ -1,0 +1,403 @@
+\section{Benchmark Ablation and Cross-Domain Stability Analysis}
+\label{sec:phase2}
+
+Before extending KAN-ODE to new systems, two questions needed settling: which
+solver and basis choices this architecture actually prefers, and whether the
+baseline recipe (Section~\ref{sec:phase1}) transfers unchanged to systems
+beyond Lotka-Volterra. Both were answered empirically, and the second
+uncovered two genuine training failures that required a mechanistic diagnosis
+before they could be fixed.
+
+\subsection{Solver, basis and architecture ablation}
+
+Every integrator in Table~\ref{tab:solver-ablation} advances the state by one
+step $\Delta t$ using only evaluations of the learned field
+$\mathbf{f}_\theta$, and all were implemented directly for this project
+rather than called from an external ODE library. Writing $\mathbf{u}_n$ for
+the state at step $n$:
+\begin{align}
+\text{Forward Euler (order 1):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + \Delta t\, \mathbf{f}_\theta(\mathbf{u}_n) \label{eq:euler}\\
+\text{Midpoint (order 2):}\quad & \mathbf{k}_1 = \mathbf{f}_\theta(\mathbf{u}_n), \quad
+  \mathbf{u}_{n+1} = \mathbf{u}_n + \Delta t\,\mathbf{f}_\theta\!\left(\mathbf{u}_n + \tfrac{\Delta t}{2}\mathbf{k}_1\right) \label{eq:midpoint}\\
+\text{Heun's method (order 2):}\quad & \mathbf{k}_1 = \mathbf{f}_\theta(\mathbf{u}_n), \quad
+  \mathbf{k}_2 = \mathbf{f}_\theta(\mathbf{u}_n+\Delta t\,\mathbf{k}_1), \quad
+  \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{\Delta t}{2}(\mathbf{k}_1+\mathbf{k}_2) \label{eq:heun}\\
+\text{Classical RK4 (order 4):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{\Delta t}{6}\left(\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4\right) \label{eq:rk4}
+\end{align}
+with the classical RK4 stages $\mathbf{k}_1=\mathbf{f}_\theta(\mathbf{u}_n)$,
+$\mathbf{k}_2=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{\Delta t}{2}\mathbf{k}_1)$,
+$\mathbf{k}_3=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{\Delta t}{2}\mathbf{k}_2)$,
+$\mathbf{k}_4=\mathbf{f}_\theta(\mathbf{u}_n+\Delta t\,\mathbf{k}_3)$. DOPRI5
+and Tsit5 follow the same stage-and-combine pattern at order 5, using seven
+and six stages respectively, each stage weighted by coefficients from a fixed
+Butcher tableau (Tsit5's from \citealp{tsitouras2011tsit5}) chosen so the
+error terms of orders one through four cancel exactly; the two differ only in
+which stage weightings Tsitouras optimized for smallest leading error
+constant. Every extra stage in Equations~\ref{eq:midpoint}--\ref{eq:rk4}
+costs one additional evaluation of $\mathbf{f}_\theta$, which is why function
+evaluations per epoch, not solver order alone, is the operative cost measure
+in Table~\ref{tab:solver-ablation}.
+
+Table~\ref{tab:solver-ablation} sweeps these six explicit Runge-Kutta integrators at
+fixed radial-basis-function (RBF) basis; Table~\ref{tab:basis-ablation}
+sweeps seven basis representations at fixed Tsit5 solver. Both use the
+protocol of Section~\ref{sec:phase1}. The number of function evaluations per
+training epoch (how many times the integrator must call the network per
+step) is reported because it is the dominant cost driver for training time.
+The Lipschitz constant $L$ of the trained field -- an upper bound on how much
+the output of $\mathbf{f}_\theta$ can change per unit change of its input,
+estimated numerically from the trained weights -- is reported alongside
+accuracy because it is a direct measure of how smooth or jagged the basis
+expansion in Equation~\ref{eq:kan-edge} ended up, independent of the
+trajectory error.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{Solver ablation (fixed RBF basis, $\Delta t=0.1$, 240 parameters).}
+\label{tab:solver-ablation}
+\begin{tabularx}{\textwidth}{@{}L{2.3cm} C{1.0cm} C{1.6cm} C{1.7cm} C{1.9cm} C{1.9cm} X@{}}
+\toprule
+\hdrrow \thh{Solver} & \thh{Order} & \thh{Function evaluations / epoch} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrapolation $R^2$} & \thh{Lipschitz $L$}\\
+\midrule
+Forward Euler & 1 & 70 & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$\\
+Heun RK2 & 2 & 140 & $8.32\times10^{-5}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$\\
+Midpoint & 2 & 140 & $8.86\times10^{-5}$ & $8.95\times10^{-5}$ & $0.99997$ & $6.96$\\
+Classical RK4 & 4 & 280 & $9.41\times10^{-5}$ & $9.29\times10^{-5}$ & $0.99997$ & $6.88$\\
+DOPRI5 & 5 & 420 & $9.28\times10^{-5}$ & $9.21\times10^{-5}$ & $0.99997$ & $6.89$\\
+\textbf{Tsit5} & 5 & 420 & $\mathbf{8.83\times10^{-5}}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Truncation error dominates only at order $p=1$: Euler's extrapolation MSE is
+$28\times$ Tsit5's, and it is the only solver that fails to reach $10^{-4}$
+training loss within budget. Its trained field is also the least smooth of
+the six ($L=8.55$, the highest in the table), consistent with a systematic
+bias forcing the network to fit a sharper correction than the smoother
+integrators require. Above order 2 the ranking collapses into a $3.8\%$
+spread with no monotonic order dependence -- at $\Delta t=0.1$, integrator
+truncation error has fallen below the optimization noise floor. Midpoint
+matches Tsit5's accuracy within $0.3\%$ at one third of the function
+evaluations, making it the cost-normalized optimum on this problem.
+
+Writing $z_g$ for the $g$-th of $G$ evenly spaced grid centers with spacing
+$h$, and $u=\mathrm{norm}(x)\in[-1,1]$ the normalized edge input, the five
+bases compared here are
+\begin{equation}
+B_g^{\text{RBF}}(u)=\exp\!\left(-\left(\tfrac{u-z_g}{h}\right)^2\right), \qquad
+B_g^{\text{spline}}(u) = \text{Cox--de Boor recursion of degree }k\text{ on knots }\{z_g\},
+\label{eq:basis-rbf-spline}
+\end{equation}
+\begin{equation}
+B_g^{\text{Cheb}}(u)=T_g(u)=\cos(g\arccos u), \qquad
+B_g^{\text{Lag}}(u)=\prod_{j\neq g}\frac{u-z_j}{z_g-z_j}, \qquad
+B_g^{\text{Newt}}(u)=\prod_{j<g}(u-z_j),
+\label{eq:basis-poly}
+\end{equation}
+each substituted for $B_i(x)$ in Equation~\ref{eq:kan-edge}. The Cox--de
+Boor recursion builds a degree-$k$ B-spline from degree-0 indicator functions
+by repeated linear blending, $B_{g,0}(u)=\mathbf{1}[z_g\le u<z_{g+1}]$ and
+$B_{g,p}(u)=\frac{u-z_g}{z_{g+p}-z_g}B_{g,p-1}(u)+\frac{z_{g+p+1}-u}{z_{g+p+1}-z_{g+1}}B_{g+1,p-1}(u)$,
+which is what gives it compact support: $B_{g,k}(u)=0$ once $u$ leaves the
+$k+2$ knots the recursion references. The Gaussian RBF, Chebyshev, and
+Lagrange bases have no such cutoff -- every coefficient $c_g$ influences
+$\phi(x)$ at every $x$, which is the algebraic reason global-support bases
+extrapolate worse once the true dynamics leaves the region their coefficients
+were fit on (Table~\ref{tab:basis-ablation}). The residual term
+$w_b\,\mathrm{silu}(x)$ in Equation~\ref{eq:kan-edge} is the same for every
+basis choice, since it is a fixed part of the edge parameterization, not one
+of the substituted terms above.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{Basis ablation (fixed Tsit5 solver, $G=5$ grid points, 240 parameters).}
+\label{tab:basis-ablation}
+\begin{tabularx}{\textwidth}{@{}L{2.1cm} C{1.9cm} C{2.0cm} C{1.1cm} C{1.6cm} X@{}}
+\toprule
+\hdrrow \thh{Basis function} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{$R^2$} & \thh{Lipschitz $L$} & \thh{Wall-clock time}\\
+\midrule
+Cubic B-spline & $\mathbf{7.20\times10^{-5}}$ & $\mathbf{8.38\times10^{-5}}$ & $\mathbf{0.99997}$ & $8.44$ & 6680 seconds\\
+Gaussian RBF & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & $6.91$ & \textbf{1712 seconds}\\
+Chebyshev & $9.80\times10^{-5}$ & $4.37\times10^{-4}$ & $0.99985$ & $6.48$ & 2317 seconds\\
+Lagrange & $1.07\times10^{-4}$ & $3.93\times10^{-4}$ & $0.99987$ & $6.70$ & 6829 seconds\\
+Newton & $1.47\times10^{-3}$ & $3.65\times10^{-2}$ & $0.98746$ & $5.65$ & 2187 seconds\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+B-spline edges out RBF on accuracy after a boundary-knot fix, at $3.9\times$
+RBF's wall-clock time and a visibly higher Lipschitz constant ($8.44$ vs.\
+$6.91$) -- its compact local support (Equation~\ref{eq:kan-edge}'s $B_i(x)$
+vanishing outside each knot span) lets it fit sharper local features than
+RBF's smooth global support without being penalized elsewhere in the domain.
+The two bases are statistically tied on error (6\% apart, inside
+single-seed noise), which makes RBF the better accuracy-per-second choice.
+Polynomial global-support bases (Chebyshev, Lagrange) fit the training
+window well and extrapolate $4$--$5\times$ worse -- the expected signature
+of a basis whose every coefficient influences the whole domain rather than a
+local region of it. Newton's basis is the outlier on smoothness in the
+opposite direction: its lowest Lipschitz constant in the table ($5.65$)
+reflects underfitting, not desirable flatness, since it is also the only
+basis that never reaches $10^{-3}$ training loss.
+
+A parameter-matched comparison against a standard multilayer perceptron
+(MLP) trained as a Neural ODE found KAN-ODE extrapolates $5.4\times$ better
+than the MLP from statistically identical training loss, while the MLP
+converges $4.1\times$ \emph{faster} to $10^{-3}$ loss. This directly
+contradicts the base paper's own headline efficiency claim on this same
+system -- a $10^4$-epoch KAN-ODE against a $10^5$-epoch, parameter-matched
+MLP-ODE, a tenfold speed advantage the paper attributes to the network
+(Section~\ref{sec:introduction}). Under this project's protocol, at matched parameter count (240 vs.\ 252) and
+matched optimizer settings, the MLP was faster to converge on Lotka-Volterra
+rather than slower, though KAN-ODE still won decisively on the extrapolation
+accuracy the paper's other headline claim concerns.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Controlled breakdown of why the paper's literal MLP baseline
+architecture, $[2,50,2]$ with hyperbolic tangent (tanh) activation, fails to
+train under this project's protocol. All four runs use 2000 epochs.}
+\label{tab:mlp-breakdown}
+\begin{tabular}{@{}C{0.7cm} L{2.8cm} C{1.4cm} C{1.5cm} C{2.1cm} C{2.1cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Run} & \thh{Architecture} & \thh{Activation} & \thh{Learning rate} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{$R^2$}\\
+\midrule
+A & $[2,50,2]$ & tanh & $2\times10^{-3}$ & $1.21\times10^{0}$ & $1.98\times10^{0}$ & $0.319$\\
+B & $[2,50,2]$ & tanh & $5\times10^{-4}$ & $1.85\times10^{0}$ & $9.23\times10^{0}$ & $-2.169$\\
+C & $[2,14,8,8,2]$ & SiLU & $2\times10^{-3}$ & $\mathbf{4.28\times10^{-4}}$ & $\mathbf{6.97\times10^{-4}}$ & $\mathbf{0.99976}$\\
+D & $[2,50,2]$ & SiLU & $2\times10^{-3}$ & $3.62\times10^{-3}$ & $2.68\times10^{2}$ & $-91.06$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Comparing run A against run D, which share the same architecture and differ
+only in activation, shows a $335\times$ gap in extrapolation error -- the
+activation function determines whether this architecture fits the data at
+all. Comparing run C against run D, which share the SiLU activation and
+differ only in architecture depth, shows extrapolation error of
+$6.97\times10^{-4}$ against $2.68\times10^{2}$ -- network depth determines
+extrapolation quality once the activation is fixed to one that trains. This
+isolates the activation choice as the specific cause of the paper's literal
+architecture failing to train under this project's protocol, independent of
+the epoch budget question addressed in Section~\ref{sec:phase4}.
+
+\subsection{Diagnosing and fixing two cross-domain failures}
+
+Applying the Lotka-Volterra recipe unchanged to the damped pendulum and to
+SIR failed on both systems, each for its own reason. Both diagnoses follow
+the same discipline: measure a quantity about the model's behavior
+\emph{before} training rather than search the hyperparameter space after a
+failed run.
+
+\paragraph{Pendulum: extending the training window.} The pendulum recipe
+originally trained on $t\in[0,3.5]$ and diverged in extrapolation
+($R^2=-1.318$). Extending the training window to $t_{\text{train}}=5.0$ --
+a single flag -- resolves it:
+
+\begin{expectbox}
+\expectrow{Question}{Why does the Lotka-Volterra recipe, applied unchanged, diverge on the pendulum?}
+\expectrow{Expected (hypothesis)}{SiLU's residual branch cannot represent the sign-changing derivative $\dot\theta=\omega$ -- an architectural limit.}
+\expectrow{Observed}{Refuted. A longer training window fixes it under either activation; SiLU fits the sign change fine once the window is long enough.}
+\end{expectbox}
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\caption{Pendulum fix: best configuration versus the original failure.}
+\label{tab:pendulum-fix}
+\begin{tabularx}{\textwidth}{@{}X C{2.6cm} C{2.2cm} C{1.8cm}@{}}
+\toprule
+\hdrrow \thh{Configuration} & \thh{Full-horizon MSE} & \thh{Extrapolation $R^2$} & \thh{Verdict}\\
+\midrule
+Original ($t_{\text{train}}=3.0$) & $8.99\times10^{-1}$ & $-1.318$ & diverges\\
+Extended window ($t_{\text{train}}=5.0$, SiLU) & $\mathbf{4.48\times10^{-2}}$ & $\mathbf{+0.647}$ & \textbf{adopted}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+An earlier hypothesis held that SiLU's residual branch $W\cdot\mathrm{silu}(x)$
+cannot represent a sign-changing derivative such as $\dot\theta=\omega$. A
+factorial control comparing activation against training-window length
+refutes it directly: with the longer window, SiLU reaches an angular-velocity
+root-mean-square error of $0.0114$ radians and reproduces the true turning
+point ($\theta_{\min}=-1.380$ against a true value of $-1.385$). The training
+window is what fixes the pendulum; the activation choice affects only how
+quickly the fit is reached, with the identity activation converging
+$\sim\!1000\times$ faster at the short window without matching the longer
+window's accuracy.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/pendulum_fixed_trajectory.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/pendulum_fixed_loss_curves.png}
+\end{minipage}
+\caption{Fixed-pendulum trajectory reconstruction (left) and training/extrapolation
+loss curves (right), using the extended-window recipe.}
+\label{fig:pendulum-fixed}
+\end{figure}
+
+\paragraph{SIR: a unit-scale mismatch.} SIR diverged to an invalid
+(not-a-number) value at epoch 8686.
+
+\begin{expectbox}
+\expectrow{Question}{What causes SIR's divergence, and is it a scale problem, an optimizer defect, or a modeling gap?}
+\expectrow{Expected}{Measuring the untrained network's own field magnitude against the true dynamics, before any training, should reveal whether the two are mismatched in scale.}
+\expectrow{Observed}{A $19\times$ speed mismatch at initialization. Rescaling time removes the divergence entirely; no optimizer or architecture change was needed.}
+\end{expectbox}
+
+Measuring the learned field magnitude
+\emph{before any training step} explained the divergence directly. A
+Glorot-initialised KAN starts with $|f_\theta|\approx0.203$ against SIR's
+true field magnitude of $0.011$ -- a $19\times$ speed mismatch. To see why
+this is catastrophic rather than merely inaccurate, consider that
+backpropagation through an explicit solver differentiates roughly $T/\Delta t$
+nested nonlinear steps, and the resulting gradient sensitivity grows
+exponentially as $e^{\Ltrunc \Ttrain}$, where $\Ltrunc$ is the Lipschitz
+constant of $\mathbf{f}_\theta$ and $\Ttrain$ is the integration horizon.
+Lotka-Volterra trains at $\Ttrain=3.5$ with $|f|\sim10^0$ and converges;
+the pendulum trains at $\Ttrain=5.0$ with $|f|\sim10^0$ and converges after
+the window fix. SIR sits at $\Ttrain=50$ with $|f|\sim10^{-2}$ -- the
+product $\Ltrunc\Ttrain$ is large enough that the gradient overflow recorded
+at epoch 11, not the later epoch 8686, is where training actually fails.
+
+The optimizer was behaving rationally: with an epoch-0 loss of
+$3.16\times10^{2}$, collapsing the field to $\mathbf{f}_\theta\to\mathbf{0}$
+reduces the loss to $\approx10^{-1}$ -- a $3{,}000\times$ improvement
+reachable immediately. SIR's natural timescale is the recovery period
+$1/\gamma=10$~days; substituting $\tau=t/10$ gives
+$\dd\mathbf{y}/\dd\tau = 10\,\mathbf{f}(\mathbf{y})$ over
+$\tau\in[0,5]$, landing SIR in the same regime the other two systems already
+train in. Projecting the learned field onto the zero-sum subspace
+$f_{\text{proj}}(\mathbf{y}) = f(\mathbf{y})-\tfrac{1}{n}\sum_i f_i(\mathbf{y})$
+fixes a separate mass-drift symptom by enforcing the SIR invariant
+(Equation~\ref{eq:sir}) as a property of the flow rather than a penalty on
+the fit.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{SIR before and after the two assumption-free fixes (time rescaling
+and conservation projection), measured at the full 10{,}000-epoch budget.
+Both fixes assume nothing about SIR beyond what its own equations
+(Equation~\ref{eq:sir}) already state.}
+\label{tab:sir-fix-summary}
+\begin{tabular}{@{}L{3.8cm} C{2.8cm} C{2.8cm}@{}}
+\toprule
+\hdrrow \thh{Metric} & \thh{Before fix} & \thh{After fix}\\
+\midrule
+Training MSE & $4.39\times10^{-4}$ & $\mathbf{1.08\times10^{-5}}$\\
+Extrapolation RMSE & $0.0614$ & $\mathbf{0.0140}$\\
+Mass error & $0.0045$ & $\mathbf{0.0000}$\\
+Extrapolation $R^2$ & $-20.97$ & $\mathbf{+0.9981}$\\
+Maximum gradient norm & $5.82\times10^{18}$ & $\mathbf{92.3}$\\
+Final model & invalid (NaN) & finite\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/sir_fixed_trajectory.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/sir_fixed_loss_curves.png}
+\end{minipage}
+\caption{SIR after both fixes: trajectory reconstruction over the full
+horizon (left) shows $S$, $I$, $R$ tracking the true dynamics closely;
+training and extrapolation loss curves (right) decrease together without
+the gradient overflow that terminated the original run.}
+\label{fig:sir-fixed}
+\end{figure}
+
+\paragraph{Other fixes considered.} Several additional interventions were
+tested and are recorded for completeness rather than adopted:
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Every stability intervention tested, including the rejected ones.}
+\label{tab:fix-scorecard}
+\begin{tabularx}{\textwidth}{@{}L{4.4cm} C{2.0cm} X@{}}
+\toprule
+\hdrrow \thh{Intervention} & \thh{Verdict} & \thh{Evidence}\\
+\midrule
+Longer training window (pendulum) & Adopted & $R^2$ improves from $-1.318$ to $+0.647$; works for both activations tested\\
+Non-finite gradient guard with automatic abort & Adopted & Caught SIR's divergence at epoch 3055, preserved a valid checkpoint instead of overwriting it with an invalid one\\
+Time rescaling (SIR) & Adopted & Removes both the divergence and the frozen-field behavior\\
+Conservation via subspace projection (SIR) & Adopted & Mass error reduced from $5.9\times10^{-2}$ to $7\times10^{-7}$\\
+Identity activation (pendulum) & Speed only & Roughly $1000\times$ faster to fit at the short window, but worse extrapolation and stability at the long window\\
+Standard-deviation loss weighting & System-dependent & Worst-performing pendulum option; superseded for SIR by time rescaling\\
+Conservation via penalty term & Rejected & Wrong mechanism -- the training window's mass was already close to conserved, so the penalty had nothing to correct\\
+Widened basis-function grid limits & Rejected & Performed worse than the untouched baseline configuration\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keypoint}[Methodological lesson carried into every later study]
+Both diagnoses came from measuring the learned field's own magnitude at
+initialization, before training ever ran. This init-time-measurement
+discipline reappears verbatim in the real-epidemic-data test of
+Section~\ref{sec:track-e}.
+\end{keypoint}
+
+\subsection{Extended extrapolation: the KAN advantage widens with horizon}
+
+With the fixes in place, the Lotka-Volterra extrapolation horizon was
+extended from four periods ($t\in(3.5,14]$) to eight periods
+($t\in(3.5,28]$) using the same trained model, with no retraining.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Extrapolation MSE as the horizon doubles, same trained models.}
+\label{tab:extrap-horizon}
+\begin{tabular}{@{}L{3.4cm} C{2.1cm} C{2.6cm} C{2.6cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Model} & \thh{Training $[0,3.5]$} & \thh{Near extrapolation $(3.5,14]$} & \thh{Far extrapolation $(14,28]$} & \thh{Degradation}\\
+\midrule
+\textbf{KAN-ODE} (RBF, 240 parameters) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $\mathbf{9.72\times10^{-5}}$ & $\mathbf{1.1\times}$\\
+MLP-ODE (SiLU, 252 parameters) & $9.50\times10^{-5}$ & $4.78\times10^{-4}$ & $3.95\times10^{-3}$ & $8.3\times$\\
+MLP-ODE (tanh, paper specification) & $1.08\times10^{0}$ & $1.69\times10^{0}$ & $4.03\times10^{0}$ & $2.4\times$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The KAN-ODE's error is essentially flat across eight periods
+($8.83\to8.92\to9.72\times10^{-5}$, a $10\%$ rise from the training window
+to double the original horizon), while the parameter-matched MLP degrades
+$8.3\times$ over the same extension. The KAN-ODE advantage therefore widens
+with horizon: from $5.4\times$ at four periods to $\mathbf{40.6\times}$ at
+eight. This is a materially stronger claim than the near-horizon comparison
+already presented: KAN-ODE error does not accumulate, so the gap grows with
+every additional period.
+
+\subsection{Pendulum energy dissipation: an independent physical check}
+
+The fixed pendulum recipe captures $94.2\%$ of the true energy dissipation
+and tracks $E(t)$ to $0.6\%$ inside the training window, but the strict
+monotonic-decay invariant ($\dd E/\dd t\le0$, Equation~\ref{eq:pendulum})
+is violated on 40 of 200 predicted steps. The model is under-damped:
+the true angular displacement decays to $0.004$ by $t=9.1$ while the
+predicted trajectory continues oscillating at $0.237$. This energy
+diagnostic is an independent confirmation of the under-damping, expressed
+as a violated conservation law rather than a trajectory RMSE.
+
+\FloatBarrier

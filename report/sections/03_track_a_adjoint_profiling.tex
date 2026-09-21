@@ -1,0 +1,128 @@
+\section{Adjoint Sensitivity vs.\ Direct Autograd: Memory and Wall-Clock Cost}
+\label{sec:track-a}
+
+Two methods exist for computing gradients through a neural ODE. \textbf{Direct
+autograd} treats the numerical integrator as an ordinary computational
+graph: each of the solver's $N_t$ forward steps is recorded, and the reverse
+pass walks back through every recorded step in turn, so peak memory grows
+linearly with the number of steps taken. \textbf{Adjoint sensitivity}
+\cite{chen2018neuralode} instead treats the forward solve as a black box and
+derives a second, augmented ODE that produces the same gradient without
+storing every intermediate state. Writing $\mathbf{a}(t) = \partial
+L/\partial\mathbf{u}(t)$ for the adjoint state, it satisfies its own
+backward-time differential equation,
+\begin{equation}
+\frac{d\mathbf{a}(t)}{dt} = -\mathbf{a}(t)^\top\frac{\partial \mathbf{f}_\theta}{\partial\mathbf{u}}(\mathbf{u}(t)),
+\qquad
+\frac{dL}{d\theta} = \int_{t_1}^{t_0}\mathbf{a}(t)^\top\frac{\partial\mathbf{f}_\theta}{\partial\theta}(\mathbf{u}(t))\,dt,
+\label{eq:adjoint}
+\end{equation}
+solved backward from $t_1$ to $t_0$ alongside the original state
+$\mathbf{u}(t)$ (recomputed rather than stored), so memory depends only on
+the size of the state and parameter vectors, not on how many steps the
+forward solve took -- an $O(1)$ memory cost in trajectory length, against
+direct autograd's $O(N_t)$. This project's own implementation documentation
+adopts direct autograd on the stated grounds that this $O(1)$ advantage does
+not matter for this project's short trajectories ($N_t\in[36,101]$). This
+section measures that claim directly on an RTX~3060, holding the integrator
+fixed (classical RK4 at matched step size on both paths; a forward-trajectory
+check confirms the two implementations agree to $\sim10^{-7}$ relative
+error) so that only the differentiation method varies.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  statend/.style={draw=ink, fill=accentsoft, minimum width=9mm, minimum height=7mm, rounded corners=2pt},
+  adjnd/.style={draw=ink!60, fill=codebg, minimum width=11mm, minimum height=7mm, rounded corners=2pt},
+  arr/.style={-{Stealth[length=2.2mm]}, draw=ink!70, thick},
+  panellbl/.style={font=\small\sffamily\bfseries\color{ink}}
+]
+  % ===== top panel: direct autograd =====
+  \node[statend] (u0) at (0,0) {$u_0$};
+  \foreach \i/\x in {1/1.5,2/3.0,3/4.5,4/6.0} {
+    \node[statend] (u\i) at (\x,0) {$u_\i$};
+  }
+  \draw[arr] (u0) -- (u1); \draw[arr] (u1) -- (u2);
+  \draw[arr] (u2) -- (u3); \draw[arr] (u3) -- (u4);
+  \draw[{Stealth[length=2.2mm]}-, dashed, accent, thick]
+    (u0.south) .. controls +(0,-0.9) and +(0,-0.9) .. (u4.south)
+    node[midway, below, font=\tiny\sffamily\color{accent}] {backward pass walks every stored $u_i$};
+  \node[panellbl, above=3pt of u2.north, xshift=7mm] {Direct autograd: every $u_i$ stored, $O(N_t)$ memory};
+
+  % ===== bottom panel: adjoint sensitivity, drawn as its own well-separated block =====
+  \begin{scope}[yshift=-2.6cm]
+    \node[adjnd] (a0) at (0,0) {$\mathbf{a}(t_0)$};
+    \node[adjnd] (a1) at (6.0,0) {$\mathbf{a}(t_1)$};
+    \draw[arr, ink!65] (a1) -- (a0);
+    \node[font=\tiny\sffamily\color{ink!70}] at (3.0,0.55) {adjoint ODE (Eq.~\ref{eq:adjoint}) integrated backward};
+    \node[font=\tiny\sffamily\color{ink!70}] at (3.0,-0.55) {$u(t)$ recomputed as needed, nothing stored};
+    \node[panellbl, above=6pt of a0.north, xshift=30mm] {Adjoint sensitivity: $O(1)$ memory, independent of $N_t$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Direct autograd (top) keeps every intermediate state $u_i$ in memory
+so the backward pass can reuse it, giving $O(N_t)$ memory. Adjoint
+sensitivity (bottom) instead solves the backward-time equation of
+Equation~\ref{eq:adjoint}, recomputing $u(t)$ as needed rather than storing
+it, giving $O(1)$ memory regardless of $N_t$.}
+\label{fig:adjoint-schematic}
+\end{figure}
+
+\begin{expectbox}
+\expectrow{Question}{Does adjoint sensitivity's constant memory cost make it the better choice at this project's trajectory lengths, as the project's own documentation assumes?}
+\expectrow{Expected}{Direct autograd should be cheaper in memory at these short lengths, with adjoint's advantage only appearing once trajectories grow much longer.}
+\expectrow{Observed}{Adjoint already uses less memory at every length tested. The deciding cost is wall-clock, not memory: adjoint is $1.9$--$2.1\times$ slower.}
+\end{expectbox}
+
+\begin{table}[!ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\caption{Peak VRAM and wall-clock, direct autograd vs.\ adjoint sensitivity.}
+\label{tab:adjoint-profiling}
+\begin{tabularx}{\textwidth}{@{}X C{2.1cm} L{2.8cm} C{2.2cm} C{2.4cm}@{}}
+\toprule
+\hdrrow \thh{System} & \thh{Trajectory length $N_t$} & \thh{Method} & \thh{Peak VRAM (MB)} & \thh{Seconds per 1000 epochs}\\
+\midrule
+Lotka-Volterra & 36 & Direct autograd & 18.61 & 317.5\\
+Lotka-Volterra & 36 & Adjoint & 17.08 & 672.9\\
+SIR & 101 & Direct autograd & 21.52 & 984.8\\
+SIR & 101 & Adjoint & 17.12 & 1871.6\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/track_a/memory_vs_trajectory_length.png}
+\caption{Peak memory vs.\ trajectory length $N_t\in\{36,\dots,3201\}$: direct
+autograd grows linearly ($\approx0.045$~MB per output point); adjoint stays
+flat (0.7\% increase over an $89\times$ length increase).}
+\label{fig:adjoint-memory}
+\end{figure}
+
+\paragraph{Finding.} The measured memory data contradicts the stated
+premise behind the original choice, while still supporting its conclusion.
+The $O(N_t)$ vs.\ $O(1)$ scaling in Equation~\ref{eq:adjoint} predicts a
+crossover length below which direct autograd's smaller constant factor
+should still win on raw memory, since it avoids the adjoint method's own
+bookkeeping overhead; the data shows no such crossover inside the tested
+range. Adjoint uses \emph{less} memory than direct autograd at every tested
+length, including the shortest ($N_t=36$: $17.08$ vs.\ $18.61$~MB) --
+Figure~\ref{fig:adjoint-memory} shows direct autograd's per-step storage cost
+is already large enough at this project's scale to outweigh whatever
+constant overhead the adjoint method's own bookkeeping carries.
+Extrapolating the measured linear slope of direct autograd's memory growth,
+$N_t$ would need to reach $\approx225{,}000$ before it threatens a 12~GB
+card. The deciding factor for
+this project is wall-clock: solving the continuous adjoint ODE backward in
+time costs a consistent $1.9$--$2.1\times$ overhead at both tested lengths,
+turning a 53-minute Lotka-Volterra run into $\sim$112~minutes for a memory
+saving that never becomes load-bearing (peak usage is $0.17\%$ of card
+capacity). Gradient relative error is $2.85\times10^{-7}$ and
+$4.88\times10^{-7}$ respectively, well inside a $5\times10^{-3}$ tolerance --
+both methods agree numerically, so the choice reduces to a resource
+trade-off. Direct autograd is the faster option for every dataset in this
+project's scope ($N_t\le201$).
+
+\FloatBarrier

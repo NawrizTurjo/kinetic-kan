@@ -1,0 +1,66 @@
+\section{Baseline Recipe and Evaluation Protocol}
+\label{sec:phase1}
+
+The baseline stage reproduces the base paper's KAN-ODE recipe
+\cite{koenig2024kanode} on the Lotka-Volterra predator-prey system,
+\begin{equation}
+\dot u_1 = \alpha u_1 - \beta u_1 u_2, \qquad \dot u_2 = \delta u_1 u_2 - \gamma u_2,
+\qquad (\alpha,\beta,\gamma,\delta) = (1.5,\,1.0,\,3.0,\,1.0),
+\label{eq:lv}
+\end{equation}
+using a two-layer Kolmogorov-Arnold Network, $[2,10,2]$, with $G=5$
+Gaussian radial-basis-function grid points per edge (240 parameters),
+trained on $t\in[0,3.5]$ (36 points) and scored strictly on $t\in(3.5,14.0]$
+(105 unseen points, approximately four limit-cycle periods). Extrapolation is
+scored this way, on points the training loss never touched, because it is
+the only meaningful test of whether the network learned the underlying
+dynamics rather than memorized the shape of the training window; a model
+that only reproduces the 36 training points could still be badly wrong
+about the system it is meant to describe.
+
+Two additional test systems were carried forward alongside Lotka-Volterra,
+chosen because both have closed-form governing equations that are
+textbook-simple and well understood, so that any training failure can be
+attributed to the architecture or the optimization process rather than to an
+ambiguous target dynamics.
+
+The \textbf{SIR compartmental epidemic model} partitions a fixed population
+into susceptible ($S$), infected ($I$), and recovered ($R$) compartments,
+\begin{equation}
+\dot S = -\beta S I, \qquad \dot I = \beta S I - \gamma I, \qquad \dot R = \gamma I,
+\qquad (\beta,\gamma) = (0.3,\,0.1),
+\label{eq:sir}
+\end{equation}
+with a built-in algebraic invariant: the three compartments sum to a
+constant, $S+I+R=1$, because every term in the field cancels when summed.
+This invariant is exact and independent of the parameter values, so any model
+that violates it has learned a vector field whose structure is wrong, not
+merely inaccurate.
+
+The \textbf{damped pendulum} evolves angular displacement $\theta$ and
+angular velocity $\omega$ under gravity and viscous friction,
+\begin{equation}
+\dot\theta = \omega, \qquad \dot\omega = -\frac{g}{L}\sin\theta - \mu\,\omega,
+\qquad (g/L,\,\mu) = (9.81,\,0.5),
+\label{eq:pendulum}
+\end{equation}
+where $\mu>0$ guarantees strict energy dissipation: the mechanical energy
+$E=\tfrac{1}{2}mL^2\omega^2 + mgL(1-\cos\theta)$ satisfies
+$\dd E/\dd t = -mL^2\mu\,\omega^2 \le 0$. A model can fit the trajectory
+accurately and still violate this monotonic decay, making it a genuinely
+independent physical check.
+
+\subsection{Evaluation protocol}
+
+This stage established the evaluation protocol used throughout the remainder
+of this report. Model selection is based on minimum \emph{training}-window
+loss only: the reported error is the mean squared error (MSE) between the
+model's predicted trajectory and the true trajectory, computed strictly
+outside the training horizon, so that a number cannot improve simply by
+widening what counts as fit. The coefficient of determination, $R^2$,
+reports the same comparison on a scale where $1$ is a perfect match and $0$
+is no better than predicting the mean of the true trajectory; a negative
+value means the model performs worse than that trivial baseline. Every
+subsequent study in this report inherits this protocol unchanged.
+
+\FloatBarrier

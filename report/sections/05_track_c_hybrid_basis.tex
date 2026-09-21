@@ -1,0 +1,164 @@
+\section{Learnable Basis-Function Blending}
+\label{sec:track-c}
+
+The benchmark ablation found B-spline (compact local support, $3.9\times$
+RBF's cost) and RBF (smooth global support, cheap) statistically tied on
+accuracy. Rather than choosing one basis function $B_i(x)$ in
+Equation~\ref{eq:kan-edge} in advance, this study makes the choice itself a
+trained quantity: a learnable convex blend of the two candidate bases inside
+every edge,
+\begin{equation}
+\phi(x) = \alpha\cdot\mathrm{Spline}(x) + \beta\cdot\mathrm{RBF}(x),
+\qquad (\alpha,\beta) = \operatorname{softmax}(\text{logits}),
+\label{eq:hybrid-basis}
+\end{equation}
+trained end-to-end from a neutral start ($\alpha=\beta=0.5$) with no
+hand-set schedule, on Lotka-Volterra and the stability-fixed pendulum
+(Section~\ref{sec:phase2}). The blend weights are produced by a softmax over
+two learnable logits rather than, say, a single sigmoid-gated weight,
+because a softmax guarantees $\alpha+\beta=1$ by construction -- the two
+bases always form a genuine convex combination, so the gate can only trade
+one basis off against the other rather than scaling the overall edge output
+up or down as a side effect. A single pair of logits is shared across every
+edge in the network, so the whole model learns one global blend rather than
+letting each edge pick its own; this was a deliberate simplification to keep
+the number of new parameters at 2, not a claim that per-edge blending would
+not also work. If a single global blend systematically beats both pure
+bases, it would suggest the basis-function choice in Equation~\ref{eq:kan-edge}
+is itself worth learning rather than fixing by hand, for every future
+KAN-ODE application.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=10mm, font=\small,
+  boxnd/.style={draw=ink, fill=accentsoft, minimum size=7mm, rounded corners=2pt},
+  fnbox/.style={draw=ink!60, fill=codebg, minimum width=20mm, minimum height=7mm, rounded corners=2pt},
+  gatend/.style={draw=accent, fill=white, circle, minimum size=6mm, inner sep=0pt, font=\bfseries\small\color{accent}},
+  sumnd/.style={draw=accent, fill=accentsoft, circle, minimum size=7mm, inner sep=0pt, font=\bfseries\color{accent}},
+  arr/.style={-{Stealth[length=2mm]}, draw=ink!65, thick}
+]
+  \node[boxnd] (x) at (0,0) {$x$};
+  \node[fnbox] (sp) at (2.6,1.1) {$\mathrm{Spline}(x)$};
+  \node[fnbox] (rbf) at (2.6,-1.1) {$\mathrm{RBF}(x)$};
+  \node[gatend] (gA) at (5.0,1.1) {$\times$};
+  \node[gatend] (gB) at (5.0,-1.1) {$\times$};
+  \node[sumnd] (sum) at (7.2,0) {$+$};
+  \node[boxnd] (phi) at (9.2,0) {$\phi(x)$};
+  \node[fnbox, minimum width=19mm, minimum height=6mm, font=\scriptsize] (softmax) at (2.6,0) {$\operatorname{softmax}(\text{logits})$};
+
+  \draw[arr] (x) -- (sp);
+  \draw[arr] (x) -- (rbf);
+  \draw[arr] (sp) -- (gA);
+  \draw[arr] (rbf) -- (gB);
+  \draw[arr] (gA) -- (sum);
+  \draw[arr] (gB) -- (sum);
+  \draw[arr] (sum) -- (phi);
+  \draw[arr, accent!85] (softmax.north) -- node[right, font=\tiny\sffamily\color{accent!85}, pos=0.7]{$\alpha$} (gA.south);
+  \draw[arr, accent!85] (softmax.south) -- node[right, font=\tiny\sffamily\color{accent!85}, pos=0.7]{$\beta$} (gB.north);
+\end{tikzpicture}
+\caption{The hybrid-basis edge of Equation~\ref{eq:hybrid-basis}: every edge
+evaluates both bases in parallel, and a shared softmax gate produces the
+scalar weights $\alpha,\beta$ that multiply each basis's output before they
+are summed into $\phi(x)$ -- the choice of basis is a trained quantity, not a
+decision fixed at construction time.}
+\label{fig:hybrid-schematic}
+\end{figure}
+
+\begin{expectbox}
+\expectrow{Question}{Can a network do better by learning its own blend of B-spline and RBF, rather than committing to one basis in advance?}
+\expectrow{Expected}{A learned blend should match or beat the better pure basis, by adaptively favoring local support where useful and global support elsewhere.}
+\expectrow{Observed}{Hybrid never beats the better pure basis on either system. On the pendulum, it actively overfits past 3000 epochs in a way pure RBF does not.}
+\end{expectbox}
+
+\begin{table}[!ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\caption{Hybrid basis vs.\ pure bases, full 10{,}000-epoch budget.}
+\label{tab:hybrid-basis}
+\begin{tabularx}{\textwidth}{@{}L{4.0cm} C{2.0cm} C{2.2cm} C{1.6cm} X@{}}
+\toprule
+\hdrrow \thh{System / basis} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{$R^2$} & \thh{Final gate}\\
+\midrule
+Lotka-Volterra -- RBF (pure) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $1.0000$ & --\\
+Lotka-Volterra -- B-spline (pure) & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $1.0000$ & --\\
+Lotka-Volterra -- Hybrid & $1.47\times10^{-4}$ & $1.78\times10^{-4}$ & $0.9999$ & $\alpha{=}0.12,\beta{=}0.88$\\
+\addlinespace[2pt]
+Pendulum -- RBF (pure) & $9.28\times10^{-5}$ & $0.090$ & $+0.647$ & --\\
+Pendulum -- Hybrid (10,000 epochs) & $9.44\times10^{-5}$ & $\mathbf{0.809}$ & $\mathbf{-2.17}$ & $\alpha{=}0.02,\beta{=}0.98$\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/lv_full_alpha_beta.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/pendulum_full_alpha_beta.png}
+\end{minipage}
+\caption{Learned $\alpha$/$\beta$ gate evolution: Lotka-Volterra settles into a
+genuine partial blend (left); the pendulum gate converges to $\approx\!98\%$
+RBF by epoch 250 (right), well before the overfitting onset discussed below.}
+\label{fig:hybrid-gates}
+\end{figure}
+
+\paragraph{Lotka-Volterra: no benefit, real cost.} The gate settles into a
+genuine partial blend, retaining $\approx\!12\%$ B-spline, which confirms the
+mechanism works as designed. Hybrid ties both pure bases on final accuracy
+while paying roughly the \emph{sum} of their per-epoch compute.
+
+\paragraph{Pendulum: overfitting emerges only past a specific budget.} A
+short probe run at 2000 epochs first surfaced a practical wrinkle: the gate
+moved in the correct direction (toward RBF) but too slowly, so the network
+still carried meaningful B-spline contamination at an epoch count where the
+pure-RBF pendulum recipe was already nearly converged. Giving the gate its
+own, faster learning rate ($15\times$ the base rate, direction untouched)
+closed nearly all of that gap at the same probe budget
+(Figure~\ref{fig:hybrid-probe}, left) and was carried into the full run.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/hybrid_probe_pendulum_alpha_beta.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/hybrid_pendulum_3k_alpha_beta.png}
+\end{minipage}
+\caption{Left: the 2000-epoch probe run's gate trace, showing the slow drift
+toward RBF that motivated the gate-learning-rate fix. Right: the gate trace
+for the 3000-epoch pre-overfitting-optimum run discussed below, settling to
+$\beta\approx0.996$.}
+\label{fig:hybrid-probe}
+\end{figure}
+
+At the full 10{,}000-epoch budget, hybrid matches pure RBF's training fit
+almost exactly, but its extrapolation collapses ($R^2=-2.17$): the monitor
+loss bottoms out near epoch 2950 ($\approx0.054$) then rises to a
+$\approx0.4$ plateau for the remaining 7000 epochs while training loss keeps
+improving -- textbook overfitting, visible directly in the saved training
+history. The gate settles well before this onset: $\beta$ reaches
+$\approx0.995$ by epoch 250, some 2750 epochs before overfitting begins, and
+pure RBF trained on the identical recipe shows no such pattern at all.
+Capping training at the pre-overfit optimum (epoch 3000, chosen from the
+10,000-epoch run's own point of minimum monitor loss) shows hybrid
+\emph{ahead} of pure RBF at the same epoch count ($0.055$ vs.\ $0.081$
+full-horizon MSE) with extrapolation $R^2=+0.580$, approaching pure RBF's
+fully-converged number ($+0.647$).
+
+\begin{keypoint}[Verdict]
+The learnable hybrid basis never outperforms the better pure basis on either
+system at any budget tested. Its gate mechanism works exactly as designed --
+gradient-driven, converging differently and sensibly per system -- but that
+alone does not buy an accuracy edge, and on the pendulum specifically a
+network that \emph{starts} as a blend generalizes measurably worse over long
+training than one that starts pure RBF, despite an almost-identical final
+gate and matching training accuracy.
+\end{keypoint}
+
+\FloatBarrier
