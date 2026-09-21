@@ -1,0 +1,54 @@
+\section{Validation Status: Epoch-Budget Sensitivity and Implementation Audit}
+\label{sec:phase4}
+
+Two supervisor-requested validation tasks were scoped as follow-on work to the
+benchmark ablation (Section~\ref{sec:phase2}): an epoch-budget sensitivity
+check, and a baseline-vs-paper implementation audit. Both are fully designed
+and their execution infrastructure is complete, but neither has been run to
+completion as of this report.
+
+\subsection{Epoch-budget sensitivity check}
+
+The benchmark ablation trained all 24 Lotka-Volterra configurations for a
+fixed 10{,}000 epochs; whether that budget is long enough for the reported
+\emph{rankings} to be trustworthy (as opposed to absolute numbers) was never
+independently checked. Five representative configurations were selected to
+re-train at $5\times$ budget (50{,}000 epochs): Euler (the one solver that
+does not reach $10^{-4}$ within 10,000 epochs), Tsit5 with the RBF basis (the project's reference
+point), B-spline (the near-tie with RBF in Table~\ref{tab:basis-ablation}),
+and both MLP baselines (the parameter-matched version, and the version
+matching the paper's literal specification, which fails to train at all
+under this project's protocol). Ready-to-run training scripts for all five
+configurations already exist, targeting the same cloud CPU infrastructure
+used elsewhere in this project, at a measured $\approx17.0$~h total CPU-time
+($\approx9.3$~h wall-clock run in parallel). As of this report, none of the
+five have been executed against that budget; the design is complete and
+awaits compute time.
+
+\subsection{Baseline-vs-paper implementation audit}
+
+A field-by-field comparison of this project's recorded training recipe
+(a two-layer Kolmogorov-Arnold Network with 10 hidden nodes, a 5-point RBF
+grid, the Tsit5 solver, step size $\Delta t=0.1$, learning rate
+$2\times10^{-3}$, and 10{,}000 training epochs) against the original paper's
+own stated methodology
+\cite{koenig2024kanode} is a reading and documentation task that requires no
+additional compute, and has not yet been completed. One piece of evidence is
+already in hand: the
+paper's literal MLP baseline ($[2,50,2]$, tanh) fails to train under this
+project's protocol at all (Section~\ref{sec:phase2}), which points at an
+architecture/activation mismatch independent of epoch budget for that
+specific baseline -- the planned 50{,}000-epoch run of that exact
+configuration (above) is what would convert this from suggestive evidence
+into a confirmed answer.
+
+\begin{keypoint}[Status]
+Both validation tasks are fully designed, justified, and infrastructure-ready.
+Execution remains outstanding. The five studies' findings
+(Sections~\ref{sec:track-a}--\ref{sec:track-e}) are stated in this report as
+measured under a fixed 10{,}000-epoch budget and this project's own recorded
+recipe, leaving the epoch-budget and paper-implementation-parity questions as
+open follow-up work.
+\end{keypoint}
+
+\FloatBarrier

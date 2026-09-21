@@ -1,0 +1,113 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Background: Kolmogorov-Arnold Networks as vector fields}
+
+A standard Neural ODE \cite{chen2018neuralode} approximates an unknown
+dynamical system $\dot{\mathbf{u}}(t) = \mathbf{F}(\mathbf{u}(t))$ by a
+learned vector field $\mathbf{f}_\theta(\mathbf{u}(t))$, parameterized by a
+multilayer perceptron: fixed nonlinear activations on each node, with all
+the learnable structure sitting in the linear weights between them,
+$\mathbf{y} = \sigma(\mathbf{W}\mathbf{x}+\mathbf{b})$. A Kolmogorov-Arnold
+Network (KAN) \cite{liu2024kan} inverts this: every \emph{edge} carries its
+own learnable univariate function $\phi(x)$, and each node simply sums its
+incoming edges, $y_j = \sum_i \phi_{i,j}(x_i)$. This construction is
+motivated by the Kolmogorov-Arnold representation theorem, which states that
+any continuous multivariate function on a bounded domain can be written as a
+finite composition of continuous univariate functions and addition,
+\begin{equation}
+f(\mathbf{x}) = \sum_{q=1}^{2n+1}\Phi_q\!\left(\sum_{p=1}^{n}\phi_{q,p}(x_p)\right),
+\label{eq:kolmogorov-arnold}
+\end{equation}
+so that, in principle, no fixed nonlinearity needs to be chosen in advance --
+the network can learn what shape each univariate function should take.
+
+Each edge function in a practical KAN is not learned freely; it is
+represented as a fixed smooth residual plus a learnable expansion in a
+chosen basis,
+\begin{equation}
+\phi(x) = w_b\, b(x) + w_s\sum_{i=1}^{G+k} c_i B_i(x), \qquad
+b(x)=\mathrm{silu}(x) = \frac{x}{1+e^{-x}},
+\label{eq:kan-edge}
+\end{equation}
+where $B_i(x)$ are the $G+k$ basis functions spanning a grid of $G$
+intervals, $c_i$ are trainable coefficients, and $w_b,w_s$ trade off the
+fixed residual against the learned expansion. The choice of $B_i$ is a
+design decision, not a mathematical necessity: a Gaussian radial basis
+function (RBF) grid, $B_i(x)=\exp(-(x-\mu_i)^2/2\sigma^2)$, gives each edge
+smooth global support, while a degree-$k$ B-spline built by the Cox-de Boor
+recursion gives each edge compact local support, zero outside its own knot
+span. KAN-ODEs \cite{koenig2024kanode} put this construction inside a Neural
+ODE's vector field: $\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with
+every edge of $\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and
+the resulting trajectory obtained by numerically integrating that field
+forward in time.
+
+\subsection{What the base paper fixed, and what this project varies}
+
+The base paper reports two central claims on the Lotka-Volterra
+predator-prey system: a KAN-ODE with 240 parameters extrapolates
+Lotka-Volterra's limit cycle accurately from a short training window, and it
+reaches a target training loss in roughly $10^4$ epochs against a
+parameter-matched multilayer-perceptron Neural ODE's $10^5$ -- a claimed
+tenfold training-speed advantage at 252 parameters. To obtain these results,
+the paper commits to three specific design decisions that this project
+treats as free variables rather than fixed choices: the \textbf{integrator}
+(an adaptive fifth-order Runge-Kutta method, Tsit5), the \textbf{basis}
+(Gaussian RBF, chosen in part because a smooth global basis supports the
+paper's longer-term goal of recovering closed-form symbolic laws from the
+trained edges), and the \textbf{differentiation method} used to compute
+gradients through the integrator (continuous adjoint sensitivity, motivated
+by its constant memory cost regardless of trajectory length).
+
+Each of those three fixed choices maps directly onto one of this report's
+studies: Section~\ref{sec:track-a} tests whether the adjoint method's
+memory motivation actually holds at this project's scale; Sections
+\ref{sec:phase2}, \ref{sec:track-b}, and \ref{sec:track-d} test the
+integrator choice, sweeping solver order and, in the stiffness study,
+solver order jointly with a physical stiffness parameter; and
+Section~\ref{sec:track-c} tests the basis choice directly, by making the
+basis itself a learnable, trained quantity rather than a fixed decision made
+in advance. Section~\ref{sec:track-e} extends the comparison outside the
+base paper's own scope entirely, benchmarking KAN-ODE against a
+sparse-regression alternative built for the same symbolic-discovery goal the
+RBF basis was partly chosen to support, on both synthetic data and a real,
+non-mechanistic epidemic curve.
+
+\subsection{Why training itself needs to be treated as an object of study}
+
+This project uses three testbeds beyond the base paper's own
+Lotka-Volterra system: the SIR epidemic model and a damped pendulum. Both
+were chosen because their governing equations are simple and well
+understood, which makes any training failure attributable to the
+architecture or the optimization process rather than to an ambiguous or
+poorly specified target dynamics. The integrator's interaction with training
+turns out not to be predictable from classical numerical-analysis theory
+alone, because the integrator here sits inside a backpropagation graph
+rather than a standalone forward solve: a solver that is unconditionally
+stable in the classical sense can still produce a network that trains badly,
+trains to a wrong answer, or trains well but fails to generalize. Diagnosing
+failures of this kind requires treating the training process itself as an
+object of study, not just the final trajectory error.
+
+\subsection{Structure of this report}
+
+The report proceeds in the order the work was actually carried out. A
+baseline recipe is reproduced from the original KAN-ODE paper and used to
+establish this project's evaluation protocol (Section~\ref{sec:phase1}).
+That recipe is then stress-tested with a full solver and basis-function
+ablation, which surfaces two outright training failures on the new systems;
+both are diagnosed to a specific mechanistic cause and fixed
+(Section~\ref{sec:phase2}). Five further studies build on that fixed
+baseline, each isolating one of the questions raised above: computational
+cost of the gradient method (Section~\ref{sec:track-a}), whether gradient
+noise explains a solver-order effect (Section~\ref{sec:track-b}), whether a
+learnable blend of basis functions helps (Section~\ref{sec:track-c}), how
+solver choice and stiffness interact with training stability
+(Section~\ref{sec:track-d}), and how KAN-ODE compares against a classical
+sparse-regression method on synthetic and real data
+(Section~\ref{sec:track-e}). A validation stage (Section~\ref{sec:phase4})
+checks two remaining assumptions behind the benchmark ablation.
+Section~\ref{sec:discussion} draws together the patterns that recur across
+these otherwise-independent studies, and Section~\ref{sec:conclusion} closes
+the report.

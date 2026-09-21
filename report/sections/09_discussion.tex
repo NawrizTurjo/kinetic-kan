@@ -1,0 +1,42 @@
+\section{Discussion}
+\label{sec:discussion}
+
+Three patterns recur across studies that were designed independently and
+address unrelated questions. Their recurrence is itself informative about how
+this class of model should be studied going forward.
+
+\paragraph{A reasoned hypothesis still requires a control arm.} Three separate
+studies advanced a specific, mechanistically plausible hypothesis and then
+tested it directly: gradient-norm roughness as the cause of Euler's
+convergence floor (Section~\ref{sec:track-b}), SiLU's representational limit
+as the cause of the pendulum's early failure (Section~\ref{sec:phase2}), and
+the predicted inapplicability of the vanishing-field gate to non-mechanistic
+data (Section~\ref{sec:track-e}). Each hypothesis had a clear argument behind it
+before any run was launched, and each was overturned by the run itself. The
+result reported in every one of these three cases is the outcome of the
+control arm, and the original argument survives only as the motivation for
+running it.
+
+\paragraph{A single seed and a single train/test split account for results
+that first looked like properties of the solver or the method.} The
+stiffness-map failures at $\mu\in\{0.5,1.0,2.0\}$ (Section~\ref{sec:track-d})
+and the epidemic-fit extrapolation runaway (Section~\ref{sec:track-e}) both
+appeared, on first inspection, to indict a solver or a modeling approach.
+Retraining with additional seeds, in the stiffness-map case, and shifting the
+train/test split by fifteen days, in the epidemic case, resolved both into an
+artifact of one specific run's random initialization or one specific window
+boundary. Neither observation survives as a claim about solver order or about
+KAN-ODE's capacity once the seed or the split is varied.
+
+\paragraph{Measuring a quantity before training is more informative than
+tuning after a failed run.} The SIR divergence (Section~\ref{sec:phase2}), the
+real-epidemic-data fit (Section~\ref{sec:track-e}), and the stiffness map's
+spurious equilibrium (Section~\ref{sec:track-d}) were each root-caused by
+evaluating the model's own initial field, or its trained field at a candidate
+equilibrium, and comparing that number against the system's true scale. In
+every case this produced a specific, falsifiable prediction -- a rescaling
+factor, a fix that should or should not transfer, an equilibrium location --
+that a subsequent short run confirmed or refuted directly, in contrast to the
+open-ended search a hyperparameter sweep would have required.
+
+\FloatBarrier

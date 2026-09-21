@@ -1,0 +1,19 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This project reproduced a published KAN-ODE recipe, diagnosed and fixed two
+genuine cross-domain training failures, and ran five further studies that
+each isolated a specific question about solver behavior, gradient dynamics,
+basis-function design, and stiffness. Every quantitative claim in this report
+traces to a checked-in metrics file or a regenerable figure, and every study
+that tested a specific mechanistic hypothesis reports the outcome of a direct
+control arm rather than the hypothesis alone.
+
+The validation stage (Section~\ref{sec:phase4}) is the project's principal
+open item: the results in Sections~\ref{sec:track-a}--\ref{sec:track-e} rest
+on a single random seed and a fixed 10{,}000-epoch training budget, and the
+epoch-budget sensitivity check and paper-implementation audit designed to
+test those two assumptions have not yet been executed. Completing them is the
+natural next step for extending the confidence of every result reported here.
+
+\FloatBarrier
