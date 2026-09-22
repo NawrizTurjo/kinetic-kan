@@ -1,0 +1,103 @@
+{
+    "config": {
+        "model_type": "kan",
+        "dataset": "lotka_volterra",
+        "layers_hidden": [
+            2,
+            10,
+            2
+        ],
+        "grid_len": 5,
+        "basis_func": "rbf",
+        "normalizer": "tanh",
+        "base_act": "silu",
+        "mlp_act": "tanh",
+        "use_base_act": true,
+        "solver": "euler",
+        "substeps": 2,
+        "lr": 0.002,
+        "num_epochs": 50000,
+        "act_reg": 0.0,
+        "entropy_reg": 0.0,
+        "seed": 42,
+        "noise_std": 0.0,
+        "grad_clip": 1.0,
+        "loss_weighting": "none",
+        "conserve_sum": null,
+        "conserve_weight": null,
+        "conserve_mode": null,
+        "vanish_dim": null,
+        "time_scale": 1.0,
+        "grid_lims": [
+            -1.0,
+            1.0
+        ],
+        "t_start": 0.0,
+        "t_end": 14.0,
+        "t_train_end": 3.5,
+        "dt": 0.1,
+        "state_dim": 2,
+        "n_train_points": 36,
+        "n_full_points": 141,
+        "data_params": {
+            "alpha": 1.5,
+            "beta": 1.0,
+            "gamma": 3.0,
+            "delta": 1.0
+        },
+        "parameters": 240,
+        "device": "cpu",
+        "torch_version": "2.10.0+cpu",
+        "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+        "git_sha": "unknown"
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 49960,
+        "best_train_mse_during_training": 8.851134225551505e-06
+    },
+    "best": {
+        "train_mse": 8.851136044540908e-06,
+        "extrap_mse": 0.00019293700461275876,
+        "full_mse": 0.00014593634114135057,
+        "extrap_rmse": 0.013890176550813123,
+        "extrap_mae": 0.009738258086144924,
+        "extrap_r2": 0.9999337792396545,
+        "extrap_rel_l2": 0.004840116016566753,
+        "full_rmse": 0.01208041146407483,
+        "full_mae": 0.007813636213541031,
+        "full_r2": 0.9999498724937439,
+        "full_rel_l2": 0.004224271513521671
+    },
+    "final": {
+        "train_mse": 0.0008126115426421165,
+        "extrap_mse": 0.014805722050368786,
+        "full_mse": 0.011233012191951275,
+        "extrap_rmse": 0.12167876581544039,
+        "extrap_mae": 0.08693551272153854,
+        "extrap_r2": 0.9949180483818054,
+        "extrap_rel_l2": 0.04239970073103905,
+        "full_rmse": 0.10598590562877347,
+        "full_mae": 0.06995527446269989,
+        "full_r2": 0.9961426258087158,
+        "full_rel_l2": 0.037061091512441635
+    },
+    "estimated_lipschitz_bound": 7.7223944664001465,
+    "estimated_lipschitz_bound_rescaled_field": 7.7223944664001465,
+    "nfe_per_trajectory": 280,
+    "nfe_per_epoch_train": 70,
+    "training_time_seconds": 3133.918238401413,
+    "seconds_per_epoch": 0.06267836476802825,
+    "stability": {
+        "grad_clip": 1.0,
+        "nonfinite_grad_steps": 0,
+        "first_nonfinite_epoch": null,
+        "aborted_at_epoch": null,
+        "epochs_run": 50000,
+        "grad_norm_median_preclip": 0.14671777071266803,
+        "grad_norm_max_preclip": 26.553775764319376,
+        "grad_norm_spike_ratio": 180.98540916575314,
+        "grad_norm_max_epoch": 665,
+        "clip_engaged_fraction": 0.04744
+    }
+}
