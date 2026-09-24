@@ -6,7 +6,7 @@ Each noise-free dt=0.1 checkpoint is re-integrated from u(0) and its
 extrapolation MSE on (3.5, 14] is compared with the value that training wrote
 to metrics.json. The script fails if any relative deviation reaches 1%.
 
-Report: Appendix A ("worst relative deviation 6.2e-3") and Section 9 ("within 0.6%").
+Report: Section 9 ("the rollouts reproduce the stored extrapolation MSE to within 0.6%").
 Output: numbers.json -> reproduction_worst_rel_dev, reproduction_rel_dev
 """
 

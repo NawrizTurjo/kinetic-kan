@@ -6,8 +6,7 @@ b . Phi(t) - 1/gamma(t) is evaluated. The order p is the largest q with all
 residuals of order <= q below 1e-10; the principal error norm is
 A^(p+1) = sqrt(sum over |t| = p+1 of (residual / sigma(t))^2).
 
-Report: Table "order-conditions" (Section 3.1) and the order-condition listing
-in Appendix A.
+Report: Table "order-conditions" (Section 3.1).
 Output: numbers.json -> order_conditions, n_trees
 """
 

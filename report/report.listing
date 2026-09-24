@@ -1,11 +1,12 @@
-def elem_weight(t, A):
-    g = np.ones(A.shape[0])
-    for child in t:
-        g = g * (A @ elem_weight(child, A))
-    return g
-
-def gamma_of(t):
-    return order_of(t) * math.prod(gamma_of(c) for c in t)
-
-for q in range(1, 7):                                  # 1, 1, 2, 4, 9, 20 trees
-    devs = [b @ elem_weight(t, A) - 1.0 / gamma_of(t) for t in trees[q]]
+x_flat = x.view(-1, self.in_features)                         # [B, d_in]
+x_norm = self.normalizer(x_flat)                              # tanh -> [-1, 1]
+basis_vals = self.basis_func(x_norm, self.grid, self.denominator)   # [B, d_in, G]
+basis_flat = basis_vals.reshape(basis_vals.size(0), self.in_features * self.grid_len)
+spline_out = F.linear(basis_flat, self.C)                     # Psi_flat @ C^T
+if self.use_base_act and self.W is not None:
+    base_val = self.base_act(x_flat)                          # silu(x)
+    base_out = F.linear(base_val, self.W)                     # silu(x) @ W^T
+    out = spline_out + base_out
+else:
+    out = spline_out
+return out.view(*orig_shape[:-1], self.out_features)

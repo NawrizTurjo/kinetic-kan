@@ -26,8 +26,8 @@ $1.63\times$ faster than that calibration ($1.544$ against $2.52$~s/epoch),
 a reminder that a five-epoch sample is dominated by start-up cost. The batch
 used $23.2$ serial CPU-hours against a planned $17.0$, and $10.7$ hours of
 wall-clock with the five jobs in parallel. Before analysis every
-\path{metrics.json} was checked against its \path{training_history.json}
-epoch count, and every checkpoint was reloaded and re-scored; the rollouts
+run's stored metrics were checked against the epoch count of its training
+log, and every checkpoint was reloaded and re-scored; the rollouts
 reproduce the stored extrapolation MSE to within $0.6\%$.
 
 \subsection{Results}
@@ -174,7 +174,7 @@ field those do not determine.
 \hdrrow \thh{Field} & \thh{Base paper} & \thh{This project} & \thh{Verdict}\\
 \midrule
 KAN architecture & $[2,10,2]$, $G=5$, 240 parameters & identical & Matches.\\
-Edge basis & Gaussian RBF, $\exp(-r^2/2h^2)$ & identical, after fixing a missing factor $\tfrac12$ & Matches. The fix predates every reported run (commit \texttt{163492a}).\\
+Edge basis & Gaussian RBF, $\exp(-r^2/2h^2)$ & identical, after fixing a missing factor $\tfrac12$ & Matches. The fix predates every reported run.\\
 MLP baseline & $[2,50,2]$, tanh, 252 parameters & identical, plus a working $[2,14,8,8,2]$ SiLU variant & Matches literally; the literal baseline does not train here (above).\\
 Integrator & adaptive Tsit5 (Julia) & fixed-step Tsit5, $h=0.05$ & Explained: the fixed step's own error is $4.7\times10^{-14}$ in MSE (Table~\ref{tab:solver-ablation}).\\
 Gradients & continuous adjoint & direct autograd & Explained: differ in memory and time, not in the loss minimised (Section~\ref{sec:track-a}).\\

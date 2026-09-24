@@ -71,8 +71,7 @@ the integrator (Sections~\ref{sec:phase2}, \ref{sec:track-b},
 
 \subsubsection{One KAN layer as two matrix products}
 
-The network is two \texttt{KDense} layers
-(\path{implementation/kan/layer.py}). For a batch
+The network is two KDense layers. For a batch
 $\mathbf{X}\in\mathbb{R}^{B\times d_{\text{in}}}$, a layer evaluates every
 edge function of Equation~\ref{eq:kan-edge} simultaneously:
 \begin{equation}
@@ -87,10 +86,9 @@ where $\Psi_{\text{flat}}\in\mathbb{R}^{B\times d_{\text{in}}G}$ is $\Psi$
 with its last two axes merged. Entry $C_{j,(i,g)}$ is the coefficient $c_g$
 of edge $i\to j$, and $W_{j,i}$ is that edge's residual weight $w_b$, so
 $Y_{b,j}=\sum_i\phi_{i,j}(X_{b,i})$ exactly. Figure~\ref{fig:kdense} traces
-the tensor shapes, and the forward pass in the repository is short enough to
-show in full:
+the tensor shapes, and the forward pass is short enough to show in full:
 
-\begin{pycode}[implementation/kan/layer.py -- KDense.forward (docstring removed)]
+\begin{pycode}[Forward pass of one KDense layer]
 x_flat = x.view(-1, self.in_features)                         # [B, d_in]
 x_norm = self.normalizer(x_flat)                              # tanh -> [-1, 1]
 basis_vals = self.basis_func(x_norm, self.grid, self.denominator)   # [B, d_in, G]
@@ -108,10 +106,10 @@ return out.view(*orig_shape[:-1], self.out_features)
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{figures/tikz/kdense_layer.pdf}
-\caption{Tensor flow through one \texttt{KDense} layer
+\caption{Tensor flow through one KDense layer
 (Equation~\ref{eq:kdense}). Only the basis-expansion step differs between
 the seven basis families studied in Section~\ref{sec:phase2}; every basis
-function in \texttt{implementation/kan/basis.py} has the same signature,
+function has the same signature,
 $(\mathbf{U},\mathbf{z},h)\mapsto\Psi\in\mathbb{R}^{B\times d_{\text{in}}\times G}$,
 so swapping the basis changes one tensor and nothing else.}
 \label{fig:kdense}
@@ -236,5 +234,4 @@ synthetic and real data (Section~\ref{sec:track-e}). The validation stage
 (Section~\ref{sec:phase4}) retrains five configurations at up to five times
 the budget and audits the implementation against the paper.
 Section~\ref{sec:discussion} draws together cross-cutting patterns, and
-Section~\ref{sec:conclusion} closes the report. Appendix~\ref{app:repro}
-lists every command and file needed to regenerate the numbers.
+Section~\ref{sec:conclusion} closes the report.

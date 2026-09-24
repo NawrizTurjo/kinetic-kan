@@ -1,32 +1,74 @@
 \begin{titlepage}
 \thispagestyle{empty}
 \centering
-\vspace*{0.6cm}
+\newcommand{\kwsep}{\enspace{\color{primary}\raisebox{0.15ex}{\scriptsize$\blacklozenge$}}\enspace}
 
-{\Large \textsc{Bangladesh University of Engineering and Technology}}\\[0.3cm]
-{\large \textsc{Department of Computer Science and Engineering}}\\[1.8cm]
+\vspace*{0.2cm}
+\includegraphics[width=3.1cm]{figures/buet_logo.png}\\[0.55cm]
 
-{\color{primary}\rule{\linewidth}{1mm}}\\[0.55cm]
-{\LARGE\bfseries\color{primary} Kinetic-KAN: Solver-Aware Neural Dynamics}\\[0.5cm]
-{\large\bfseries Project Final Report}\\[0.5cm]
-{\color{primary}\rule{\linewidth}{1mm}}\\[1.8cm]
+{\sffamily\large\bfseries\color{ink} Bangladesh University of Engineering and Technology}\\[0.15cm]
+{\sffamily\normalsize\color{ink!70} Department of Computer Science and Engineering}
 
-{\normalsize Kolmogorov-Arnold Network Neural ODEs --- cross-domain stability fixes,\\
-solver-order effects, basis-function design, and a stiffness-solver stability\\
-phase map, verified against real training runs, checkpoints and figures.}
+\vspace{1.9cm}
+
+\tikz{\fill[primary] (0,0) rectangle (\linewidth,0.25mm);
+      \fill[primary] (0,0.9mm) rectangle (\linewidth,2.0mm);}\\[0.75cm]
+
+{\fontsize{36}{40}\selectfont\sffamily\bfseries\color{primary} Kinetic-KAN}\\[0.35cm]
+{\fontsize{19}{23}\selectfont\sffamily\color{ink} Solver-Aware Neural Dynamics}\\[0.7cm]
+
+\tikz{\fill[primary] (0,0) rectangle (\linewidth,1.1mm);
+      \fill[primary] (0,1.75mm) rectangle (\linewidth,2.0mm);}
+
+\vspace{0.9cm}
+
+\begin{minipage}{0.84\linewidth}
+\centering
+{\large\itshape\color{ink}
+Kolmogorov--Arnold networks as learned vector fields for neural ordinary
+differential equations: how integrator order, basis design, stiffness and
+training budget shape what the model learns}
+\end{minipage}
+
+\vspace{0.75cm}
+
+{\sffamily\footnotesize\color{ink!75}
+\MakeUppercase{Runge--Kutta integration}\kwsep
+\MakeUppercase{Basis-function design}\kwsep
+\MakeUppercase{Numerical stability}\kwsep
+\MakeUppercase{Extrapolation}}
+
+\vspace{0.9cm}
+{\sffamily\normalsize\bfseries\color{primary} Project Final Report}
 
 \vfill
 
-{\large\bfseries Submitted By}\\[0.5cm]
-{\renewcommand{\arraystretch}{1.35}\normalsize
-\begin{tabular}{rl}
-\textbf{2105032} & Nawriz Ahmed Turjo \quad -- \quad Adjoint vs.\ Autograd Profiling\\
-\textbf{2105033} & Abhishek Roy \quad -- \quad Gradient Norm Dynamics\\
-\textbf{2105048} & Shams Hossain Simanto \quad -- \quad Learnable Basis Blending\\
-\textbf{2105055} & Md.\ Abrar Jahin \quad -- \quad Stiffness--Solver Stability Analysis\\
-\textbf{2105043} & Monjur Hossain Khan (Shovon) \quad -- \quad Sparse Regression \& Epidemic Fit\\
+\begin{minipage}[t]{0.56\linewidth}
+\raggedright
+{\sffamily\small\bfseries\color{primary} SUBMITTED BY}\\[-0.1cm]
+{\color{rule}\rule{0.92\linewidth}{0.4pt}}\\[0.1cm]
+{\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}l@{\hspace{1.1em}}l@{}}
+\textbf{2105032} & Nawriz Ahmed Turjo\\
+\textbf{2105033} & Abhishek Roy\\
+\textbf{2105043} & Monjur Hossain Khan (Shovon)\\
+\textbf{2105048} & Shams Hossain Simanto\\
+\textbf{2105055} & Md.\ Abrar Jahin\\
 \end{tabular}}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.38\linewidth}
+\raggedright
+{\sffamily\small\bfseries\color{primary} SUBMITTED TO}\\[-0.1cm]
+{\color{rule}\rule{\linewidth}{0.4pt}}\\[0.1cm]
+{\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}l@{}}
+\textbf{Niaz Rahman}\\
+Lecturer\\
+Department of CSE, BUET\\
+\end{tabular}}
+\end{minipage}
 
-\vspace{1.6cm}
-{\large \today}\\[0.4cm]
+\vspace{1.2cm}
+{\sffamily\small\color{ink!70} \today}
 \end{titlepage}

@@ -10,10 +10,13 @@
 
 \input{frontmatter/titlepage}
 
-\input{frontmatter/executive_summary}
+{\hypersetup{linkcolor=ink}\tableofcontents}
 \clearpage
 
-{\hypersetup{linkcolor=ink}\tableofcontents}
+{\hypersetup{linkcolor=ink}\listoffigures}
+\clearpage
+
+{\hypersetup{linkcolor=ink}\listoftables}
 \clearpage
 
 \input{sections/00_introduction}
@@ -32,6 +35,5 @@
 \bibliographystyle{plainnat}
 \bibliography{references}
 
-\input{sections/11_appendix}
 
 \end{document}

@@ -24,9 +24,8 @@ combines them,
 \label{eq:rk-general}
 \end{equation}
 so a method is fully specified by its Butcher tableau $(A,\mathbf{b},\mathbf{c})$
-with $c_i=\sum_j a_{ij}$. All six were implemented directly for this project
-(\path{implementation/ode/solvers.py}) rather than called from an external
-ODE library. Writing $\mathbf{u}_n$ for the state at step $n$, the four
+with $c_i=\sum_j a_{ij}$. All six were implemented directly for this project rather than called
+from an external ODE library. Writing $\mathbf{u}_n$ for the state at step $n$, the four
 low-order methods are
 \begin{align}
 \text{Forward Euler (order 1):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + h\, \mathbf{f}_\theta(\mathbf{u}_n) \label{eq:euler}\\
@@ -348,8 +347,7 @@ rather than a visible drift off it.}
 
 Writing $z_g$ for the $g$-th of $G$ evenly spaced grid centers with spacing
 $h=2/(G-1)$, and $u=\tanh(x)\in[-1,1]$ the normalized edge input, the seven
-bases compared here are, exactly as implemented in
-\path{implementation/kan/basis.py},
+bases compared here are, exactly as implemented,
 \begin{equation}
 B_g^{\text{RBF}}(u)=\exp\!\left(-\tfrac12\left(\tfrac{u-z_g}{h}\right)^2\right), \qquad
 B_g^{\text{IQF}}(u)=\frac{1}{1+\left(\frac{u-z_g}{h}\right)^2}, \qquad

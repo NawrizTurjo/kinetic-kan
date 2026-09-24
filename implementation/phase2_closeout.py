@@ -335,7 +335,8 @@ def _fig_streamlines():
 
 
 def _fig_dt_loglog():
-    """Error vs step size on log-log axes, with the known confound annotated."""
+    """Error vs step size on log-log axes. The step-size/sample-count confound
+    this sweep carries is discussed in the report text, not annotated on the plot."""
     pts = []
     for tag in sorted(os.listdir("results/benchmarks/stepsize")):
         f = f"results/benchmarks/stepsize/{tag}/metrics.json"
@@ -367,14 +368,6 @@ def _fig_dt_loglog():
                  fontweight="bold")
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=9, loc="upper left")
-    # Caption below the axes rather than inside them: an in-axes box overlapped
-    # the train-MSE line and the dt=0.1 point annotation.
-    fig.text(0.5, -0.02,
-             "CONFOUNDED: changing $\\Delta t$ also changes the number of training samples "
-             "(19 / 36 / 71).\nNot a pure discretisation study — the non-monotonic minimum at "
-             "$\\Delta t=0.1$ reflects both effects. See docs/05.",
-             ha="center", va="top", fontsize=8.5, color="#8B0000",
-             bbox=dict(boxstyle="round", fc="#fff3f3", ec="#d62728", alpha=0.95))
     fig.tight_layout()
     fig.savefig(os.path.join(FIG_DIR, "02_error_vs_stepsize_loglog.png"),
                 dpi=300, bbox_inches="tight")
