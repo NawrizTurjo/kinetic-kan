@@ -1,9 +1,36 @@
 \section{Discussion}
 \label{sec:discussion}
 
-Six patterns recur across studies that were designed independently and
+Eight patterns recur across studies that were designed independently and
 address unrelated questions. Their recurrence is itself informative about how
 this class of model should be studied going forward.
+
+\paragraph{A trained Neural ODE models its training orbit and its solver, not
+the vector field.} The numerical analysis of Section~\ref{sec:numerics}
+found this in three independent ways. The Euler-trained network is an
+accurate model of the inverse modified equation, and no model transfers
+across solver families (Figure~\ref{fig:cross-solver}). Every trained model,
+KAN or MLP, at either budget, has an attracting limit cycle through the
+training data around a spurious unstable equilibrium $1.2$--$1.7$ away from
+the true one, where Lotka-Volterra has a neutral centre. And the field is
+accurate only in a thin tube around the observed orbit
+(Figure~\ref{fig:field-error}). Low trajectory error on the training orbit's
+continuation is therefore compatible with a qualitatively wrong phase
+portrait. Checks that probe the field directly, such as locating its
+equilibria, integrating from new initial conditions or evaluating a known
+invariant, are cheap once a checkpoint exists, and they should be part of
+the protocol whenever a learned field is to be read as physics.
+
+\paragraph{Architecture comparisons are budget-dependent.} The
+KAN-versus-MLP ranking reversed between $10^4$ and $5\times10^4$ epochs
+(Section~\ref{sec:phase4}), while the solver and basis rankings did not. The
+difference is instructive: the solver and basis comparisons are between
+models of the same function class, and they were decided by truncation error
+or locality, properties that do not change with training time. The
+architecture comparison is between two function classes that converge at
+different rates, and a fixed budget measures the rates as much as the
+limits. A claim that one architecture ``generalises better'' should state
+the budget, or better, report the error against training time for both.
 
 \paragraph{A reasoned hypothesis still requires a control arm.} Three separate
 studies advanced a specific, mechanistically plausible hypothesis and then
@@ -67,7 +94,7 @@ window, and no training-window metric tested in this project reliably
 predicts it.
 
 \paragraph{Cost and accuracy form a clear Pareto frontier.} Across the
-solver ablation (Section~\ref{sec:phase2}), the basis ablation, and the
+solver ablation (Section~\ref{sec:phase2}, Figure~\ref{fig:pareto}), the basis ablation, and the
 hybrid-basis study (Section~\ref{sec:track-c}), a consistent pattern
 emerges: the cheapest methods that work (Midpoint at $1/3$ the function
 evaluations of Tsit5; RBF at $1/3.9$ the wall-clock of B-spline) match the

@@ -46,6 +46,8 @@
 \definecolor{codebg}{RGB}{248,246,246}
 \definecolor{hdrprimary}{RGB}{155,26,32}
 \definecolor{darkslate}{RGB}{33,37,41}
+\definecolor{blueacc}{RGB}{30,90,168}
+\definecolor{bluesoft}{RGB}{232,239,248}
 \color{ink}
 
 % --- Headings & captions ---
@@ -94,6 +96,25 @@
     basicstyle=\ttfamily\footnotesize\color{ink},
     breaklines=true, columns=fullflexible, keepspaces=true,
     aboveskip=0pt, belowskip=0pt}}
+
+% Source excerpts from implementation/. The optional argument names the file.
+\newtcblisting{pycode}[1][]{
+  enhanced, sharp corners,
+  colback=codebg, colframe=rule, boxrule=0.5pt,
+  left=6pt, right=6pt, top=4pt, bottom=4pt,
+  listing only,
+  title={\ttfamily\footnotesize #1}, coltitle=ink, colbacktitle=rule!45,
+  fonttitle=\ttfamily\footnotesize, toptitle=1pt, bottomtitle=1pt,
+  listing options={
+    language=Python,
+    basicstyle=\ttfamily\scriptsize\color{ink},
+    keywordstyle=\color{accent}\bfseries,
+    commentstyle=\color{ink!55}\itshape,
+    stringstyle=\color{blueacc},
+    numbers=left, numberstyle=\tiny\color{ink!45}, numbersep=6pt,
+    breaklines=true, columns=fullflexible, keepspaces=true,
+    showstringspaces=false, aboveskip=0pt, belowskip=0pt,
+    morekeywords={self,None,True,False}}}
 
 \newtcolorbox{keypoint}[1][Key finding]{
   enhanced, sharp corners,

@@ -2,21 +2,44 @@
 \label{sec:conclusion}
 
 This project reproduced a published KAN-ODE recipe on the Lotka-Volterra
-predator-prey system, extended it to two additional dynamical systems (a
-damped pendulum and an SIR epidemic model), and diagnosed and fixed two
-genuine cross-domain training failures before running five further studies
-that each isolated a specific question about solver behavior, gradient
-dynamics, basis-function design, stiffness, and comparison against a
-fundamentally different modeling paradigm.
+predator-prey system with every integrator and basis implemented from its
+defining formula, verified those implementations numerically, extended the
+recipe to two additional dynamical systems (a damped pendulum and an SIR
+epidemic model), diagnosed and fixed two genuine cross-domain training
+failures, ran five further studies that each isolated a specific question
+about solver behavior, gradient dynamics, basis-function design, stiffness,
+and comparison against a fundamentally different modeling paradigm, and
+validated the budget-sensitive conclusions at up to five times the training
+budget.
 
 The principal quantitative findings are:
 
 \begin{itemize}
-\item KAN-ODE extrapolation error on Lotka-Volterra is essentially flat
-  across eight limit-cycle periods ($1.1\times$ degradation, training to
-  double horizon), while a parameter-matched MLP degrades $8.3\times$ over
-  the same extension -- a $40.6\times$ KAN-ODE advantage at the longest
-  horizon tested (Table~\ref{tab:extrap-horizon}).
+\item All six integrators satisfy their Runge-Kutta order conditions to
+  round-off (37 rooted trees checked) and show their design order on the
+  true field; Tsit5's principal error norm is $2.9\times$ smaller than
+  DOPRI5's. Above order two the solver does not change accuracy at the
+  training step, and Midpoint matches Tsit5 within $0.3\%$ at $29\%$ of the
+  wall-clock.
+\item The network learns the field its training solver needs: the Euler model
+  matches the inverse modified equation $\mathbf{f}+\tfrac{h}{2}J\mathbf{f}$
+  (cosine $0.92$, magnitude ratio $1.04$), and models lose one to four orders
+  of magnitude when integrated with a solver from another family.
+\item Every trained model, KAN or MLP, is an attracting limit-cycle
+  oscillator around a spurious unstable equilibrium, where Lotka-Volterra has
+  a neutral centre; the field is accurate only in a thin tube around the
+  training orbit.
+\item B-spline and RBF are tied on accuracy at both budgets; locality, not
+  conditioning, separates the bases, and the global polynomials extrapolate
+  $4$--$5\times$ worse. Extrapolation MSE scales as $12.9\,\sigma^{2.02}$
+  with observation noise.
+\item At $10^4$ epochs KAN-ODE extrapolates $5.4\times$ better than a
+  parameter-matched MLP, a gap explained by a $48\times$ smaller period
+  error rather than a more accurate field; the KAN advantage widens to
+  $40.6\times$ at twice the horizon (Table~\ref{tab:extrap-horizon}). At
+  $5\times10^4$ epochs the comparison reverses and the MLP is $6.8\times$
+  better. The paper's literal tanh MLP fails permanently, and it is the only
+  baseline against which the paper's tenfold speed claim holds.
 \item SIR's training failure traced to a $19\times$ unit-scale mismatch
   between the network's initial field and the true dynamics, fixable by a
   change of time units and a conservation projection -- two interventions
@@ -26,9 +49,9 @@ The principal quantitative findings are:
   adjoint sensitivity already uses less memory at every tested trajectory
   length but costs a consistent $1.9$--$2.1\times$ wall-clock overhead.
 \item Gradient-norm roughness does not explain Forward Euler's convergence
-  floor (Spearman $\rho=-0.088$, $p=0.87$); the more likely mechanism is a
-  systematic bias in the learned field, consistent with the solver ablation's
-  own Lipschitz-constant measurements.
+  floor (Spearman $\rho=-0.088$, $p=0.87$); the modified-equation analysis
+  identifies the mechanism as a systematic, solver-specific bias in the
+  learned field.
 \item A learnable blend of B-spline and RBF basis functions never outperforms
   the better pure basis on either system tested.
 \item Stiffness-map failures at transitional damping ratios trace to random
@@ -42,17 +65,21 @@ The principal quantitative findings are:
   one that transfers best was predicted inapplicable.
 \end{itemize}
 
-Every quantitative claim in this report traces to a saved metrics file or a
-regenerable figure, and every study that tested a specific mechanistic
+Every quantitative claim in this report traces to a saved metrics file, a
+saved checkpoint re-scored by the scripts in \path{report/reproduce/},
+or a regenerable figure, and every study that tested a specific mechanistic
 hypothesis reports the outcome of a direct control arm rather than the
 hypothesis alone.
 
-The validation stage (Section~\ref{sec:phase4}) is the project's principal
-open item: the results in Sections~\ref{sec:track-a}--\ref{sec:track-e} rest
-on a single random seed and a fixed 10{,}000-epoch training budget.
-Completing the epoch-budget sensitivity check and the paper-implementation
-audit would extend confidence in every result reported here; the stiffness
-study's own experience -- where extending from one seed to three dissolved a
-headline finding -- demonstrates concretely why that extension matters.
+The validation stage settles the budget question for the ablations and
+overturns it for the architecture comparison, so the principal remaining
+limitation is statistical: every configuration is a single seed. The
+stiffness study's experience, where extending from one seed to three
+dissolved a headline finding, is the reason multi-seed replication of the
+KAN-versus-MLP crossover is the most valuable next experiment. Two cheaper
+follow-ups come directly out of the numerical analysis: an affine input
+normalisation that uses the whole first-layer grid on positive-valued
+systems, and training from several initial conditions, the most direct way
+to ask a Neural ODE for the vector field rather than a single orbit.
 
 \FloatBarrier

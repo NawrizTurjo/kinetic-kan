@@ -22,189 +22,141 @@ f(\mathbf{x}) = \sum_{q=1}^{2n+1}\Phi_q\!\left(\sum_{p=1}^{n}\phi_{q,p}(x_p)\rig
 so that no fixed nonlinearity needs to be chosen in advance -- the network
 learns what shape each univariate function should take. In practice each
 edge function is represented as a fixed smooth residual plus a learnable
-expansion in a chosen basis,
+expansion in a chosen basis. In the form implemented for this project,
 \begin{equation}
-\phi(x) = w_b\, b(x) + w_s\sum_{i=1}^{G+k} c_i B_i(x), \qquad
-b(x)=\mathrm{silu}(x) = \frac{x}{1+e^{-x}},
+\phi(x) = w_b\, b(x) + \sum_{i=1}^{G} c_i\, B_i\big(\mathrm{norm}(x)\big), \qquad
+b(x)=\mathrm{silu}(x) = \frac{x}{1+e^{-x}}, \qquad \mathrm{norm}(x)=\tanh x,
 \label{eq:kan-edge}
 \end{equation}
-where $B_i(x)$ are the $G+k$ basis functions spanning a grid of $G$
-intervals, $c_i$ are trainable coefficients, and $w_b,w_s$ trade off the
-fixed residual against the learned expansion. The choice of $B_i$ is a
-design decision, not a mathematical necessity: a Gaussian radial basis
-function (RBF) grid, $B_i(x)=\exp(-(x-\mu_i)^2/2\sigma^2)$, gives each edge
-smooth global support, while a degree-$k$ B-spline built by the Cox-de Boor
-recursion gives each edge compact local support, zero outside its own knot
-span. KAN-ODEs \cite{koenig2024kanode} put this construction inside a Neural
-ODE's vector field: $\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with
-every edge of $\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and
-the resulting trajectory obtained by numerically integrating that field
-forward in time.
+where $B_1,\dots,B_G$ are $G$ basis functions attached to a uniform grid of
+knots $z_g\in[-1,1]$ with spacing $h=2/(G-1)$, $c_i$ are trainable
+coefficients, and $w_b$ weights the fixed residual. (The original
+\texttt{pykan} form carries $G+k$ spline functions and a separate scale $w_s$
+on the expansion; with one coefficient per basis function that scale is
+redundant, and the implementation drops it.) The choice of $B_i$ is a design
+decision, not a mathematical necessity: a Gaussian radial basis function
+(RBF) grid, $B_i(u)=\exp(-(u-z_i)^2/2h^2)$, gives each edge smooth support
+that decays quickly but never reaches zero, while a degree-$k$ B-spline built
+by the Cox-de Boor recursion gives each edge compact local support, exactly
+zero outside its own knot span. KAN-ODEs \cite{koenig2024kanode} put this
+construction inside a Neural ODE's vector field:
+$\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with every edge of
+$\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and the resulting
+trajectory obtained by numerically integrating that field forward in time.
 
 \subsection{Architecture, and what was built rather than imported}
+\label{sec:architecture}
 
 Every KAN-ODE trained for this report shares one architecture: a two-layer
 network with widths $[2,10,2]$, each edge carrying the expansion of
 Equation~\ref{eq:kan-edge} over a grid of $G=5$ basis functions, wrapped
 inside an explicit Runge-Kutta integrator that advances the state and hands
 the resulting trajectory to the loss. Figure~\ref{fig:kan-ode-architecture}
-shows this structure schematically.
+shows the full training loop and marks the three components this report
+varies.
 
 \begin{figure}[htbp]
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-  font=\small,
-  nd/.style={circle, draw=ink, fill=white, minimum size=7mm, inner sep=0pt},
-  edgefn/.style={-{Stealth[length=1.2mm]}, draw=ink!30, thin},
-  blocklbl/.style={font=\small\sffamily\bfseries\color{ink}},
-  ablationmark/.style={draw=accent, fill=white, circle, minimum size=5.5mm, inner sep=0pt, font=\bfseries\small\color{accent}}
-]
-  % small "basis icon" glyph standing in for one edge's learned function
-  \newcommand{\basisicon}[3]{%
-    \node[draw=ink!45, fill=white, minimum width=5mm, minimum height=3.6mm, inner sep=0pt] at (#1,#2) {%
-      \begin{tikzpicture}[scale=0.15]
-        \draw[ink!75, thick] plot[smooth] coordinates {(-1,#3) (-0.3,-0.6) (0.4,0.7) (1,-0.2)};
-      \end{tikzpicture}};
-  }
-  % ===== outer wrapper: "KAN-ODEs" (background layer, drawn first so it
-  % never occludes the block contents drawn on top of it) =====
-  \begin{pgfonlayer}{background}
-    \node[draw=green!30!black, thick, rounded corners=8pt, fill=green!4,
-          fit={(-2.35,-3.0) (9.35,3.3)},
-          label={[font=\normalsize\sffamily\bfseries\color{green!30!black}]above:%
-            KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations}] (outer) {};
-  \end{pgfonlayer}
-
-  % ===== Block 1: Kolmogorov-Arnold Network (spans x in [-2.0,2.0]) =====
-  \node[nd] (u1) at (-0.8,-1.9) {$u_1$};
-  \node[nd] (u2) at (0.8,-1.9) {$u_2$};
-  \foreach \i/\x in {1/-1.5,2/-0.5,3/0.5,4/1.5} {
-    \node[nd, minimum size=6mm] (h\i) at (\x,0) {\tiny$h_{\i}$};
-  }
-  \node[nd] (o1) at (-0.8,1.9) {\scriptsize$\dot u_1$};
-  \node[nd] (o2) at (0.8,1.9) {\scriptsize$\dot u_2$};
-  \foreach \i in {1,...,4} {
-    \draw[edgefn] (u1) -- (h\i);
-    \draw[edgefn] (u2) -- (h\i);
-    \draw[edgefn] (h\i) -- (o1);
-    \draw[edgefn] (h\i) -- (o2);
-  }
-  \foreach \x/\c in {-1.5/0.4,-0.5/-0.5,0.5/0.5,1.5/-0.3} { \basisicon{\x}{-0.95}{\c} }
-  \foreach \x/\c in {-1.5/-0.4,-0.5/0.5,0.5/-0.5,1.5/0.3} { \basisicon{\x}{0.95}{\c} }
-  \node[font=\tiny\sffamily\color{ink!70}, anchor=east] at (-2.1,1.9) {Output};
-  \node[font=\tiny\sffamily\color{ink!70}, anchor=east] at (-2.1,0) {Hidden};
-  \node[font=\tiny\sffamily\color{ink!70}, anchor=east] at (-2.1,-1.9) {Input};
-  \begin{pgfonlayer}{background}
-    \node[draw=green!35!black, thick, rounded corners=4pt, fill=green!10, fit={(-2.0,-2.55) (2.0,2.55)}, label={[blocklbl]above:Kolmogorov-Arnold Network}] (b1) {};
-  \end{pgfonlayer}
-  \node[ablationmark] at ([xshift=-6pt,yshift=-6pt]b1.north east) {1};
-
-  % ===== Block 2: Ordinary Differential Equation (forward solve) =====
-  \begin{scope}[xshift=7.0cm]
-    \node[align=center, font=\scriptsize] (eqn) at (0,1.6)
-      {$\mathbf{u}(t)=\mathbf{u}_0+\displaystyle\int_{t_0}^{t}\mathbf{f}_\theta(\mathbf{u}(\tau))\,\dd\tau$};
-    \draw[thick, accent] plot [smooth] coordinates {(-1.5,0.05) (-0.5,-0.45) (0.5,0.2) (1.5,-0.2)};
-    \foreach \px/\py/\lbl in {-1.5/0.05/u(0), -0.5/-0.45/u(t_i), 0.5/0.2/u(t_{i+1}), 1.5/-0.2/u(t_f)} {
-      \fill (\px,\py) circle (1.2pt);
-      \node[font=\tiny] at (\px,\py+0.35) {$\lbl$};
-    }
-    \draw[ink!55, thick] (-1.8,-1.1) -- (1.8,-1.1);
-    \foreach \px/\tlbl in {-1.5/0, -0.5/t_i, 0.5/t_{i+1}, 1.5/t_f} {
-      \draw[ink!55, thick] (\px,-1.04) -- (\px,-1.16);
-      \node[font=\tiny] at (\px,-1.4) {$\tlbl$};
-    }
-    \begin{pgfonlayer}{background}
-      \node[draw=green!35!black, thick, rounded corners=4pt, fill=green!10, fit={(-2.0,-1.7) (2.0,2.0)}, label={[blocklbl]above:Ordinary Differential Equation}] (b2) {};
-    \end{pgfonlayer}
-    \node[ablationmark] at ([xshift=-6pt,yshift=-6pt]b2.north east) {2};
-    \node[font=\tiny\sffamily\color{ink!60}] at (0,-1.9) {Forward solve};
-  \end{scope}
-
-
-  % ===== two-way information exchange between the network and the solver:
-  % the KAN network outputs the field du/dt, which flows into the solver;
-  % the solver's running state u flows back into the network to evaluate
-  % the field at the next step =====
-  \draw[-{Stealth[length=2.4mm]}, draw=accent!85, thick]
-    (b1.10) .. controls +(1.2,0.6) and +(-1.2,0.6) .. (b2.170)
-    node[midway, above, font=\tiny\sffamily\color{accent!85}] {Gradient information ($\dd\mathbf{u}/\dd t$)};
-  \draw[-{Stealth[length=2.4mm]}, draw=ink!65, thick]
-    (b2.190) .. controls +(-1.2,-0.6) and +(1.2,-0.6) .. (b1.-10)
-    node[midway, below, font=\tiny\sffamily\color{ink!65}] {State information ($\mathbf{u}=[x,y]$)};
-
-  % ===== Block 3: Adjoint Sensitivity Analysis (backward solve), sized to
-  % match the outer wrapper's height so the return arrow lands symmetrically =====
-  \begin{scope}[xshift=13.2cm]
-    \node[align=center, font=\scriptsize, text width=3.6cm] at (0,2.6)
-      {gradient computation: direct autograd \emph{or} adjoint sensitivity};
-    % the augmented adjoint system actually solved backward in time,
-    % consistent with the state/adjoint/parameter-gradient triple of Eq. 12
-    \node[align=center, font=\tiny] at (0,1.5)
-      {$\dfrac{\dd}{\dd t}\!\begin{bmatrix}\mathbf{u}\\ \mathbf{a}\\ \partial L/\partial\theta\end{bmatrix}
-        = \begin{bmatrix}\mathbf{f}_\theta(\mathbf{u})\\[2pt]
-        -\mathbf{a}^\top\,\partial\mathbf{f}_\theta/\partial\mathbf{u}\\[2pt]
-        -\mathbf{a}^\top\,\partial\mathbf{f}_\theta/\partial\theta\end{bmatrix}$};
-    \draw[thick, ink!70] plot [smooth] coordinates {(1.6,-0.65) (0.6,-1.15) (-0.4,-0.5) (-1.6,-0.9)};
-    \foreach \px/\py in {1.6/-0.65, 0.6/-1.15, -0.4/-0.5, -1.6/-0.9} {
-      \fill (\px,\py) circle (1.2pt);
-    }
-    \node[font=\tiny] at (1.6,-0.3) {$\mathbf{a}(t_1)$};
-    \node[font=\tiny] at (-1.6,-0.55) {$\mathbf{a}(t_0)$};
-    \draw[{Stealth[length=2mm]}-, ink!55, thick] (-1.8,-1.8) -- (1.8,-1.8);
-    \node[font=\tiny] at (1.6,-2.1) {$t_1$};
-    \node[font=\tiny] at (-1.6,-2.1) {$t_0$};
-    \node[font=\tiny\sffamily\color{ink!60}] at (0,-2.5) {Backward solve};
-    \begin{pgfonlayer}{background}
-      \node[draw=blue!40!black, thick, rounded corners=4pt, fill=blue!6, fit={(-2.0,-3.0) (2.0,3.3)}, label={[blocklbl]above:Adjoint Sensitivity Analysis}] (b3) {};
-    \end{pgfonlayer}
-    \node[ablationmark] at ([xshift=-6pt,yshift=-6pt]b3.north east) {3};
-  \end{scope}
-
-  % ===== single consolidated ablation legend, top right of the whole figure =====
-  \node[draw=accent, thick, rounded corners=3pt, fill=white, align=left,
-        font=\tiny\sffamily, inner sep=5pt,
-        anchor=south east] at (15.2,5.3)
-    {\textbf{\color{accent}Ablated in this report:}\\
-     (1) edge basis -- Kolmogorov-Arnold Network\\
-     (2) integrator -- Ordinary Differential Equation\\
-     (3) differentiation method -- Adjoint Sensitivity Analysis};
-
-  % ===== forward connector: outer wrapper to the adjoint box =====
-  \draw[-{Stealth[length=3mm]}, draw=ink!65, line width=1.6pt]
-    (outer.east) -- node[above, font=\tiny\sffamily\color{ink!70}]{Solution} (b3.west);
-
-  % ===== training-loop back-edge: "KAN model update via gradient descent" =====
-  \draw[-{Stealth[length=2.8mm]}, draw=blue!45!black, ultra thick]
-    (b3.south) .. controls +(0,-1.0) and +(0,-1.0) .. (outer.south)
-    node[midway, below=3pt, font=\tiny\sffamily\color{blue!45!black}] {KAN model update via gradient descent};
-\end{tikzpicture}%
-}
-\caption{The KAN-ODE training loop, redrawn in the style of the base paper's
-own architecture figure \cite{koenig2024kanode}. The legend at top right
-lists this report's three ablated components and which block of the diagram
-each corresponds to.}
+\includegraphics[width=\textwidth]{figures/tikz/kan_ode_system.pdf}
+\caption{The KAN-ODE training loop as implemented. The integrator calls the
+network once per Runge-Kutta stage, so one training epoch on $[0,3.5]$
+evaluates $\mathbf{f}_\theta$ $70s$ times ($35$ sampling intervals, two
+sub-steps each, $s$ stages per step). The loss gradient is obtained by
+differentiating through every one of those evaluations. Numbered badges mark
+the three components this report varies: the edge basis (Section~\ref{sec:phase2}),
+the integrator (Sections~\ref{sec:phase2}, \ref{sec:track-b},
+\ref{sec:track-d}) and the gradient method (Section~\ref{sec:track-a}).}
 \label{fig:kan-ode-architecture}
 \end{figure}
 
-With $G=5$ RBF centers per edge, layer one ($2\to10$) contributes
-$10\times(2\times5+2)=120$ parameters and layer two ($10\to2$) contributes
-$2\times(10\times5+10)=120$ parameters, for the $240$ total the base paper
-reports. The reference implementation, \texttt{pykan} \cite{liu2024kan},
-represents every edge with a full B-spline object and recomputes its grid
-during training. This project's KAN layer instead follows the
-\texttt{efficient-kan} reformulation \cite{blealtan2024efficientkan}: each
-edge's basis evaluation is a single matrix product against a precomputed
-grid, which is what makes every basis substituted into
-Equation~\ref{eq:kan-edge} (RBF, B-spline, Chebyshev, Lagrange, Newton) a
-swappable matrix rather than a swap of object type. That reformulation, and
-the explicit Runge-Kutta integrators advancing the field forward in time,
-were reimplemented directly in this project's own code rather than imported,
-so every basis and solver could be instrumented identically. The base
-paper's own implementation compiles its integration loop in Julia's SciML
-ecosystem; this project runs the same loop uncompiled in PyTorch, so
-wall-clock figures reported later are comparable across this project's own
-runs but not directly against the paper's reported times.
+\subsubsection{One KAN layer as two matrix products}
+
+The network is two \texttt{KDense} layers
+(\path{implementation/kan/layer.py}). For a batch
+$\mathbf{X}\in\mathbb{R}^{B\times d_{\text{in}}}$, a layer evaluates every
+edge function of Equation~\ref{eq:kan-edge} simultaneously:
+\begin{equation}
+\Psi_{b,i,g} = B_g\big(\tanh X_{b,i}\big), \qquad
+\mathbf{Y} = \underbrace{\Psi_{\text{flat}}\,\mathbf{C}^{\top}}_{\text{spline branch}}
+           + \underbrace{\mathrm{silu}(\mathbf{X})\,\mathbf{W}^{\top}}_{\text{base branch}},
+\qquad \mathbf{C}\in\mathbb{R}^{d_{\text{out}}\times d_{\text{in}}G},\;
+\mathbf{W}\in\mathbb{R}^{d_{\text{out}}\times d_{\text{in}}},
+\label{eq:kdense}
+\end{equation}
+where $\Psi_{\text{flat}}\in\mathbb{R}^{B\times d_{\text{in}}G}$ is $\Psi$
+with its last two axes merged. Entry $C_{j,(i,g)}$ is the coefficient $c_g$
+of edge $i\to j$, and $W_{j,i}$ is that edge's residual weight $w_b$, so
+$Y_{b,j}=\sum_i\phi_{i,j}(X_{b,i})$ exactly. Figure~\ref{fig:kdense} traces
+the tensor shapes, and the forward pass in the repository is short enough to
+show in full:
+
+\begin{pycode}[implementation/kan/layer.py -- KDense.forward (docstring removed)]
+x_flat = x.view(-1, self.in_features)                         # [B, d_in]
+x_norm = self.normalizer(x_flat)                              # tanh -> [-1, 1]
+basis_vals = self.basis_func(x_norm, self.grid, self.denominator)   # [B, d_in, G]
+basis_flat = basis_vals.reshape(basis_vals.size(0), self.in_features * self.grid_len)
+spline_out = F.linear(basis_flat, self.C)                     # Psi_flat @ C^T
+if self.use_base_act and self.W is not None:
+    base_val = self.base_act(x_flat)                          # silu(x)
+    base_out = F.linear(base_val, self.W)                     # silu(x) @ W^T
+    out = spline_out + base_out
+else:
+    out = spline_out
+return out.view(*orig_shape[:-1], self.out_features)
+\end{pycode}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/tikz/kdense_layer.pdf}
+\caption{Tensor flow through one \texttt{KDense} layer
+(Equation~\ref{eq:kdense}). Only the basis-expansion step differs between
+the seven basis families studied in Section~\ref{sec:phase2}; every basis
+function in \texttt{implementation/kan/basis.py} has the same signature,
+$(\mathbf{U},\mathbf{z},h)\mapsto\Psi\in\mathbb{R}^{B\times d_{\text{in}}\times G}$,
+so swapping the basis changes one tensor and nothing else.}
+\label{fig:kdense}
+\end{figure}
+
+\paragraph{Parameter count.} Each layer holds
+$d_{\text{out}}d_{\text{in}}G$ spline coefficients and
+$d_{\text{out}}d_{\text{in}}$ residual weights and no bias. For $[2,10,2]$
+with $G=5$: layer one ($2\to10$) has $10\cdot2\cdot5+10\cdot2=100+20=120$
+parameters, layer two ($10\to2$) has $2\cdot10\cdot5+2\cdot10=100+20=120$,
+for the $240$ total the base paper reports. The comparison MLPs in
+Section~\ref{sec:phase1} are sized to match: the paper's $[2,50,2]$ network
+has $2\cdot50+50+50\cdot2+2=252$ parameters, and the deeper $[2,14,8,8,2]$
+network used as the working baseline also has
+$(28+14)+(112+8)+(64+8)+(16+2)=252$.
+
+\paragraph{Why the \texttt{efficient-kan} formulation.} The reference
+implementation, \texttt{pykan} \cite{liu2024kan}, represents every edge with
+its own spline object and recomputes the grid during training. Inside a
+Neural ODE this cost is multiplied by the integrator: one epoch of Tsit5 on
+the training window calls $\mathbf{f}_\theta$ $420$ times, and reverse-mode
+differentiation keeps every one of those calls in the autograd graph. This
+project's layer follows the \texttt{efficient-kan} reformulation
+\cite{blealtan2024efficientkan} instead: the knots are a fixed buffer,
+the basis is evaluated for all edges by one broadcast, and the contraction is
+one dense matrix product per branch (Equation~\ref{eq:kdense}). Each stage
+therefore adds two GEMMs and a handful of elementwise operations to the
+graph, independent of the number of edges. The same structure is what makes
+every basis substituted into Equation~\ref{eq:kan-edge} (RBF, B-spline,
+Chebyshev, Lagrange, Newton, IQF, RSWAF) a swappable tensor rather than a
+swap of object type.
+
+\paragraph{What was reimplemented.} The KAN layer, the seven basis
+functions, the six fixed-step Runge-Kutta integrators, the invariant-enforcing
+field wrappers used for SIR, and the training loop were written directly for
+this project rather than imported, so every basis and solver could be
+instrumented identically. The integrators apply the tableaux of
+Section~\ref{sec:phase2} verbatim; Tsit5 and DOPRI5 are run at fixed step
+with their fifth-order weights only, whereas the base paper uses Tsit5's
+embedded error estimate for adaptive step control. The base paper's own
+implementation compiles its integration loop in Julia's SciML ecosystem; this
+project runs the same loop uncompiled in PyTorch, so wall-clock figures
+reported later are comparable across this project's own runs but not
+directly against the paper's reported times (Section~\ref{sec:budget}
+quantifies what this costs).
 
 \subsection{What the base paper fixed, and what this project varies}
 
@@ -227,8 +179,9 @@ B-spline as its default edge basis, and the base paper switches to Gaussian
 RBF specifically for the ODE setting, since its derivative never vanishes --
 relevant once the edge function sits inside a differentiated integrator
 rather than a static regression. Section~\ref{sec:phase2} restores B-spline
-and adds two further global bases (Chebyshev, Lagrange), so the trade-off
-the switch was based on is measured directly rather than assumed.
+and adds five further bases (Chebyshev, Lagrange, Newton, and the IQF and
+RSWAF kernels), so the trade-off the switch was based on is measured
+directly rather than assumed.
 
 Each of those three fixed choices maps directly onto one of this report's
 studies: Section~\ref{sec:track-a} tests whether the adjoint method's
@@ -254,21 +207,34 @@ interaction with training is not predictable from classical numerical-analysis
 theory alone, because it sits inside a backpropagation graph rather than a
 standalone forward solve: a solver that is unconditionally stable classically
 can still train badly, train to a wrong answer, or fail to generalize.
-Diagnosing failures like these means treating training itself as an object of
-study, not just the final trajectory error.
+Section~\ref{sec:numerics} makes this concrete: a network trained through
+Forward Euler learns the \emph{inverse modified equation} of backward error
+analysis rather than the physical field (its deviation from the true field
+matches the predicted $\tfrac{h}{2}J\mathbf{f}$ correction with cosine
+similarity $0.92$ and magnitude ratio $1.04$), and every trained
+model -- KAN or MLP -- replaces Lotka-Volterra's family of neutral orbits
+with a single attracting limit cycle. Diagnosing behaviour like this means
+treating training itself as an object of study, not just the final
+trajectory error.
 
 \subsection{Structure of this report}
 
-The report follows the order the work was carried out. A baseline recipe is
-reproduced and used to establish the evaluation protocol
-(Section~\ref{sec:phase1}), then stress-tested with a solver and
-basis-function ablation that surfaces and fixes two training failures
-(Section~\ref{sec:phase2}). Five further studies build on that fixed
-baseline: gradient-method cost (Section~\ref{sec:track-a}), whether gradient
-noise explains a solver-order effect (Section~\ref{sec:track-b}), a learnable
-basis blend (Section~\ref{sec:track-c}), solver-stiffness interaction
+The report follows the order the work was carried out.
+Section~\ref{sec:phase1} fixes the training recipe, the evaluation protocol
+and the compute budget, and reproduces the base paper's KAN-ODE versus
+MLP-ODE comparison. Section~\ref{sec:phase2} documents the integrators and
+basis functions from their defining formulas, sweeps six solvers, seven
+bases, three step sizes and four noise levels, analyses the trained models
+numerically (order conditions, stability regions, equilibria, invariants,
+field error), and then diagnoses and fixes two cross-domain training
+failures. Five further studies build on that fixed baseline: gradient-method
+cost (Section~\ref{sec:track-a}), whether gradient noise explains a
+solver-order effect (Section~\ref{sec:track-b}), a learnable basis blend
+(Section~\ref{sec:track-c}), solver-stiffness interaction
 (Section~\ref{sec:track-d}), and KAN-ODE against sparse regression on
-synthetic and real data (Section~\ref{sec:track-e}). A validation stage
-(Section~\ref{sec:phase4}) checks two remaining assumptions.
+synthetic and real data (Section~\ref{sec:track-e}). The validation stage
+(Section~\ref{sec:phase4}) retrains five configurations at up to five times
+the budget and audits the implementation against the paper.
 Section~\ref{sec:discussion} draws together cross-cutting patterns, and
-Section~\ref{sec:conclusion} closes the report.
+Section~\ref{sec:conclusion} closes the report. Appendix~\ref{app:repro}
+lists every command and file needed to regenerate the numbers.
