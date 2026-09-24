@@ -66,6 +66,9 @@ pt = load_patched("plot_trajectories", [
     ("f\"omega(t), mu={mu}  (curtain area = oscillation size)\"", "f\"angular velocity omega(t), mu = {mu}\""),
     ("f\"error(t), mu={mu}  (green plane = 1e-3 'good fit' line)\"",
      "f\"log10 |error|(t), mu = {mu}  (green plane: 1e-3)\""),
+    # the side legend sat on top of the z-axis tick labels; put it below the axes
+    ("ax.legend(loc=\"center left\", bbox_to_anchor=(1.02, 0.5), **legend_kwargs)",
+     "ax.legend(loc=\"upper center\", bbox_to_anchor=(0.5, 0.04), ncol=3, **legend_kwargs)"),
 ])
 rs = load_patched("run_sweep", [
     ("ax.set_title(f\"Stiffness-Solver Stability Phase Map (dt={dt})\"",

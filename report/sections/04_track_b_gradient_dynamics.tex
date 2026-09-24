@@ -4,7 +4,8 @@
 The benchmark ablation found Forward Euler uniquely unable to reach $10^{-4}$
 training loss within budget, with $28\times$ worse extrapolation MSE than
 Tsit5 (Table~\ref{tab:solver-ablation}). The candidate mechanism tested here: a
-first-order solver commits $O(\Delta t)$ local error every step, which could
+first-order solver commits an $O(h^2)$ local error every step, accumulating to
+an $O(h)$ global error, which could
 inject measurably noisier gradients and destabilize Adam's moment estimates.
 
 \begin{expectbox}
@@ -29,8 +30,8 @@ order 1 to order 2 is comparable in size to the jump from order 4 to order
 linearly; the hypothesis under test is only that noise falls
 \emph{monotonically} as order rises, which is exactly what Spearman
 correlation measures, by comparing ranks rather than raw values. It also
-handles the deliberate tie at $p=2$ (Heun and Midpoint are both second-order
-methods) natively, where Pearson would need an arbitrary tie-breaking rule.
+handles the ties at $p=2$ (Heun, Midpoint) and $p=5$ (DOPRI5, Tsit5)
+natively, where Pearson would need an arbitrary tie-breaking rule.
 
 \begin{table}[!ht]
 \centering
@@ -56,39 +57,48 @@ Spearman $\rho=-0.088$, $p=0.87$ ($n=6$). Three findings jointly refute the
 hypothesis: the effect size is a 7\% spread across all six solvers; the
 ranking is non-monotone (RK4, order 4, is the second-noisiest solver); and the
 sign of $\rho$ flips across warm-up cuts ($-0.088\to-0.441\to+0.706$ as the
-first 0, 2000, 5000 epochs are dropped), so no cut reaches significance and
-the direction of any relationship depends on an arbitrary analyst choice.
+first 0, 2000, 5000 epochs are dropped); no cut reaches significance
+($p\ge0.12$), and the direction of any relationship depends on an arbitrary
+analyst choice.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.85\linewidth]{figures/track_b/gradient_noise_by_order.png}
-\caption{Gradient-norm traces, all six solvers: large sustained spike bursts
-(one to two orders of magnitude above the local median) dominate every trace,
-including Tsit5, independent of solver order.}
+\caption{Left: gradient-norm traces, all six solvers: large sustained spike
+bursts (one to two orders of magnitude above the local median) dominate every
+trace, including Tsit5, independent of solver order. Right: the noise measure
+$\eta$ (Equation~\ref{eq:noise-measure}) against solver order, showing the
+non-monotone ranking of Table~\ref{tab:gradient-noise}.}
 \label{fig:gradient-noise}
 \end{figure}
 
 \paragraph{Finding.} Gradient-norm roughness does not explain Euler's
 convergence floor (Table~\ref{tab:gradient-noise}). All six traces are
 instead dominated (Figure~\ref{fig:gradient-noise}) by shared,
-order-independent spike bursts (1176 spike-epochs for Euler, 866 for Tsit5 in
-the last 4000 epochs, near-identical burst structure). Four checks rule out a
-numerical defect: zero non-finite gradients or losses across 60{,}000 logged
-epochs; loss decreases monotonically in its running minimum for every solver;
-loss is lower five epochs after a spike in $64.5\%$ of cases; and median loss
-\emph{is} elevated on spike epochs ($3.90\times10^{-4}$ vs.\ $1.80\times10^{-4}$
-on calm epochs), ruling out a spurious-gradient/still-loss signature. The
-most plausible reading is edge-of-stability optimizer behaviour: gradient
-descent with a fixed step size and no learning-rate schedule is known to
-settle into a regime where it repeatedly overshoots the walls of a narrowing
-loss valley as training approaches a sharp minimum, producing exactly this
-pattern of a large transient spike followed by fast recovery, rather than
-either smooth convergence or a genuine divergence. Because this behavior
+order-independent spike bursts (a spike epoch being one whose gradient norm
+exceeds $8\times$ its median over epochs 6000--10{,}000; 1176 spike epochs for
+Euler and 866 for Tsit5 in the last 4000 epochs, with near-identical burst
+structure). Four checks rule out a numerical defect: zero non-finite
+gradients or losses across 60{,}000 logged epochs; every solver's loss falls
+from $4.83$ to below $1.4\times10^{-4}$, reaching its minimum in the last 12
+epochs; the loss is lower five epochs after a spike in $62$--$65\%$ of cases
+($64.0\%$ pooled over all six solvers); and the median loss \emph{is} elevated
+on spike epochs in every solver ($1.5$--$2.2\times$; for Tsit5,
+$3.90\times10^{-4}$ against $1.80\times10^{-4}$ on calm epochs), ruling out a
+spurious-gradient/still-loss signature. The most plausible reading is
+edge-of-stability optimizer behaviour. Gradient descent with a fixed step size
+has been observed to settle into a regime where it repeatedly overshoots the
+walls of a narrowing loss valley as training approaches a sharp minimum
+\cite{cohen2021eos}, and adaptive methods show a similar regime
+\cite{cohen2022adaptive}. Adam at a constant learning rate
+($2\times10^{-3}$, no schedule), as used here, plausibly behaves the same way,
+producing this pattern of a large transient spike followed by fast recovery
+rather than either smooth convergence or a genuine divergence. Because this behavior
 appears with near-identical structure in Euler's and Tsit5's traces alike,
 it is a property of the optimizer and the loss surface's local geometry, not
 of the integrator's truncation error. Euler's convergence floor is better
 explained by the earlier systematic-bias hypothesis (Section~\ref{sec:phase2}):
-a first-order integrator's $O(\Delta t)$ local error biases \emph{where} the
+a first-order integrator's $O(h)$ global error biases \emph{where} the
 optimizer settles, without making the path it takes to get there measurably
 rougher.
 

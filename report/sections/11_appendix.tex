@@ -16,20 +16,19 @@ shown here to six decimals).
 
 \begin{table}[!ht]
 \centering
-\footnotesize
-\renewcommand{\arraystretch}{1.25}
+\renewcommand{\arraystretch}{1.9}
 \caption{DOPRI5 \cite{dormand1980dopri}, fifth-order solution weights.}
 \label{tab:butcher-dopri5}
 $\begin{array}{c|ccccccc}
 0 \\
-\tfrac15 & \tfrac15\\
-\tfrac{3}{10} & \tfrac{3}{40} & \tfrac{9}{40}\\
-\tfrac45 & \tfrac{44}{45} & -\tfrac{56}{15} & \tfrac{32}{9}\\
-\tfrac89 & \tfrac{19372}{6561} & -\tfrac{25360}{2187} & \tfrac{64448}{6561} & -\tfrac{212}{729}\\
-1 & \tfrac{9017}{3168} & -\tfrac{355}{33} & \tfrac{46732}{5247} & \tfrac{49}{176} & -\tfrac{5103}{18656}\\
-1 & \tfrac{35}{384} & 0 & \tfrac{500}{1113} & \tfrac{125}{192} & -\tfrac{2187}{6784} & \tfrac{11}{84}\\
+\dfrac15 & \dfrac15\\
+\dfrac{3}{10} & \dfrac{3}{40} & \dfrac{9}{40}\\
+\dfrac45 & \dfrac{44}{45} & -\dfrac{56}{15} & \dfrac{32}{9}\\
+\dfrac89 & \dfrac{19372}{6561} & -\dfrac{25360}{2187} & \dfrac{64448}{6561} & -\dfrac{212}{729}\\
+1 & \dfrac{9017}{3168} & -\dfrac{355}{33} & \dfrac{46732}{5247} & \dfrac{49}{176} & -\dfrac{5103}{18656}\\
+1 & \dfrac{35}{384} & 0 & \dfrac{500}{1113} & \dfrac{125}{192} & -\dfrac{2187}{6784} & \dfrac{11}{84}\\
 \hline
-b & \tfrac{35}{384} & 0 & \tfrac{500}{1113} & \tfrac{125}{192} & -\tfrac{2187}{6784} & \tfrac{11}{84} & 0
+b & \dfrac{35}{384} & 0 & \dfrac{500}{1113} & \dfrac{125}{192} & -\dfrac{2187}{6784} & \dfrac{11}{84} & 0
 \end{array}$
 \end{table}
 
@@ -39,7 +38,7 @@ b & \tfrac{35}{384} & 0 & \tfrac{500}{1113} & \tfrac{125}{192} & -\tfrac{2187}{6
 \renewcommand{\arraystretch}{1.25}
 \caption{Tsit5 \cite{tsitouras2011tsit5}, fifth-order solution weights.}
 \label{tab:butcher-tsit5}
-\resizebox{\textwidth}{!}{%
+\resizebox{0.85\textwidth}{!}{%
 $\begin{array}{c|ccccccc}
 0 \\
 0.161 & 0.161\\
@@ -68,7 +67,8 @@ The two figures below expand the trajectory comparison of
 Section~\ref{sec:track-d} at full page width. In each, the top row shows the
 predicted angle $\theta(t)$ and angular velocity $\omega(t)$ of every
 solver's model next to the true trajectory, the bottom left shows the
-magnitude of each solver's own learned field $|\mathbf f_\theta|$ over
+magnitude of each solver's own learned field, as
+$\log(1+|\mathbf f_\theta|)$, over
 $(\theta,\omega)$ with that model's trajectory drawn on it, and the bottom
 right shows the logarithm of the pointwise error. Legends give each model's
 verdict under the rule of Section~\ref{sec:track-d}. The trajectories were
@@ -80,7 +80,8 @@ recorded best training MSE.
 \includegraphics[width=\textwidth]{figures/track_d/mu2.0_trajectory_grid.png}
 \caption{$\mu=2.0$, all four solvers (seed 42). Every model settles onto the
 same wrong trajectory, which ends at the learned spurious equilibrium of
-Table~\ref{tab:spurious-eq}.}
+Table~\ref{tab:spurious-eq}, about $0.05$ from the true one; the offset is
+visible in the error panel rather than in the trajectory panels.}
 \label{fig:mu2-collage}
 \end{figure}
 
@@ -88,7 +89,7 @@ Table~\ref{tab:spurious-eq}.}
 \centering
 \includegraphics[width=\textwidth]{figures/track_d/mu1.0_trajectory_grid.png}
 \caption{$\mu=1.0$, all four solvers (seed 42), in the same layout. Only
-Euler's predicted angle departs visibly from the true one; the other three
-track it closely.}
+Euler's prediction (angle and angular velocity) departs visibly from the
+true trajectory; the other three track it closely.}
 \label{fig:mu1-collage}
 \end{figure}

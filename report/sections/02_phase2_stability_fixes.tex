@@ -11,25 +11,25 @@ before they could be fixed.
 \subsection{Solver, basis and architecture ablation}
 
 Every integrator in Table~\ref{tab:solver-ablation} advances the state by one
-step $\Delta t$ using only evaluations of the learned field
+step $h$ using only evaluations of the learned field
 $\mathbf{f}_\theta$, and all were implemented directly for this project
 rather than called from an external ODE library. Writing $\mathbf{u}_n$ for
 the state at step $n$:
 \begin{align}
-\text{Forward Euler (order 1):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + \Delta t\, \mathbf{f}_\theta(\mathbf{u}_n) \label{eq:euler}\\
+\text{Forward Euler (order 1):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + h\, \mathbf{f}_\theta(\mathbf{u}_n) \label{eq:euler}\\
 \text{Midpoint (order 2):}\quad & \mathbf{k}_1 = \mathbf{f}_\theta(\mathbf{u}_n), \quad
-  \mathbf{u}_{n+1} = \mathbf{u}_n + \Delta t\,\mathbf{f}_\theta\!\left(\mathbf{u}_n + \tfrac{\Delta t}{2}\mathbf{k}_1\right) \label{eq:midpoint}\\
+  \mathbf{u}_{n+1} = \mathbf{u}_n + h\,\mathbf{f}_\theta\!\left(\mathbf{u}_n + \tfrac{h}{2}\mathbf{k}_1\right) \label{eq:midpoint}\\
 \text{Heun's method (order 2):}\quad & \mathbf{k}_1 = \mathbf{f}_\theta(\mathbf{u}_n), \quad
-  \mathbf{k}_2 = \mathbf{f}_\theta(\mathbf{u}_n+\Delta t\,\mathbf{k}_1), \quad
-  \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{\Delta t}{2}(\mathbf{k}_1+\mathbf{k}_2) \label{eq:heun}\\
-\text{Classical RK4 (order 4):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{\Delta t}{6}\left(\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4\right) \label{eq:rk4}
+  \mathbf{k}_2 = \mathbf{f}_\theta(\mathbf{u}_n+h\,\mathbf{k}_1), \quad
+  \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{h}{2}(\mathbf{k}_1+\mathbf{k}_2) \label{eq:heun}\\
+\text{Classical RK4 (order 4):}\quad & \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{h}{6}\left(\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4\right) \label{eq:rk4}
 \end{align}
 with the classical RK4 stages $\mathbf{k}_1=\mathbf{f}_\theta(\mathbf{u}_n)$,
-$\mathbf{k}_2=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{\Delta t}{2}\mathbf{k}_1)$,
-$\mathbf{k}_3=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{\Delta t}{2}\mathbf{k}_2)$,
-$\mathbf{k}_4=\mathbf{f}_\theta(\mathbf{u}_n+\Delta t\,\mathbf{k}_3)$. Here
-$\Delta t$ stands for the integration step, which in every run is half the
-data spacing (two substeps, Algorithm~\ref{alg:odeint}). DOPRI5 and Tsit5
+$\mathbf{k}_2=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{h}{2}\mathbf{k}_1)$,
+$\mathbf{k}_3=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{h}{2}\mathbf{k}_2)$,
+$\mathbf{k}_4=\mathbf{f}_\theta(\mathbf{u}_n+h\,\mathbf{k}_3)$. Here
+$h$ is the integration step, which in every run is half the data spacing
+$\Delta t$ (two substeps, Algorithm~\ref{alg:odeint}). DOPRI5 and Tsit5
 follow the same stage-and-combine pattern at order 5 (Equation~\ref{eq:rk-general}),
 each with a seven-stage Butcher tableau (Appendix~\ref{app:butcher}) whose
 last stage has zero weight, so both cost six field evaluations per step at a
@@ -61,16 +61,16 @@ trajectory error.
 \caption{Solver ablation (fixed RBF basis, data spacing $\Delta t=0.1$ with
 two substeps, so integration step $h=0.05$; 240 parameters; 10{,}000 epochs).}
 \label{tab:solver-ablation}
-\begin{tabularx}{\textwidth}{@{}L{2.2cm} C{0.9cm} C{1.6cm} C{1.7cm} C{1.9cm} C{1.7cm} C{1.3cm} X@{}}
+\begin{tabularx}{\textwidth}{@{}L{2.0cm} C{0.9cm} C{1.6cm} C{1.75cm} C{1.9cm} C{1.9cm} C{1.35cm} X@{}}
 \toprule
 \hdrrow \thh{Solver} & \thh{Order} & \thh{Function evaluations / epoch} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrapolation $R^2$} & \thh{Lipschitz $L$} & \thh{Wall-clock}\\
 \midrule
 Forward Euler & 1 & 70 & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$ & 254 s\\
-Heun RK2 & 2 & 140 & $8.32\times10^{-5}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$ & 499 s\\
+Heun RK2 & 2 & 140 & $\mathbf{8.32\times10^{-5}}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$ & 499 s\\
 Midpoint & 2 & 140 & $8.86\times10^{-5}$ & $8.95\times10^{-5}$ & $0.99997$ & $6.96$ & 498 s\\
 Classical RK4 & 4 & 280 & $9.41\times10^{-5}$ & $9.29\times10^{-5}$ & $0.99997$ & $6.88$ & 1019 s\\
 DOPRI5 & 5 & 420 & $9.28\times10^{-5}$ & $9.21\times10^{-5}$ & $0.99997$ & $6.89$ & 1699 s\\
-\textbf{Tsit5} & 5 & 420 & $\mathbf{8.83\times10^{-5}}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$ & 1712 s\\
+\textbf{Tsit5} & 5 & 420 & $8.83\times10^{-5}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$ & 1712 s\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -95,13 +95,14 @@ one third of the function evaluations, but given Heun's result, calling it the
 cost-normalized optimum would need more seeds to confirm.
 
 The wall-clock column confirms that function evaluations are the operative
-cost. Training times of $254:499:498:1019:1699:1712$~s follow the evaluation
-counts' ratios of $1:2:2:4:6:6$ almost exactly, because backpropagation
+cost. Training times of $254:499:498:1019:1699:1712$~s, in ratios of
+$1:2.0:2.0:4.0:6.7:6.7$, follow the evaluation counts' ratios of $1:2:2:4:6:6$
+closely (the fifth-order methods carry about $12\%$ extra overhead), because backpropagation
 unrolls every stage of every step, so each extra stage adds forward and
 backward work in proportion. This close match also indicates that the
 timings are not contaminated by scheduling noise. Figure~\ref{fig:solver-curves}
 shows the training-loss histories: the five higher-order solvers track each
-other closely throughout, while Euler separates after about 2{,}000 epochs
+other closely throughout (Heun lags briefly around epoch 5000), while Euler separates after about 2{,}000 epochs
 and descends more slowly for the rest of the run.
 
 \begin{figure}[htbp]
@@ -166,11 +167,11 @@ second.}
 \end{table}
 
 Writing $z_g$ for the $g$-th of $G$ evenly spaced grid centers with spacing
-$h$, and $u=\tanh(x)\in[-1,1]$ the normalized edge input, the seven
+$\delta$ (not the integration step $h$), and $u=\tanh(x)\in[-1,1]$ the normalized edge input, the seven
 bases compared here (Figure~\ref{fig:basis-shapes}) are
 \begin{equation}
 \begin{gathered}
-B_g^{\text{RBF}}(u)=\exp\!\left(-\tfrac12\left(\tfrac{u-z_g}{h}\right)^2\right),\\
+B_g^{\text{RBF}}(u)=\exp\!\left(-\tfrac12\left(\tfrac{u-z_g}{\delta}\right)^2\right),\\
 B_g^{\text{spline}}(u) = \text{Cox--de Boor recursion of degree }k\text{ on the clamped knot vector of Section~\ref{sec:numerics}},
 \end{gathered}
 \label{eq:basis-rbf-spline}
@@ -182,11 +183,11 @@ B_g^{\text{Newt}}(u)=\prod_{j<g}(u-z_j),
 \label{eq:basis-poly}
 \end{equation}
 \begin{equation}
-B_g^{\text{RSWAF}}(u)=\operatorname{sech}^2\!\left(\tfrac{u-z_g}{h}\right)=1-\tanh^2\!\left(\tfrac{u-z_g}{h}\right), \qquad
-B_g^{\text{IQF}}(u)=\frac{1}{1+\left(\frac{u-z_g}{h}\right)^2},
+B_g^{\text{RSWAF}}(u)=\operatorname{sech}^2\!\left(\tfrac{u-z_g}{\delta}\right)=1-\tanh^2\!\left(\tfrac{u-z_g}{\delta}\right), \qquad
+B_g^{\text{IQF}}(u)=\frac{1}{1+\left(\frac{u-z_g}{\delta}\right)^2},
 \label{eq:basis-rational}
 \end{equation}
-each substituted for $B_i(x)$ in Equation~\ref{eq:kan-edge}. RSWAF
+each substituted for $B_i$ in Equation~\ref{eq:kan-edge} and evaluated at $u=\tanh x$. RSWAF
 (reflectional switch activation function) and IQF (inverse quadratic) are,
 like the Gaussian, bell-shaped kernels centred on each grid point. The
 Gaussian and RSWAF decay exponentially away from the centre, while IQF decays
@@ -200,9 +201,10 @@ This is what gives it compact support: $B_{g,k}(u)=0$ once $u$ leaves the
 $k+2$ knots the recursion references. None of the other six bases has such a
 cutoff: every coefficient $c_g$ influences $\phi(x)$ at every $x$. For the
 polynomial bases (Chebyshev, Lagrange, Newton) that influence does not decay
-at all away from $z_g$, which is the algebraic reason they extrapolate worst
-once the trajectory reaches states their coefficients were not fitted on
-(Table~\ref{tab:basis-ablation}). The residual term
+at all away from $z_g$, which is one plausible reason they extrapolate
+$4$--$400\times$ worse than the Gaussian once the trajectory reaches states
+their coefficients were not fitted on (Table~\ref{tab:basis-ablation});
+support alone does not set the ranking, as the bell-shaped kernels below show. The residual term
 $w_b\,\mathrm{silu}(x)$ in Equation~\ref{eq:kan-edge} is the same for every
 basis choice, since it is a fixed part of the edge parameterization, not one
 of the substituted terms above.
@@ -237,9 +239,10 @@ $17\%$ coverage at the domain edges and produced a diverging model. A
 tempting explanation of the higher Lipschitz estimate is that compact local
 support lets the B-spline fit sharper local features. The longer-budget runs
 do not support it: at 25{,}000 epochs the B-spline's estimate ($7.05$) is
-\emph{lower} than RBF's at 50{,}000 ($7.75$, Table~\ref{tab:epoch-budget}),
-so the ordering of $L$ between the two bases is not stable and is not
-attributed to support here. The two bases are statistically tied on error
+\emph{lower} than RBF's at 50{,}000 ($7.75$, Table~\ref{tab:epoch-budget}).
+The two budgets differ, so this is not a matched comparison, but it is
+enough to show that the ordering of $L$ between the two bases is not stable,
+and it is not attributed to support here. The two bases are statistically tied on error
 (6\% apart, inside single-seed noise), which makes RBF the better
 accuracy-per-second choice.
 Lagrange is the slowest basis (6829~s) even though its formula is closed
@@ -253,7 +256,7 @@ window well and extrapolate $4$--$5\times$ worse -- the expected signature
 of a basis whose every coefficient influences the whole domain rather than a
 local region of it. Support is not the whole story, however. RSWAF and IQF
 are bell-shaped kernels just like the Gaussian, cost the same to evaluate,
-and fit the training window comparably, yet they extrapolate $16\times$ (RSWAF)
+and fit the training window to within about $2.4\times$ of it, yet they extrapolate $16\times$ (RSWAF)
 and $11\times$ (IQF) worse than it. The shape of each kernel, not only whether it is
 local, decides how the fitted field behaves outside the training window;
 with one seed per basis, this gap is a measured ranking, not an explained
@@ -263,11 +266,12 @@ reflects underfitting, not desirable flatness, since it is also the only
 basis that never reaches $10^{-3}$ training loss.
 
 The training histories (Figure~\ref{fig:basis-curves}) show the same
-ordering developing over time. The B-spline has the lowest loss early and
-again from about epoch 6000 onward. Chebyshev is lowest in between and
+ordering developing over time. The B-spline has the lowest best-so-far loss
+for most of the first 2{,}000 epochs and again from about epoch 6300 onward.
+Chebyshev is lowest in between (RSWAF briefly ties it near epoch 5400) and
 reaches $10^{-3}$ first (at epoch 3892, against RBF's 5282), but it does not
-keep that lead. Newton stays
-an order of magnitude above every other basis throughout.
+keep that lead. Newton stays about an order of magnitude above the best basis
+throughout ($10$--$20\times$).
 
 \begin{figure}[htbp]
 \centering
@@ -295,7 +299,8 @@ parameter-matched MLP that trains.
 (Tsit5, two substeps, Adam at $2\times10^{-3}$, seed 42, 10{,}000 epochs).
 ``Epochs to $10^{-k}$'' is the first epoch whose training loss falls below
 that level. The 50{,}000-epoch row comes from the budget check of
-Section~\ref{sec:phase4}, whose runs also used gradient clipping at 1.0.}
+Section~\ref{sec:phase4}, whose runs also used gradient clipping at 1.0 and
+a different platform.}
 \label{tab:kan-vs-mlp}
 \begin{tabularx}{\textwidth}{@{}X C{2.7cm} C{2.7cm} C{2.7cm}@{}}
 \toprule
@@ -312,27 +317,30 @@ Epochs to $10^{-3}$ & 5282 & $\mathbf{1297}$ & never\\
 Epochs to $10^{-4}$ & 9617 & $\mathbf{9145}$ & never\\
 Seconds per epoch (CPU) & 0.1705 & 0.2856 & 0.0736\\
 \midrule
-Extrapolation MSE at 50{,}000 epochs, with gradient clipping & $4.03\times10^{-5}$ & $\mathbf{5.90\times10^{-6}}$ & $4.32$\\
+Extrapolation MSE at 50{,}000 epochs, with gradient clipping & $4.02\times10^{-5}$ & $\mathbf{5.90\times10^{-6}}$ & $4.32$\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 At the 10{,}000-epoch budget the two claims split. On accuracy, KAN-ODE
-extrapolates $5.4\times$ better than the parameter-matched MLP from
-statistically identical training loss (7\% apart), which agrees with the
+extrapolates $5.3\times$ better than the parameter-matched MLP from
+statistically identical training loss (8\% apart), which agrees with the
 paper. On speed, the MLP reaches $10^{-3}$ training loss $4.1\times$
 \emph{sooner} (epoch 1297 against 5282) and also reaches $10^{-4}$ first,
 which contradicts the paper's tenfold claim. Per epoch, KAN-ODE costs
 $2.3\times$ the paper-spec MLP ($0.1705$ vs.\ $0.0736$~s), close to the paper's
 own ratio of $19$ against $7$ minutes per $10^4$ epochs
-\cite{koenig2024kanode}; the deeper SiLU MLP is slower per epoch than both
-because it has four sequential layers.
+\cite{koenig2024kanode}. The SiLU MLP's per-epoch time was measured in a
+different batch of runs, on a different PyTorch build; in the 50{,}000-epoch
+reruns, on one platform, it was faster than the KAN-ODE ($0.27$ against
+$0.40$~s), so per-epoch differences involving it are not interpreted.
 
 The accuracy advantage does not survive a longer run. Retrained to
 50{,}000 epochs (last row; Section~\ref{sec:phase4}), the parameter-matched
 MLP's extrapolation error falls to $5.90\times10^{-6}$, $6.8\times$
 \emph{lower} than KAN-ODE's. Those reruns also used gradient clipping, which
-the 10{,}000-epoch runs did not, and the two changes were not separated. The
+the 10{,}000-epoch runs did not, and ran on a different platform, and these
+changes were not separated from the budget. The
 KAN-ODE lead measured at 10{,}000 epochs is therefore a statement about that
 setting, not a stable property of the two architectures on this problem.
 Both runs use a single seed.
@@ -340,10 +348,11 @@ Both runs use a single seed.
 Figure~\ref{fig:kan-mlp-curves} shows where the speed difference comes from.
 The SiLU MLP's training loss falls much faster over the first 1{,}000 epochs
 and stays below the KAN-ODE's for most of the run, but it is interrupted by
-large recurring spikes. The KAN-ODE descends more slowly and more smoothly,
-and the two meet near $10^{-4}$ only at the end of the budget. The paper's
-tanh MLP levels off near a training loss of $1$ by about epoch 2000 and does
-not improve after that.
+large recurring spikes. The KAN-ODE descends more slowly, with smaller
+spikes that appear mostly late in the run, and the two meet near $10^{-4}$
+only at the end of the budget. The paper's tanh MLP levels off near a
+training loss of $1$ by about epoch 2000, apart from a brief burst of spikes
+near epoch 2700, and improves only from $1.21$ to $1.08$ after that.
 
 \begin{figure}[htbp]
 \centering
@@ -355,11 +364,11 @@ baselines of Table~\ref{tab:kan-vs-mlp}.}
 
 \paragraph{Phase-space geometry.} Trajectory error alone does not show how
 each model fails. Figure~\ref{fig:phase-space-models} plots each model's
-predicted orbit against the true limit cycle. The KAN-ODE and the SiLU MLP
+predicted orbit against the true closed orbit. The KAN-ODE and the SiLU MLP
 both close the orbit correctly and are hard to tell apart by eye. Both show
 slight jaggedness at the right-hand turning point, where the true orbit bends
 most sharply, and the MLP's extrapolated segment sits slightly off the true
-orbit near its top ($x\approx3$--$4$). The $5.4\times$ gap in extrapolation MSE
+orbit near its top ($x\approx3$--$4$). The $5.3\times$ gap in extrapolation MSE
 between them is therefore a small difference in absolute terms, not a
 qualitative one. The paper-specification tanh MLP converges to a
 different, stable but wrong closed orbit: its prey range is roughly right, but
@@ -396,7 +405,8 @@ orbits.}
 \renewcommand{\arraystretch}{1.15}
 \caption{Controlled breakdown of why the paper's literal MLP baseline
 architecture, $[2,50,2]$ with hyperbolic tangent (tanh) activation, fails to
-train under this project's protocol. All four runs use 2000 epochs.}
+train under this project's protocol. All four runs use 2000 epochs. These
+four runs have no archived result files in the repository.}
 \label{tab:mlp-breakdown}
 \begin{tabular}{@{}C{0.7cm} L{2.8cm} C{1.4cm} C{1.5cm} C{2.1cm} C{2.1cm} C{1.6cm}@{}}
 \toprule
@@ -412,7 +422,7 @@ D & $[2,50,2]$ & SiLU & $2\times10^{-3}$ & $3.62\times10^{-3}$ & $2.68\times10^{
 
 Runs A and D share the $[2,50,2]$ architecture and differ only in
 activation. With SiLU (run D) the network fits the training window
-$335\times$ better than with tanh ($3.62\times10^{-3}$ against $1.21$), but it
+$334\times$ better than with tanh ($3.62\times10^{-3}$ against $1.21$), but it
 extrapolates $135\times$ \emph{worse} ($268$ against $1.98$): SiLU lets this
 architecture fit the data, but not generalize from it. Only run C, which
 changes both the depth and the widths while keeping SiLU, both fits and
@@ -453,7 +463,7 @@ is computed against the clean trajectory.}
 0.00 & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & $0.33\%$ & --\\
 0.01 & $1.23\times10^{-4}$ & $1.22\times10^{-3}$ & $0.99958$ & $1.22\%$ & $13.6\times$\\
 0.05 & $7.41\times10^{-4}$ & $2.54\times10^{-2}$ & $0.99129$ & $5.55\%$ & $284\times$\\
-0.10 & $2.28\times10^{-3}$ & $1.37\times10^{-1}$ & $0.95282$ & $12.92\%$ & $1541\times$\\
+0.10 & $2.28\times10^{-3}$ & $1.37\times10^{-1}$ & $0.95282$ & $12.92\%$ & $1540\times$\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -463,7 +473,7 @@ a $10\times$ increase in noise raises the extrapolation error $113\times$,
 close to the $\sigma^2$ scaling expected when noise in the fitted field
 simply propagates through the integration, and with no sign of a stability
 breakdown. Even at $\sigma=0.1$ the model still explains $95\%$ of the
-extrapolation variance and keeps the limit cycle closed. The noisier runs are
+extrapolation variance and keeps the orbit closed. The noisier runs are
 also the only ones in the Lotka-Volterra ablation that clearly stopped
 improving: their best training loss changed by only $8$--$9\%$ over the last
 2{,}000 epochs, against a factor of $1.5$--$2$ for the clean and $\sigma=0.01$
@@ -514,8 +524,8 @@ Extended window ($t_{\text{train}}=5.0$, identity residual) & $6.68\times10^{-2}
 An earlier hypothesis held that SiLU's residual branch $W\cdot\mathrm{silu}(x)$
 cannot represent a sign-changing derivative such as $\dot\theta=\omega$. A
 factorial control comparing activation against training-window length
-refutes it directly: with the longer window, SiLU reaches an angular-velocity
-root-mean-square error of $0.0114$~rad/s and reproduces the true turning
+refutes it directly: with the longer window, SiLU fits the angle to a
+root-mean-square error of $0.0114$~rad inside the training window and reproduces the true turning
 point ($\theta_{\min}=-1.380$ against a true value of $-1.385$). On the
 common test window the extended window moves $R^2$ from $-4.64$ to $+0.647$
 (Table~\ref{tab:pendulum-fix}); the $-1.318$ originally quoted for the failing
@@ -524,9 +534,11 @@ failure on the window the fixed model is judged on. The ``identity'' variant
 replaces the residual path $W\,\mathrm{silu}(x)$ of Equation~\ref{eq:kdense}
 by the linear $W\,x$, leaving the basis expansion unchanged. With the longer
 window it also stops diverging, but it extrapolates worse than SiLU
-($R^2=+0.473$ against $+0.647$). Its only advantage is speed: at the short
-window it converges roughly $1000\times$ faster, without matching the longer
-window's accuracy.
+($R^2=+0.473$ against $+0.647$). Its advantage is fitting speed only: at the
+short window it reaches a roughly $1000\times$ lower training loss in a fifth
+of the epochs, and at the long window it fits the training window
+$3.6\times$ better, yet in both cases it does not match the SiLU model's
+extrapolation.
 Figure~\ref{fig:pendulum-fixed} shows the adopted model.
 
 \begin{figure}[htbp]
@@ -557,13 +569,13 @@ with invalid final weights.
 \begin{expectbox}
 \expectrow{Question}{What causes SIR's divergence, and is it a scale problem, an optimizer defect, or a modeling gap?}
 \expectrow{Expected}{Measuring the untrained network's own field magnitude against the true dynamics, before any training, should reveal whether the two are mismatched in scale.}
-\expectrow{Observed}{A $19\times$ speed mismatch at initialization. Rescaling time removes the divergence entirely; no optimizer or architecture change was needed.}
+\expectrow{Observed}{A roughly $18$--$19\times$ speed mismatch at initialization. Rescaling time removes the divergence entirely; no optimizer or architecture change was needed.}
 \end{expectbox}
 
 Measuring the learned field magnitude
 \emph{before any training step} explained the divergence directly. A
 Glorot-initialised KAN starts with $|f_\theta|\approx0.203$ against SIR's
-true field magnitude of $0.011$ -- a $19\times$ speed mismatch. To see why
+true field magnitude of $0.011$ -- a roughly $18$--$19\times$ speed mismatch. To see why
 this is catastrophic rather than merely inaccurate, consider that
 backpropagation through an explicit solver differentiates roughly $T/\Delta t$
 nested nonlinear steps, and the resulting gradient sensitivity grows
@@ -669,12 +681,12 @@ Table~\ref{tab:fix-scorecard} lists every intervention with its verdict.
 \toprule
 \hdrrow \thh{Intervention} & \thh{Verdict} & \thh{Evidence}\\
 \midrule
-Longer training window (pendulum) & Adopted & $R^2$ on the common window $(5,10]$ improves from $-4.64$ to $+0.647$; removes the divergence under both activations tested\\
+Longer training window (pendulum) & Adopted & $R^2$ on the common window $(5,10]$ improves from $-4.64$ to $+0.647$; removes the divergence under SiLU and the identity residual (a tanh variant at 2{,}000 epochs reaches only $R^2=-0.03$)\\
 Non-finite gradient guard with automatic abort & Adopted & In an intermediate SIR run (penalty-based conservation, no time rescaling), it caught the first non-finite gradient at epoch 3055, aborted after 100 consecutive bad steps, and kept the valid epoch-2877 checkpoint instead of overwriting it\\
 Time rescaling (SIR) & Adopted & Removes both the divergence and the frozen field, in which the model learns $\mathbf f_\theta\approx\mathbf 0$ and its extrapolation barely moves ($I$ drifts by $0.0003$ over the test window against a true $0.0525$)\\
 Conservation via subspace projection (SIR) & Adopted & Extrapolation mass error $|S+I+R-1|$ from $0.0045$ (no fix) and $0.0086$ (penalty run) to $0.0000$ at four decimals (Table~\ref{tab:sir-fix-summary})\\
 Vanishing-field gate on $I$ (SIR) & Adopted, as a physical prior & Extrapolation $R^2$ from $-0.145$ to $+0.9981$ on top of the two fixes above\\
-Identity activation (pendulum) & Speed only & Roughly $1000\times$ faster to fit at the short window, but worse extrapolation and stability at the long window\\
+Identity activation (pendulum) & Speed only & Roughly $1000\times$ lower training loss in a fifth of the epochs at the short window, and a $3.6\times$ better training fit at the long window, but worse extrapolation there\\
 Standard-deviation loss weighting & System-dependent & Worst-performing pendulum option; superseded for SIR by time rescaling\\
 Conservation via penalty term & Rejected & Wrong mechanism -- the training window's mass was already close to conserved, so the penalty had nothing to correct\\
 Widened basis-function grid limits & Rejected & Performed worse than the untouched baseline configuration\\
@@ -708,7 +720,7 @@ models with no retraining.
 \renewcommand{\arraystretch}{1.15}
 \caption{Extrapolation MSE as the horizon doubles, same trained models.}
 \label{tab:extrap-horizon}
-\begin{tabular}{@{}L{3.4cm} C{2.1cm} C{2.6cm} C{2.6cm} C{1.6cm}@{}}
+\begin{tabular}{@{}L{3.2cm} C{2.1cm} C{2.6cm} C{2.6cm} C{1.8cm}@{}}
 \toprule
 \hdrrow \thh{Model} & \thh{Training $[0,3.5]$} & \thh{Near extrapolation $(3.5,14]$} & \thh{Far extrapolation $(14,28]$} & \thh{Degradation}\\
 \midrule
@@ -735,16 +747,17 @@ The KAN-ODE's error is essentially flat across the doubled horizon
 (Figure~\ref{fig:extrap-t28}; $8.83\to8.92\to9.72\times10^{-5}$, a $10\%$ rise from the training window
 to the far window), while the parameter-matched MLP degrades $8.3\times$ over
 the same extension. At this budget the KAN-ODE advantage therefore widens
-with horizon: from $5.4\times$ on the near window to $\mathbf{40.6\times}$
+with horizon: from $5.3\times$ on the near window to $\mathbf{40.6\times}$
 on the far window, because the KAN-ODE's error does not accumulate from one
 cycle to the next and the MLP's does.
 
 This conclusion depends on the training setting. The same three windows
 were scored for the 50{,}000-epoch checkpoints of Section~\ref{sec:phase4},
-which were also trained with gradient clipping
+which were also trained with gradient clipping, on a different platform
 (Table~\ref{tab:extrap-horizon-50k}; the same scoring code reproduces every
 10{,}000-epoch entry of Table~\ref{tab:extrap-horizon} to three significant
-figures). With five times the training, both models fit the training window
+figures, except the SiLU MLP's near-window MSE, $4.78$ against
+$4.77\times10^{-4}$). With five times the training, both models fit the training window
 far better, but the KAN-ODE's error is no longer flat: it grows $6.2\times$
 from the near to the far window, against the MLP's $3.9\times$. The MLP is
 then more accurate on both windows, by $6.8\times$ near and $10.8\times$
@@ -759,11 +772,11 @@ clipping at 1.0 (Section~\ref{sec:phase4}); same windows as
 Table~\ref{tab:extrap-horizon}. ``Degradation'' is far-window MSE divided by
 near-window MSE, as in Table~\ref{tab:extrap-horizon}.}
 \label{tab:extrap-horizon-50k}
-\begin{tabular}{@{}L{3.4cm} C{2.1cm} C{2.6cm} C{2.6cm} C{1.6cm}@{}}
+\begin{tabular}{@{}L{3.2cm} C{2.1cm} C{2.6cm} C{2.6cm} C{1.8cm}@{}}
 \toprule
 \hdrrow \thh{Model (50{,}000 epochs)} & \thh{Training $[0,3.5]$} & \thh{Near extrapolation $(3.5,14]$} & \thh{Far extrapolation $(14,28]$} & \thh{Degradation}\\
 \midrule
-KAN-ODE (RBF, 240 parameters) & $6.59\times10^{-6}$ & $4.03\times10^{-5}$ & $2.50\times10^{-4}$ & $6.2\times$\\
+KAN-ODE (RBF, 240 parameters) & $6.59\times10^{-6}$ & $4.02\times10^{-5}$ & $2.50\times10^{-4}$ & $6.2\times$\\
 \textbf{MLP-ODE (SiLU, 252 parameters)} & $\mathbf{1.82\times10^{-6}}$ & $\mathbf{5.90\times10^{-6}}$ & $\mathbf{2.31\times10^{-5}}$ & $\mathbf{3.9\times}$\\
 MLP-ODE (tanh, paper specification) & $1.01\times10^{0}$ & $4.32\times10^{0}$ & $7.49\times10^{0}$ & $1.7\times$\\
 \bottomrule
@@ -773,26 +786,27 @@ MLP-ODE (tanh, paper specification) & $1.01\times10^{0}$ & $4.32\times10^{0}$ & 
 \begin{keypoint}[Budget caveat]
 The $40.6\times$ KAN-ODE advantage and its flat error across horizons
 describe the two models at 10{,}000 epochs without clipping. At 50{,}000
-epochs with clipping (Section~\ref{sec:phase4}) the parameter-matched MLP is
+epochs with clipping, on a different platform (Section~\ref{sec:phase4}), the parameter-matched MLP is
 more accurate at every horizon tested. On this problem the KAN-ODE's lead is
 a lead in how fast it reaches a good extrapolating field, not in how good a
-field it can eventually reach (single seed; the effects of budget and
-clipping were not separated).
+field it can eventually reach (single seed; the effects of budget,
+clipping and platform were not separated).
 \end{keypoint}
 
 \subsection{Pendulum energy dissipation: an independent physical check}
 
 The fixed pendulum recipe captures $94.2\%$ of the true energy dissipation
-and tracks $E(t)$ to $0.6\%$ inside the training window, but the strict
+and tracks $E(t)$ inside the training window to a root-mean-square error of
+$0.6\%$ of $E_0$, but the strict
 monotonic-decay invariant ($\dd E/\dd t\le0$, Equation~\ref{eq:pendulum})
-is violated on 40 of 200 predicted steps. The model is under-damped:
-the true angular displacement decays to $0.004$ by $t=9.1$ while the
-predicted trajectory continues oscillating at $0.237$. This energy
+is violated on 40 of 200 predicted steps. The model is under-damped: over
+$t>9$ the true angle stays within $\pm0.17$~rad while the prediction still
+swings to $0.44$~rad. This energy
 diagnostic is an independent confirmation of the under-damping, expressed
 as a violated conservation law rather than a trajectory RMSE
 (Figure~\ref{fig:pendulum-energy}): after the training window ends at
 $t=5$, the predicted energy stops tracking the true curve and stays well
-above it, between about $0.5$ and $1.5$, with small upward jumps, while the
+above it, between about $0.3$ and $1.5$, with small upward jumps, while the
 true energy keeps decaying toward zero.
 
 \begin{figure}[htbp]

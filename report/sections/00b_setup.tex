@@ -54,11 +54,13 @@ fixed population,
 \qquad \beta=0.35,\ \gamma=0.10\ \ (R_0=\beta/\gamma=3.5),
 \label{eq:sir}
 \end{equation}
-from $(S_0,I_0,R_0)=(0.99,\,0.01,\,0)$, with time measured in days. The
+from $(S(0),I(0),R(0))=(0.99,\,0.01,\,0)$, with time measured in days. The
 right-hand sides sum to zero, so $S+I+R=1$ holds exactly for all time. The
-infected curve rises to a single peak and then decays, so the extrapolation
-window tests whether the model has learned the \emph{end} of an outbreak from
-data that mostly shows its growth.
+infected curve rises to a single peak and then decays. The training window
+already contains the rise, the peak (day 22.5) and most of the decline, so
+the extrapolation window tests the \emph{tail} of the outbreak: a
+low-$S$, low-$I$ corner of state space that the training data visits only
+once.
 
 \paragraph{Synthetic non-mechanistic epidemic curve.} To test whether the SIR
 fixes transfer to data that no compartmental ODE generated
@@ -70,7 +72,7 @@ closed-form skewed bell shape rather than from any differential equation,
 \label{eq:synthetic-epidemic}
 \end{equation}
 sampled daily for $t\in\{0,\dots,120\}$, clipped at zero and smoothed with a
-7-day moving average, the way public case counts are usually reported. The
+centred 7-day moving average, the way public case counts are usually reported. The
 second state is a cumulative-recovered proxy,
 $\tilde R(t)=0.08\sum_{s\le t}\tilde I(s)$. Both columns are min-max
 normalized to $[0,1]$. The $\tanh$ factor makes the rise steeper than the
@@ -117,7 +119,8 @@ Synthetic epidemic & 2 & 1 day & 120 & days 0--44 (45)\textsuperscript{b} & days
 \end{table}
 
 \paragraph{Observation noise.} Where a study adds noise (the Lotka-Volterra
-noise sweep, Section~\ref{sec:track-e}), independent Gaussian noise
+noise sweep, Table~\ref{tab:noise}, whose models are reused in
+Section~\ref{sec:track-e}), independent Gaussian noise
 $\mathcal N(0,\sigma^2)$ with $\sigma\in\{0,0.01,0.05,0.1\}$ is added to the
 \emph{training} observations only. The test window is always scored against
 the clean reference trajectory, so the reported error measures how well the
@@ -136,8 +139,8 @@ P_{\text{layer}} = n_{\text{out}}\,n_{\text{in}}\,(G+1)
 \end{equation}
 parameters: $G$ basis coefficients plus one residual weight on each of its
 $n_{\text{in}}n_{\text{out}}$ edges. The size of the network differs by
-system, because SIR's three-dimensional state and the pendulum's
-sharper nonlinearity needed more capacity than Lotka-Volterra.
+system: SIR, with its three-dimensional state, and the pendulum, with its
+sharper nonlinearity, were given more capacity than Lotka-Volterra.
 
 \begin{table}[!ht]
 \centering
@@ -174,8 +177,8 @@ introduced because the literal one fails to train under this protocol
 
 \paragraph{Why 10{,}000 epochs.} The base paper trains for $10^5$ epochs.
 This project fixed its budget at $10^4$ for three reasons. First, cost: the
-full ablation is 24 Lotka-Volterra configurations plus three other systems,
-and at the measured $0.03$--$0.67$~s per epoch on a CPU a $10^5$-epoch
+full ablation is 24 Lotka-Volterra configurations plus runs on the two other
+mechanistic systems, and at the measured $0.03$--$0.68$~s per epoch on a CPU a $10^5$-epoch
 sweep of the Lotka-Volterra ablation alone would take on the order of a week
 of serial CPU time, before any other system or follow-up study. Second, the paper itself reports that its
 KAN-ODE reaches $2.6\times10^{-5}$ training loss within $10^4$ epochs,
@@ -185,8 +188,9 @@ each other at a common budget, so what matters is whether the
 \emph{ranking} is stable, not whether each run has fully converged. That last
 assumption was tested directly by retraining five configurations to
 25{,}000--50{,}000 epochs; Section~\ref{sec:phase4} reports the result, which
-confirms the ranking within the KAN variants but reverses the KAN-versus-MLP
-comparison.
+largely confirms the ranking among the KAN variants (Euler stays last; RBF
+and B-spline stay within a factor of two but swap places) but reverses the
+KAN-versus-MLP comparison.
 
 \paragraph{Training objective and model selection.} Each epoch integrates the
 learned field once over the whole training window from the known initial

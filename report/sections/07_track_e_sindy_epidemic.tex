@@ -13,10 +13,12 @@ Sparse Identification of Nonlinear Dynamics (SINDy) \cite{brunton2016sindy}
 fits a governing equation as a sparse linear combination of candidate terms
 drawn from a fixed library -- here, every polynomial in $x$ and $y$ up to
 degree 2, i.e.\ $\{1,x,y,x^2,xy,y^2\}$. Coefficients are estimated by
-sequentially thresholded least squares: an ordinary least-squares fit is
-performed against numerically estimated derivatives, every coefficient
-below a fixed threshold is zeroed out, and the fit is repeated on the
-surviving terms until the active set stops changing. This is what makes the
+sequentially thresholded least squares: a least-squares fit (with a small
+ridge penalty, $\alpha=0.05$) is performed against numerically estimated
+derivatives, every coefficient below a fixed threshold is zeroed out, and
+the fit is repeated on the surviving terms until the active set stops
+changing (at most 20 iterations), followed by an unpenalized refit on the
+final active set. This is what makes the
 recovered model sparse and, in principle, human-readable -- unlike the KAN's
 240 free parameters, SINDy returns a short list of surviving terms with
 numeric coefficients attached, directly comparable to the true equation's
@@ -57,9 +59,9 @@ comparison, as the check at the end of this subsection shows.
 \hdrrow \thh{Noise level $\sigma$} & \thh{Sparse regression} & \thh{KAN-ODE} & \thh{KAN-ODE advantage}\\
 \midrule
 0.00 & $9.90\times10^{-2}$ & $\mathbf{8.92\times10^{-5}}$ & $1110\times$\\
-0.01 & $1.58\times10^{-1}$ & $1.22\times10^{-3}$ & $130\times$\\
-0.05 & $1.48\times10^{-1}$ & $2.54\times10^{-2}$ & $5.8\times$\\
-0.10 & $8.89\times10^{-1}$ & $1.37\times10^{-1}$ & $6.5\times$\\
+0.01 & $1.58\times10^{-1}$ & $\mathbf{1.22\times10^{-3}}$ & $130\times$\\
+0.05 & $1.48\times10^{-1}$ & $\mathbf{2.54\times10^{-2}}$ & $5.8\times$\\
+0.10 & $8.89\times10^{-1}$ & $\mathbf{1.37\times10^{-1}}$ & $6.5\times$\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -67,17 +69,22 @@ comparison, as the check at the end of this subsection shows.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/sindy_vs_kan_noise.png}
-\caption{Training and extrapolation MSE vs.\ noise level, both methods.}
+\caption{Sparse regression (plain and smoothed finite-difference
+derivatives) and KAN-ODE against noise level: (a) training-window MSE,
+(b) extrapolation MSE, (c) worst relative error among the four true
+coefficients recovered by sparse regression.}
 \label{fig:sindy-noise}
 \end{figure}
 
 In Table~\ref{tab:sindy-noise} and Figure~\ref{fig:sindy-noise}, KAN-ODE
 wins on absolute accuracy at every level, but the margin collapses
 $170\times$ across the sweep (sparse regression degrades $9.0\times$ from
-$\sigma=0$ to $0.1$; KAN-ODE degrades $1540\times$). The sparse regression's
-six-term library caps how much noise can move it; the KAN's 240 free
-parameters fit the noise directly and the error compounds through the
-solver.
+$\sigma=0$ to $0.1$; KAN-ODE degrades $1540\times$). The two ratios start from
+very different floors, though: sparse regression's noise-free error is
+already set by its finite-difference derivatives (as the check below
+shows), while KAN-ODE starts three orders of magnitude lower, so the
+smaller degradation factor is not by itself evidence that the method
+resists noise better.
 
 \paragraph{How much of SINDy's error is the derivative estimate?} SINDy's
 noise-free error of $9.9\times10^{-2}$ is surprisingly large for a library
@@ -123,7 +130,8 @@ $5.7\%$ at every noise level. What degrades with noise is the linear
 coefficient $\alpha$ of $x$, from $2.0\%$ to $44.6\%$ error, together with the
 number of spurious terms admitted by the fixed threshold, which rises from 2
 to 7--8. SINDy's breakdown at $\sigma\ge0.05$ is therefore a failure to pin the
-linear rates, not a failure to find the interaction structure.
+prey growth rate $\alpha$, together with the spurious terms the threshold
+admits, not a failure to find the interaction structure.
 
 \begin{table}[!ht]
 \centering
@@ -152,17 +160,15 @@ every noise level: the worst term's error is $87\%$ at $\sigma=0$ and $101\%$ at
 $\sigma=0.1$, against $5.4\%$ and $44.6\%$, and the fit keeps 8 spurious terms at
 every level. In extrapolation they are worse at three of the four noise
 levels (only at $\sigma=0.01$ are they slightly better, $0.133$ against
-$0.158$). The cause is the filter window rather than the method: the default
-Savitzky-Golay window of 11 points spans $1.1$ time units at $\Delta t=0.1$, a
-third of the $3.32$-unit cycle and nearly a third of the whole 36-point
-training series, so the smoothing flattens the peaks the derivative
-information lives in.
+$0.158$). The likely cause is the filter window rather than the method (a
+shorter window was not part of the reported runs): the default
+Savitzky-Golay window of 11 points spans $1.0$ time unit at $\Delta t=0.1$,
+nearly a third of the $3.32$-unit cycle and 11 of the 36 training points,
+so the smoothing flattens the peaks the derivative information lives in.
 
 The cross-term result matters for the comparison because $xy$ is exactly the
-term a single-layer KAN
-edge, being strictly univariate, cannot represent directly, since each edge
-is a function of only one input variable and a layer sums its edges
-additively. This asymmetry -- sparse regression writes $xy$ as a literal
+term a single KAN layer cannot represent directly, since each edge is a
+function of only one input variable and a layer sums its edges additively. This asymmetry -- sparse regression writes $xy$ as a literal
 library column, while a KAN can only approximate it through composition
 across a hidden layer -- means a term-by-term symbolic comparison would be
 comparing a coefficient against a distributed representation, so the
@@ -172,7 +178,7 @@ comparison used here is trajectory reconstruction instead
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/sindy_vs_kan_trajectories.png}
-\caption{Reconstructed trajectories at $\sigma=0$ and $\sigma=0.1$ (sparse
+\caption{Reconstructed prey trajectories $x(t)$ at $\sigma=0$ and $\sigma=0.1$ (sparse
 regression with finite-difference derivatives): sparse regression loses
 amplitude under noise; KAN-ODE keeps amplitude but drifts in phase.}
 \label{fig:sindy-trajectories}
@@ -184,27 +190,32 @@ Part of the original motivation for a smooth, globally-supported basis such
 as RBF is that a sparse, pruned KAN edge structure could in principle be read
 back as a closed-form symbolic law, the same interpretability goal sparse
 regression achieves by construction. The base paper reaches this by adding an
-$L_1$ penalty on every spline coefficient to the training loss,
+$L_1$ penalty on all trainable parameters to the training loss,
 \begin{equation}
 \mathcal{L} = \mathrm{MSE}(\mathbf{u}_{\text{true}}, \mathbf{u}_{\text{pred}}) + \lambda\sum_{i} |c_i|,
 \label{eq:l1-sparsity}
 \end{equation}
-where $c_i$ ranges over every spline coefficient in Equation~\ref{eq:kan-edge}
-and $\lambda$ trades off trajectory accuracy against how many edges the
+where $c_i$ ranges over every trainable parameter (the spline coefficients of
+Equation~\ref{eq:kan-edge} and the residual weights) and $\lambda$ (the
+paper's $\gamma_{\text{sp}}$) trades off trajectory accuracy against how many edges the
 penalty drives toward zero. Every checkpoint trained for this project used
 $\lambda=0$: the plain mean-squared-error term alone, with no sparsity
 pressure ever added to Equation~\ref{eq:l1-sparsity}. A KAN-ODE analogue of a
 sparse coefficient list would instead come from pruning weak edges
-\emph{post hoc} and reading off what survives. Ranking each edge by mean
-spline-coefficient magnitude and masking the weakest, applied to the existing
-(never retrained) noise-sweep checkpoints, removes the two weakest of forty
-edges and raises the noise-free full-horizon MSE from $8.90\times10^{-5}$ to
-$3.43$ -- a factor of $3.9\times10^{4}$, worse than predicting the constant
-dataset mean ($2.91$; Figure~\ref{fig:pruning}). Every checkpoint was trained with no sparsity-inducing
-regularization applied at all, so nothing during training ever asked the
-network to concentrate its fit onto a few edges; the flat plateau at
-$\approx3.5$--$3.8$ across all pruning levels of 25\% or more is the
-signature of a model where the fit is spread across many edges: no small
+\emph{post hoc} and reading off what survives. Edges are ranked within each
+layer by the mean absolute value of their spline coefficients, and the
+spline branch of the weakest is zeroed while the residual
+$W\,\mathrm{silu}(x)$ term is kept. Applied to the existing (never
+retrained) noise-sweep checkpoints, zeroing the spline branches of the two
+weakest of forty edges (one per layer) raises the noise-free full-horizon
+MSE from $8.90\times10^{-5}$ to $3.43$ -- a factor of $3.9\times10^{4}$, worse
+than predicting the constant dataset mean ($2.91$;
+Figure~\ref{fig:pruning}, left). Removing the same two edges entirely,
+residual included, gives $2.79$ (right). Every checkpoint was trained with
+no sparsity-inducing regularization applied at all, so nothing during
+training ever asked the network to concentrate its fit onto a few edges; the
+flat plateau at $\approx3.5$--$3.8$ once half or more of the spline branches
+are pruned is the signature of a model where the fit is spread across many edges: no small
 subset of edges carries it, so there is no sparse structure for a
 magnitude-based pruning rule to recover. This says nothing about whether the
 pruning procedure would find such structure in a network trained to have
@@ -214,19 +225,22 @@ Equation~\ref{eq:l1-sparsity}, which was not run.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/pruning_degradation.png}
-\caption{Full-horizon MSE vs.\ edge-pruning fraction for the noise-sweep
-KAN-ODE models, all four noise levels, pruned without retraining.}
+\caption{Full-horizon MSE vs.\ edge-pruning fraction for the four
+noise-sweep KAN-ODE models, pruned without retraining. Edges are ranked
+within each layer by the $L_1$ magnitude of their spline coefficients; no
+$L_1$ penalty was used in training. Left: only the spline branch is zeroed,
+the residual term is kept. Right: the whole edge is removed.}
 \label{fig:pruning}
 \end{figure}
 
 \subsection{Testing whether SIR's fixes transfer to a non-mechanistic epidemic curve}
 
 A synthetic, asymmetric outbreak curve generated by no compartmental ODE
-(Equation~\ref{eq:synthetic-epidemic}, Table~\ref{tab:datasets}), tests whether the SIR fixes of
+(Equation~\ref{eq:synthetic-epidemic}, Table~\ref{tab:datasets}) tests whether the SIR fixes of
 Section~\ref{sec:phase2} generalize by mechanism rather than by coincidence
 of the SIR system's own structure. The same init-time diagnostic used to
 root-cause SIR reproduces an almost identical speed-mismatch signature
-($18.77\times$ against SIR's $19\times$), which says that time rescaling is
+($18.77\times$ against SIR's roughly $18$--$19\times$), which says that time rescaling is
 needed. It does not by itself set the factor. The factor comes from a
 horizon rule: choose $s$ so that the rescaled horizon is $T/s=5$, the regime in
 which Lotka-Volterra ($T=3.5$) and the fixed pendulum ($T=5$) train. For SIR
@@ -235,9 +249,12 @@ was applied to the full 120-day record, giving $s=120/5=24$; applied to the
 45-day training window, as for SIR, it would give $s=9$. The time-scale sweep
 (Figure~\ref{fig:time-scale-sweep}) was run in the same batch as the $s=24$
 arms, so the project's records cannot show that 24 was fixed before the
-sweep's results were seen. The sweep's training loss is, however, flat
-across $s\in[10,40]$, so it could not have singled out 24, and every arm
-below is compared at the same $s$.
+sweep's results were seen. The sweep's training loss does not single out 24
+(it is highest there, $2.74\times10^{-3}$ against
+$1.28$--$2.00\times10^{-3}$ for $s\in\{10,20,30,40\}$), but its extrapolation
+MSE is lowest there ($6.99$ against $10.3$--$14.3$), so the records cannot
+show that the choice was independent of the test results. Every arm below is
+compared at the same $s$.
 
 \begin{expectbox}
 \expectrow{Question}{SIR's three stability fixes were each derived from a property of the SIR generator itself -- do they still work on data no compartmental model produced?}
@@ -256,7 +273,7 @@ arm trained for the same number of epochs: 2{,}000 epochs for the projection
 gate ($4.67\times10^{-5}$ against $2.20\times10^{-3}$; in extrapolation MSE the
 gate's advantage is $26\times$, $0.155$ against $4.06$).}
 \label{tab:fix-transfer}
-\begin{tabularx}{\textwidth}{@{}L{3.4cm} L{4.4cm} C{1.6cm} X@{}}
+\begin{tabularx}{\textwidth}{@{}L{3.0cm} L{3.6cm} L{2.7cm} X@{}}
 \toprule
 \hdrrow \thh{Fix} & \thh{Precondition} & \thh{Holds?} & \thh{Outcome}\\
 \midrule
@@ -271,7 +288,8 @@ Table~\ref{tab:fix-transfer} summarizes the outcome. The vanishing-field
 gate was \emph{predicted} inapplicable: the infected
 fraction at $t=0$ is $0.0027$, seemingly too small to avoid freezing the
 field entirely. A control arm overturns that prediction: gating the learned
-field by the initial state correctly encodes that the rate of change is
+field by the current infected fraction, $\mathbf f\leftarrow I\cdot\mathbf f$,
+correctly encodes that the rate of change is
 proportional to current prevalence, and is the only configuration that
 reproduces the existence of a peak (day 48 predicted vs.\ true day 45) from a
 training window that never observed one.
@@ -317,8 +335,8 @@ transfer exactly insofar as their structure is actually present in the new
 data: the conservation projection's precondition is confirmable in advance
 by directly measuring the compartment sum, while the vanishing-field gate's
 precondition turned out to require running the control arm to settle --
-argument alone predicted the wrong outcome. That arm cost 27 minutes and
-overturned the prediction.
+argument alone predicted the wrong outcome. A single 2{,}000-epoch control
+arm overturned the prediction.
 \end{keypoint}
 
 \FloatBarrier

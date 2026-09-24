@@ -3,7 +3,7 @@
 
 The benchmark ablation found B-spline (compact local support, $3.9\times$
 RBF's cost) and RBF (smooth global support, cheap) statistically tied on
-accuracy. Rather than choosing one basis function $B_i(x)$ in
+accuracy. Rather than choosing one basis function $B_i$ in
 Equation~\ref{eq:kan-edge} in advance, this study makes the choice itself a
 trained quantity: a learnable convex blend of the two candidate bases inside
 every edge,
@@ -68,7 +68,7 @@ decision fixed at construction time.}
 \begin{expectbox}
 \expectrow{Question}{Can a network do better by learning its own blend of B-spline and RBF, rather than committing to one basis in advance?}
 \expectrow{Expected}{A learned blend should match or beat the better pure basis, by adaptively favoring local support where useful and global support elsewhere.}
-\expectrow{Observed}{Hybrid never beats the better pure basis on either system. On the pendulum, it actively overfits past 3000 epochs in a way pure RBF does not.}
+\expectrow{Observed}{Hybrid never beats the better pure basis on Lotka-Volterra, or pure RBF on the pendulum (no pure B-spline pendulum run exists). On the pendulum, it actively overfits past 3000 epochs in a way pure RBF does not.}
 \end{expectbox}
 
 \begin{table}[!ht]
@@ -83,7 +83,7 @@ decision fixed at construction time.}
 \midrule
 Lotka-Volterra -- RBF (pure) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & --\\
 Lotka-Volterra -- B-spline (pure) & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $0.99997$ & --\\
-Lotka-Volterra -- Hybrid & $1.47\times10^{-4}$ & $1.78\times10^{-4}$ & $0.9999$ & $\alpha{=}0.12,\beta{=}0.88$\\
+Lotka-Volterra -- Hybrid & $1.47\times10^{-4}$ & $1.78\times10^{-4}$ & $0.99994$ & $\alpha{=}0.12,\beta{=}0.88$\\
 \addlinespace[2pt]
 Pendulum -- RBF (pure) & $9.28\times10^{-5}$ & $0.090$ & $+0.647$ & --\\
 Pendulum -- Hybrid (10,000 epochs) & $9.44\times10^{-5}$ & $\mathbf{0.809}$ & $\mathbf{-2.17}$ & $\alpha{=}0.02,\beta{=}0.98$\\
@@ -104,8 +104,8 @@ Pendulum -- Hybrid (10,000 epochs) & $9.44\times10^{-5}$ & $\mathbf{0.809}$ & $\
 \caption{Learned gate weights over training. Left: Lotka-Volterra settles at
 $\alpha=0.116$, $\beta=0.884$. Right: the pendulum gate reaches $\beta=0.995$ by
 epoch 250 and peaks at $0.998$ near epoch 1600, then drifts slowly back to
-$0.979$ over the rest of the run, the same period in which the model
-overfits (discussed below).}
+$0.979$, mostly after epoch 3000, when the model overfits (discussed
+below).}
 \label{fig:hybrid-gates}
 \end{figure}
 
@@ -127,13 +127,15 @@ smaller still: the coefficients did not compensate for a small gate weight.
 \caption{Actual contribution of each basis in the trained hybrid models:
 root-mean-square of $\alpha\,C\mathcal B^{\text{spline}}$ and
 $\beta\,C\mathcal B^{\text{RBF}}$ over the predicted trajectory, per layer,
-with the residual path $W\,\mathrm{silu}(x)$ for scale.}
+with the residual path $W\,\mathrm{silu}(x)$ for scale. Each model is
+evaluated at its selected checkpoint, so the gate can differ in the third
+decimal from the final-epoch value of Figure~\ref{fig:hybrid-gates}.}
 \label{tab:hybrid-contrib}
 \begin{tabular}{@{}L{3.6cm} C{1.9cm} C{1.0cm} C{1.7cm} C{1.7cm} C{1.4cm} C{1.6cm}@{}}
 \toprule
 \hdrrow \thh{Model} & \thh{Gate $(\alpha,\beta)$} & \thh{Layer} & \thh{B-spline part} & \thh{RBF part} & \thh{Residual} & \thh{B-spline share}\\
 \midrule
-Lotka-Volterra, 10k epochs & $(0.116,\,0.884)$ & 1 & 0.076 & 1.232 & 1.910 & 5.8\%\\
+Lotka-Volterra, 10k epochs & $(0.115,\,0.885)$ & 1 & 0.076 & 1.232 & 1.910 & 5.8\%\\
  & & 2 & 0.165 & 2.125 & 2.686 & 7.2\%\\
 \addlinespace[2pt]
 Pendulum, 3k epochs & $(0.004,\,0.996)$ & 1 & 0.002 & 1.157 & 0.546 & 0.2\%\\
@@ -147,8 +149,8 @@ Pendulum, 10k epochs & $(0.021,\,0.979)$ & 1 & 0.011 & 1.018 & 0.792 & 1.1\%\\
 
 \paragraph{Lotka-Volterra: no benefit, real cost.} The gate settles at a
 partial blend in which the B-spline supplies 6--7\% of the basis output
-(Table~\ref{tab:hybrid-contrib}). The hybrid is about $2\times$ worse than
-either pure basis on both training MSE ($1.47\times10^{-4}$ against
+(Table~\ref{tab:hybrid-contrib}). The hybrid is $1.7$--$2.1\times$ worse than
+the pure bases on both training MSE ($1.47\times10^{-4}$ against
 $8.83\times10^{-5}$ and $7.20\times10^{-5}$) and extrapolation MSE
 ($1.78\times10^{-4}$ against $8.92\times10^{-5}$ and $8.38\times10^{-5}$;
 Table~\ref{tab:hybrid-basis}), while paying roughly the \emph{sum} of their
@@ -158,11 +160,12 @@ every other parameter.
 \paragraph{Pendulum: overfitting emerges only past a specific budget.} A
 short probe run at 2000 epochs first surfaced a practical wrinkle: the gate
 moved in the correct direction (toward RBF) but too slowly, so the network
-still carried meaningful B-spline contamination at an epoch count where the
-pure-RBF pendulum recipe was already nearly converged. Giving the gate its
-own, faster learning rate ($15\times$ the base rate, direction untouched)
-closed nearly all of that gap at the same probe budget and was carried into
-the full pendulum runs (Figure~\ref{fig:hybrid-probe}). The faster gate rate
+still carried meaningful B-spline contamination at an epoch count where pure
+RBF had already reached a training MSE of $2.3\times10^{-3}$, against the
+probe's $0.27$. Giving the gate its own, faster learning rate ($15\times$ the
+base rate, direction untouched) lowered the probe's training MSE to
+$1.1\times10^{-2}$ at the same budget and was carried into the full pendulum
+runs (Figure~\ref{fig:hybrid-probe}, right). The faster gate rate
 was applied to the pendulum only; the Lotka-Volterra hybrid above used the
 base rate.
 
@@ -190,8 +193,8 @@ $\approx0.4$ plateau for the remaining 7000 epochs while training loss keeps
 improving -- textbook overfitting, visible directly in the saved training
 history. The gate settles well before this onset: $\beta$ reaches $0.995$ by
 epoch 250 (Figure~\ref{fig:hybrid-gates}), and pure RBF trained on the
-identical recipe shows no such pattern at all. During the overfitting phase
-the gate drifts back from $0.998$ to $0.979$, but the B-spline part still
+identical recipe shows no such pattern at all. After overfitting sets in, the
+gate drifts from $0.996$ to $0.979$, but the B-spline part still
 supplies only 1.1\% of the basis output at the end
 (Table~\ref{tab:hybrid-contrib}). So the overfitting cannot be blamed on a
 large hidden B-spline contribution. Its cause is not identified here: the
@@ -203,16 +206,19 @@ $0.055$ full-horizon MSE against pure RBF's $0.081$ at the same epoch, with
 extrapolation $R^2=+0.580$. That stopping point was chosen from the minimum
 of the monitored full-horizon loss, which includes the test window, so it is
 an \emph{oracle} early stop that uses test data, which this report's
-protocol otherwise forbids (Section~\ref{sec:phase1}). It shows that a good
-hybrid model exists along the training path. It does not show that training
+protocol otherwise forbids (Section~\ref{sec:phase1}). It shows that a better
+hybrid model exists along the training path, although even this oracle stop
+does not match pure RBF's full-budget extrapolation ($R^2=+0.647$,
+full-horizon MSE $0.045$). It does not show that training
 could find it without looking at the test window, and it is not counted in
 the verdict below.
 
 \begin{keypoint}[Verdict]
 Under this report's protocol, where the checkpoint is selected on training
 loss, the learnable hybrid basis never outperforms the better pure basis on
-either system. On Lotka-Volterra it is about $2\times$ worse than either pure
-basis at roughly the sum of their cost. On the pendulum it overfits badly
+Lotka-Volterra, or pure RBF on the pendulum, where no pure B-spline run was
+made. On Lotka-Volterra it is $1.7$--$2.1\times$ worse than the pure bases at
+roughly the sum of their cost. On the pendulum it overfits badly
 after about 3000 epochs even though the B-spline supplies only about 1\% of
 its basis output. The gate moves in a sensible direction on each system, but
 a learned blend buys no accuracy here.

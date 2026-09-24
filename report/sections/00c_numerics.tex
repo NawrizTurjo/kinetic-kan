@@ -31,13 +31,13 @@ gradient in Section~\ref{sec:track-a} comes from \texttt{torchdiffeq}
 from \texttt{pysindy} \cite{desilva2020pysindy,kaptanoglu2022pysindy}.
 
 The port matches \texttt{KDense} in every structural detail: a fixed grid of
-$G$ evenly spaced centres on $[-1,1]$ with spacing $h=2/(G-1)$, a $\tanh$
+$G$ evenly spaced centres on $[-1,1]$ with spacing $\delta=2/(G-1)$, a $\tanh$
 normalizer on the basis path, a SiLU residual path applied to the
 \emph{unnormalized} input, and Glorot-uniform initialization. It differs in
 two numerical details, both recorded in the implementation audit
 (Table~\ref{tab:paper-audit}): the Gaussian is
-$\exp(-\tfrac12((u-z_g)/h)^2)$, as written in the paper's Equation~5, whereas
-the paper's code uses $\exp(-((u-z_g)/h)^2)$, a kernel narrower by a factor
+$\exp(-\tfrac12((u-z_g)/\delta)^2)$, as written in the paper's Equation~5, whereas
+the paper's code uses $\exp(-((u-z_g)/\delta)^2)$, a kernel narrower by a factor
 of $\sqrt2$; and the initial weights are not divided by $10^5$ as the
 paper's code does.
 
@@ -57,8 +57,8 @@ with trainable coefficient tensor $C\in\mathbb R^{n_{\text{out}}\times n_{\text{
 and residual weights $W\in\mathbb R^{n_{\text{out}}\times n_{\text{in}}}$.
 Every edge $(i\to j)$ therefore owns its own univariate function
 $\phi_{j,i}$, shaped by its own $G$ coefficients. The $\tanh$ is needed
-because the basis functions are only defined on the grid's range $[-1,1]$;
-it maps any real input into that range. The residual path keeps a direct,
+because the grid covers only $[-1,1]$; it maps any real input into that
+range, where the basis functions are placed. The residual path keeps a direct,
 unsquashed route from input to output, which stops the layer from saturating
 when an input is large.
 
@@ -126,10 +126,10 @@ states at once.
 \caption{Forward pass of one KAN layer (tensor shapes in brackets; $b$ is the batch size).}
 \label{alg:kdense}
 \begin{algorithmic}[1]
-\Require states $X\,[b\times n_{\text{in}}]$; grid $\mathbf z\,[G]$, spacing $h$; coefficients $C\,[n_{\text{out}}\times n_{\text{in}}G]$; residual weights $W\,[n_{\text{out}}\times n_{\text{in}}]$
+\Require states $X\,[b\times n_{\text{in}}]$; grid $\mathbf z\,[G]$, spacing $\delta$; coefficients $C\,[n_{\text{out}}\times n_{\text{in}}G]$; residual weights $W\,[n_{\text{out}}\times n_{\text{in}}]$
 \Ensure layer output $Y\,[b\times n_{\text{out}}]$
 \State $U \gets \tanh(X)$ \Comment{$[b\times n_{\text{in}}]$, now inside $[-1,1]$}
-\State $\mathcal B[\,\cdot,i,g] \gets B_g(U[\,\cdot,i];\,\mathbf z,h)$ for all $i,g$ \Comment{one broadcast call, $[b\times n_{\text{in}}\times G]$}
+\State $\mathcal B[\,\cdot,i,g] \gets B_g(U[\,\cdot,i];\,\mathbf z,\delta)$ for all $i,g$ \Comment{one broadcast call, $[b\times n_{\text{in}}\times G]$}
 \State $\mathcal B \gets \mathrm{reshape}(\mathcal B,\ b\times n_{\text{in}}G)$
 \State $Y \gets \mathcal B\,C^{\top}$ \Comment{one matrix product for every edge's expansion}
 \State $Y \gets Y + \mathrm{silu}(X)\,W^{\top}$ \Comment{residual path on the unnormalized input}
@@ -146,10 +146,11 @@ in this report (Figure~\ref{fig:basis-shapes}) share lines 1 and 3--6 exactly.
 \includegraphics[width=\linewidth]{figures/methods/basis_functions.png}
 \caption{The seven basis families $B_g(u)$ available to line~2 of
 Algorithm~\ref{alg:kdense}, evaluated by this project's own implementation
-at $G=5$. Only the cubic B-spline has compact support: each of its functions
-is exactly zero outside a few neighbouring grid cells. Every other basis is
-nonzero almost everywhere, so each coefficient affects the edge function over
-the whole input range. Equations~\ref{eq:basis-rbf-spline}--\ref{eq:basis-rational}
+at $G=5$. Only the cubic B-spline has compact support, although at $G=5$ the
+clamped knot vector has a single interior knot, so only $B_1$ and $B_5$
+vanish on half of $[-1,1]$ while $B_2$--$B_4$ span all of it. Every other
+basis is nonzero almost everywhere, so each coefficient affects the edge
+function over the whole input range. Equations~\ref{eq:basis-rbf-spline}--\ref{eq:basis-rational}
 give their formulas.}
 \label{fig:basis-shapes}
 \end{figure}
@@ -164,8 +165,9 @@ which are single closed-form expressions. The cubic B-spline uses a clamped
 (open-uniform) knot vector: each boundary knot is repeated $k+1=4$ times,
 with $G-k-1$ evenly spaced interior knots, so its $G$ basis functions sum to
 exactly one everywhere on $[-1,1]$, including at the edges. It then runs the
-Cox--de Boor recursion, which rebuilds the basis over four degree levels with
-two divisions per knot interval at each level. Since the matrix product is
+Cox--de Boor recursion, which builds the basis from degree-0 indicator
+functions through three recursion levels, with two divisions per knot
+interval at each level. Since the matrix product is
 identical for every basis, this extra basis work is the most likely reason
 the B-spline run takes $3.9\times$ the RBF run's wall-clock time at the same
 parameter count (Table~\ref{tab:basis-ablation}). The time was measured; the
@@ -273,7 +275,7 @@ pass applies the chain rule back through all $\mathrm{NFE}_{\text{epoch}}$
 field evaluations. The result is the exact gradient of the discrete
 computation, at a memory cost linear in the number of steps. The base paper
 instead uses the continuous adjoint method, which solves a second ODE
-backward in time; Section~\ref{sec:track-a} derives it and measures which of
+backward in time; Section~\ref{sec:track-a} states it and measures which of
 the two is cheaper at this project's scale.
 
 \subsection{Structural modifications of the field}
@@ -315,8 +317,11 @@ this in by multiplying the field by one state component $u_d$,
 \end{equation}
 so that $\mathbf f_{\text{gate}}=\mathbf 0$ whenever $u_d=0$. For SIR
 ($d=I$) the true field is $I$ times a cofactor that is affine in $S$, which
-leaves the network a much simpler function to learn. Unlike the other two
-wrappers, this one makes a physical assumption about the system.
+leaves the network a much simpler function to learn. When the gate and the
+projection are used together (SIR), the gate is applied to the projected
+field, $\mathbf f=u_d\,\mathbf f_{\text{proj}}$, which is still zero-sum.
+Unlike the other two wrappers, this one makes a physical assumption about
+the system.
 
 \paragraph{The training loop.} Algorithm~\ref{alg:train} assembles the pieces.
 Its two safety mechanisms were added one after the other, in response to the
@@ -331,7 +336,8 @@ Lotka-Volterra benchmarks of Section~\ref{sec:phase2} predate both
 mechanisms and ran unclipped.
 
 \begin{algorithm}[htbp]
-\caption{Training loop used for every run.}
+\caption{Training loop (\texttt{train.py}) used for the benchmark runs; the
+study-specific loops follow the same checkpoint-selection rule.}
 \label{alg:train}
 \begin{algorithmic}[1]
 \Require training data $\{(t_n,\mathbf u_n)\}_{n<N_{\text{train}}}$; model $\mathbf f_\theta$ (optionally wrapped by Eqs.~\ref{eq:time-scale}--\ref{eq:vanishing-gate}); learning rate $\eta$; clip threshold $c$; epochs $E$

@@ -16,8 +16,8 @@ probe), and comparison against sparse symbolic regression.
   essentially flat out to $t=28$ ($1.1\times$ degradation), while a
   parameter-matched MLP degrades $8.3\times$ --- a $40.6\times$ KAN-ODE
   advantage at the longest horizon. \textbf{This advantage depends on the
-  budget}: retrained to 50{,}000 epochs (with gradient clipping,
-  Section~\ref{sec:phase4}), the same MLP extrapolates $6.8\times$ (near) to
+  budget}: retrained to 50{,}000 epochs (with gradient clipping, on a
+  different platform, Section~\ref{sec:phase4}), the same MLP extrapolates $6.8\times$ (near) to
   $10.8\times$ (far) \emph{better} than KAN-ODE.
 \item The paper's claim that KAN-ODE needs $10\times$ fewer epochs than an
   MLP is not reproduced: the parameter-matched MLP reaches $10^{-3}$
@@ -27,31 +27,37 @@ probe), and comparison against sparse symbolic regression.
   the likely cause.
 \item The pendulum failure (extrapolation $R^2=-4.64$ on the common test
   window, $-1.318$ on its own longer one) was fixed by extending the training
-  window, to $R^2=+0.647$. SIR's divergence traced to a $19\times$ unit-scale
+  window, to $R^2=+0.647$. SIR's divergence traced to a roughly $18$--$19\times$ unit-scale
   mismatch at initialization: a change of time units and a conservation
   projection remove the divergence ($R^2$ from $-20.97$ to $-0.145$), and a
   vanishing-field gate on the infected fraction, a physical prior, brings
   extrapolation $R^2$ to $+0.9981$.
 \item Adjoint sensitivity already uses less memory than direct autograd at
-  every trajectory length tested ($17.1$ vs.\ $18.6$--$21.5$~MB), but costs
+  every trajectory length tested ($17.1$~MB against $18.6$--$21.5$~MB for
+  the two training runs, and up to $\sim$160~MB at 3{,}201 points), but costs
   $1.9$--$2.1\times$ wall-clock --- direct autograd remains the correct
   default at this project's scale.
 \item Gradient-norm roughness does not explain Euler's convergence floor
   (Spearman $\rho=-0.088$, $p=0.87$); shared, order-independent spike bursts
   dominate all six solvers' gradient traces.
 \item A learnable spline/RBF basis blend never beats the better pure basis on
-  either system tested (it is about $2\times$ worse on Lotka-Volterra). On
+  Lotka-Volterra (it is $1.7$--$2.1\times$ worse there), or pure RBF on the
+  pendulum, where no pure B-spline run was made. On
   the pendulum it overfits badly past $\sim$3{,}000 epochs, although measured
   directly the B-spline supplies only $\sim$1\% of its basis output.
 \item The damping sweep never reaches a stiff regime (timescale ratio at
-  most $4.3$), and no run diverged, as the stability limits of both the true
-  and the learned field predict. Its failures at $\mu\in\{0.5,1.0,2.0\}$ trace to
-  the random seed rather than the solver. At $\mu=2.0$, Newton's method
+  most $4.3$), and no run diverged, as expected from the small step size
+  ($|h\lambda|\le0.30$), which keeps every solver's discrete map close to the
+  learned field's own flow; the only predicted instability is a mild
+  numerical anti-damping for Euler at $\mu=0.1$. Its failures at
+  $\mu\in\{0.5,1.0,2.0\}$ trace to the random seed rather than the solver,
+  apart from one Euler-specific failure at $\mu=1.0$. At $\mu=2.0$, Newton's method
   confirms a genuine, attracting spurious equilibrium of the learned field,
   shared by all four solvers.
-\item Sparse regression with finite-difference derivatives is far more
-  noise-robust than KAN-ODE ($9\times$ vs.\ $1540\times$ degradation,
-  $\sigma=0\to0.1$) but less accurate at every noise level. On noise-free
+\item Sparse regression with finite-difference derivatives degrades far less
+  under noise than KAN-ODE ($9\times$ vs.\ $1540\times$, $\sigma=0\to0.1$,
+  from a much higher noise-free error) but is less accurate at every noise
+  level. On noise-free
   data, given exact derivatives, it recovers the true Lotka-Volterra
   equation outright, so there the accuracy gap comes from the derivative
   estimate; whether it does under noise was not tested.
@@ -63,11 +69,12 @@ probe), and comparison against sparse symbolic regression.
 All seven basis functions, six integrators and the training loop were
 implemented for this project and verified before use. Every integrator
 reaches its theoretical order of convergence on a problem with a known
-solution, and 249 of 250 automated tests pass (the remaining one requires a
-GPU). Every number and figure in this report is traceable to a saved
+solution, and 249 of 250 automated tests pass (the remaining one, which needs a
+GPU, is skipped). Every number and figure in this report is traceable to a saved
 training record, a regenerable figure, or a post-hoc analysis script of a
 saved checkpoint (Section~\ref{sec:verification}). The main limitations are
 that almost every result is single-seed, that the budget reversal coincides
-with a change in gradient clipping, and that three differences from the
+with a change in gradient clipping and in platform (operating system and
+PyTorch version), and that three differences from the
 paper's recipe (learning rate, initial-weight scale, RBF width) have been
 identified but not yet measured.

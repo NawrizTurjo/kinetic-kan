@@ -23,30 +23,39 @@ test would need a system with a timescale ratio of $10^3$ or more.
 \begin{expectbox}
 \expectrow{Question}{Does stronger damping push some (solver, $\mu$) combinations outside the solver's stability region, so that lower-order explicit solvers fail?}
 \expectrow{Expected}{If any cell leaves its solver's stability region, that cell should diverge, and lower-order solvers should fail first.}
-\expectrow{Observed}{Linear stability theory predicts no divergence anywhere, for the true system and for the trained networks, and none occurs. Every observed failure traces to the random seed, not to the solver.}
+\expectrow{Observed}{Linear stability theory predicts no divergence (at most a mild anti-damping for Euler at $\mu=0.1$), and none occurs. The failures at $\mu\in\{0.5,1.0,2.0\}$ depend on the random seed rather than the solver, apart from one Euler-specific failure at $\mu=1.0$; $\mu=0.1$ fails for every seed because its trajectory never settles within the training window.}
 \end{expectbox}
 
 \subsection{The stability question resolves quickly}
 
 Linearizing the true system at its equilibrium gives eigenvalues
 $\lambda = \big({-\mu\pm\sqrt{\mu^2-4g/L}}\big)/2$. For every underdamped
-$\mu<2\sqrt{g/L}\approx6.26$, $|\lambda|=\sqrt{g/L}\approx3.13$ is constant, so
-$h|\lambda|\approx0.078$ at $h=0.025$, far inside even Euler's stability
-interval $h|\lambda|\le2$ on the negative real axis
-(Equation~\ref{eq:stability-function}, \cite{hairer1996solving}). The
-overdamped case $\mu=8$ has real eigenvalues $-1.51$ and $-6.49$, a
-timescale ratio of only $4.3$, and $h|\lambda_{\text{fast}}|\approx0.162$,
-still comfortably stable.
+$\mu<2\sqrt{g/L}\approx6.26$ the eigenvalues are a complex pair,
+$\lambda=-\mu/2\pm i\sqrt{g/L-\mu^2/4}$, with constant modulus
+$|\lambda|=\sqrt{g/L}\approx3.13$, so $|h\lambda|\approx0.078$ at $h=0.025$.
+Because they are complex, the relevant test is the full stability region of
+Equation~\ref{eq:stability-function}, not its negative-real-axis interval
+\cite{hairer1996solving}. Midpoint, RK4 and Tsit5 are stable at every $\mu$
+tested. Euler, whose stability region is the disk $|1+z|\le1$, satisfies
+$|1+h\lambda|^2=1-h\mu+h^2g/L$ and is therefore stable only if
+$\mu\ge h\,g/L\approx0.25$. At $\mu=0.1$ its amplification factor is
+$|1+h\lambda|\approx1.0018$ per step: a mild numerical anti-damping, about a
+$2\times$ growth over $[0,10]$, not a divergence. The overdamped case $\mu=8$
+has real eigenvalues $-1.51$ and $-6.49$, a timescale ratio of only $4.3$, and
+$|h\lambda_{\text{fast}}|\approx0.162$, comfortably stable for every solver.
 
 What the integrator actually steps, however, is the \emph{learned} field,
 not the true one. Its Jacobian was evaluated along the true trajectory for
 all 24 seed-42 models, every solver at every $\mu$. The largest eigenvalue
 magnitude per model is $3.5$--$11.8$, up to about four times the true
 system's, which is consistent with the Lipschitz estimates of
-Section~\ref{sec:phase2}. Even so, $h|\lambda|\le0.30$ for every model, still
-well inside every solver's stability region. This predicts, and the sweep confirms, zero
-divergences: across all 24 cells not one run produced a non-finite gradient
-at any point in training. All four solvers are explicit Runge-Kutta methods
+Section~\ref{sec:phase2}. Even so, $|h\lambda|\le0.30$ for every model. That is
+small enough that each solver's amplification factor $R(h\lambda)$ closely
+tracks the exact $e^{h\lambda}$: where the learned Jacobian has eigenvalues
+with positive real part, the resulting local growth belongs to the learned
+field itself, not to the integrator. Consistent with this, across all 24
+cells not one run diverged or produced a non-finite gradient at any point in
+training. All four solvers are explicit Runge-Kutta methods
 with a bounded stability region, and no implicit solver is implemented in
 this project, so this analysis cannot say how an implicit method would
 behave on a genuinely stiff system.
@@ -55,7 +64,7 @@ behave on a genuinely stiff system.
 
 Each cell is classified from its training record alone. A run is
 \emph{diverged} if it was aborted by the non-finite guard
-(Algorithm~\ref{alg:train}); it is \emph{converged} if it had no non-finite
+(Algorithm~\ref{alg:train}) or never produced a valid checkpoint; it is \emph{converged} if it had no non-finite
 steps, its best training MSE is below $10^{-2}$, and its final training MSE
 is no more than $10\times$ its best; every other run is \emph{not
 converged}. No run in this study diverged, so every failure below is a run
@@ -78,7 +87,7 @@ diverged.}
 \hdrrow \thh{Damping coefficient $\mu$} & \thh{Euler} & \thh{Midpoint} & \thh{RK4} & \thh{Tsit5}\\
 \midrule
 0.1 & not conv., $1.7\times10^{-2}$ & not conv., $3.0\times10^{-2}$ & not conv., $2.2\times10^{-2}$ & not conv., $2.4\times10^{-2}$\\
-0.5 & \textbf{converged}, $4.6\times10^{-3}$ & \textbf{converged}, $7.9\times10^{-3}$ & \textbf{converged}, $4.7\times10^{-3}$ & \textbf{converged}, $9.2\times10^{-3}$\\
+0.5 & converged, $4.6\times10^{-3}$ & converged, $7.9\times10^{-3}$ & converged, $4.7\times10^{-3}$ & converged, $9.2\times10^{-3}$\\
 1.0 & not conv., $1.0\times10^{-1}$ & converged, $5.4\times10^{-4}$ & converged, $5.3\times10^{-4}$ & converged, $4.0\times10^{-4}$\\
 2.0 & not conv., $1.8\times10^{-2}$ & not conv., $1.8\times10^{-2}$ & not conv., $1.8\times10^{-2}$ & not conv., $1.8\times10^{-2}$\\
 5.0 & converged, $6.1\times10^{-5}$ & converged, $7.0\times10^{-5}$ & converged, $6.9\times10^{-5}$ & converged, $6.8\times10^{-5}$\\
@@ -102,7 +111,7 @@ four solvers to two significant figures, and $\mu=1.0$ fails only for Euler.
 Retraining Euler at $\mu=2.0$ with two more seeds isolates the cause (seed 42:
 not converged, $1.82\times10^{-2}$; seed 1: not converged,
 $1.68\times10^{-2}$; seed 7:
-\textbf{converged}, $7.09\times10^{-5}$) -- the trap depends on the random
+\textbf{converged}, $7.18\times10^{-5}$) -- the trap depends on the random
 initialization. Extending this to all four solvers $\times$ six $\mu$
 $\times$ three seeds (72 cells, checkpoints saved throughout) confirms the
 pattern generally: only the two extremes ($\mu=0.1$, uniformly hard;
@@ -111,17 +120,19 @@ Every transitional $\mu\in\{0.5,1.0,2.0\}$ has at least one of three seeds
 land in a bad local minimum, and at $\mu=1.0$ two \emph{different} seeds fail
 for two different reasons: seed 1 produces a universally bad initialization
 shared by all four solvers (MSE $\approx9.7\text{--}9.8\times10^{-2}$, the
-same signature as the $\mu=2.0$ shared trap), while seed 42 carries a second,
-Euler-specific failure on top of it. Euler's apparent $\mu=1.0$ weakness in
-Table~\ref{tab:stiffness-single-seed} is therefore the sum of two separate
-effects, one shared and one solver-specific, compressed into a single
-misleading number.
+same solver-independent pattern as the $\mu=2.0$ shared trap), while seed 42
+produces a separate, Euler-specific failure (the other three solvers converge
+under seed 42). Euler's lower three-seed converged fraction at $\mu=1.0$
+($0.33$ against $0.67$ for the other solvers) is therefore the sum of two
+separate effects, one shared by all solvers (seed 1) and one solver-specific
+(seed 42); the single-seed table shows only the second.
 
 \begin{keypoint}[Consequence for the original heatmap]
 The 24-cell sweep used one shared seed for all four solvers. All four solvers
 failing identically at $\mu=2.0$ reflects four solvers inheriting the same
-coin flip from a shared initialization, at this step size the seed$\times\mu$
-interaction determines outcome far more than solver choice does.
+coin flip from a shared initialization. At this step size, the
+seed$\times\mu$ interaction determines the outcome far more than the solver
+choice does.
 \end{keypoint}
 
 \subsection{The mechanism: a genuine spurious equilibrium}
@@ -171,8 +182,8 @@ Tsit5 & 2.86 & $(-0.050,\,+0.016)$ & $1.5\times10^{-6}$ & $-0.47\pm3.93i$\\
 \centering
 \includegraphics[width=\linewidth]{figures/track_d/phase_portrait_3d_mu1.0.png}
 \end{minipage}
-\caption{Learned vector-field landscape $|f_\theta(\theta,\omega)|$, per solver's
-own trained model. Left ($\mu=2.0$): every solver's true equilibrium (star)
+\caption{Learned vector-field landscape $\log(1+|\mathbf f_\theta(\theta,\omega)|)$,
+per solver's own trained model. Left ($\mu=2.0$): every solver's true equilibrium (star)
 sits partway up a slope, while a separate, lower point nearby is where each
 trajectory actually settles. Right ($\mu=1.0$): Euler's star sits high on a
 ridge, well apart from where its trajectory spirals down and rests; for the
@@ -182,8 +193,10 @@ other three solvers, star and resting point coincide at the valley floor.}
 
 The full predicted trajectories tell the same story over time rather than in
 a single snapshot. At $\mu=2.0$ every solver's predicted angle and angular
-velocity settle onto the same wrong trajectory; at $\mu=1.0$ only Euler's
-predicted angle visibly departs from the true one.
+velocity settle onto the same wrong trajectory, which ends about $0.05$ from
+the true equilibrium; the offset is too small to see on the trajectory
+panels and shows in the error panel. At $\mu=1.0$ only Euler's prediction
+(angle and angular velocity) visibly departs from the true trajectory.
 Figures~\ref{fig:mu2-collage} and~\ref{fig:mu1-collage} in
 Appendix~\ref{app:stiffness-figs} show both cases panel by panel.
 
@@ -213,7 +226,8 @@ highest point of the grid.
 \small
 \renewcommand{\arraystretch}{1.1}
 \caption{Loss-landscape rise (Equation~\ref{eq:rise}) for the seed-42
-models, one random direction-pair. Bold cells are trapped.}
+models, one random direction-pair ($\mu=0.1$ and $0.5$ omitted). Bold cells
+are trapped.}
 \label{tab:rise-seed0}
 \begin{tabularx}{\textwidth}{@{}C{1.1cm} X X X X@{}}
 \toprule
@@ -231,7 +245,7 @@ Read at face value, Table~\ref{tab:rise-seed0} says converged models
 (rise $\approx9$) sit in steep, narrow basins, while trapped models (bold,
 rise $\approx4$--$5.5$) sit on much flatter ground. That reading is
 confounded. Rise is measured from the trained point, and trapped models start
-from a training loss $10^2$--$10^3$ times higher than converged ones
+from a training loss roughly $30$ to $5000$ times higher than converged ones
 (Table~\ref{tab:stiffness-single-seed}), so they have less room to rise even
 if their surroundings are just as steep. Adding the trained-point loss back
 gives the absolute height of the grid's highest point,
@@ -245,7 +259,8 @@ recorded best training MSE, since the grids themselves were not kept).
 \renewcommand{\arraystretch}{1.1}
 \caption{Absolute height of the loss grid, $\log_{10}\max\mathcal L$,
 recovered from Table~\ref{tab:rise-seed0} and the trained-point losses of
-Table~\ref{tab:stiffness-single-seed}. Bold cells are trapped.}
+Table~\ref{tab:stiffness-single-seed} ($\mu=0.1$ and $0.5$ omitted). Bold
+cells are trapped.}
 \label{tab:rise-absolute}
 \begin{tabularx}{\textwidth}{@{}C{1.1cm} X X X X@{}}
 \toprule
@@ -264,7 +279,8 @@ the starting-point effect: its rise is 3.5 decades below the converged
 solvers at the same $\mu$, but its grid maximum is only 1.2 decades lower, and
 it is as high as those of the converged cells at $\mu=5$ and $8$. For the
 $\mu=2.0$ trap, the walls really are lower: every trapped model's grid
-maximum ($10^{2.5}$) is two to three decades below every converged cell's.
+maximum ($10^{2.5}$) is two to three decades below every converged cell in
+Table~\ref{tab:rise-absolute}.
 Comparisons across different $\mu$ remain loose, because each $\mu$ is a
 different dataset with its own loss scale. The measurement is also coarse: it
 reports only the highest point of a $[-1,1]^2$ grid, not the curvature at the
@@ -303,17 +319,20 @@ recurs at a different damping value under the same solver.}
 \centering
 \includegraphics[width=0.95\linewidth]{figures/track_d/mu1.0_tsit5_direction_comparison.png}
 \caption{Tsit5, $\mu=1.0$ (converged): the basin around the trained point is
-visibly narrower and drops noticeably lower, in every one of the three
-direction-pairs, than either trapped case above.}
+visibly narrower, in every one of the three direction-pairs, than either
+trapped case above. Its floor sits lower mainly because its trained-point
+loss is lower; note that the three figures use different vertical ranges.}
 \label{fig:landscape-mu1-tsit5}
 \end{figure}
 
 \paragraph{Robustness check across three direction-pairs.} Repeating the
 measurement with two more independent random direction pairs per cell (72
-measurements total) found one direction-pair acting as a shared outlier
-across nearly every cell. Because every model shares the same architecture,
-one particular raw random draw runs toward a steeper wall in all 24 cells at
-once, inflating that direction's rise by roughly $2$--$3\times$ everywhere.
+measurements total) found one direction-pair giving the highest rise in all
+24 cells. Because every model shares the same architecture, one particular
+raw random draw runs toward a steeper wall in every cell at once, inflating
+that direction's rise by roughly $1.6$--$3\times$ relative to the other two
+(about $2.5$--$3\times$ for the trapped cells, under $2\times$ at
+$\mu\in\{5,8\}$).
 The size of the measured effect depends on how many direction choices are
 averaged: the $\approx2\times$ gap between trapped and converged cells seen
 with a single direction-pair narrows to roughly 25--35\% once all three
@@ -333,16 +352,17 @@ seed-42 verdict.}
 \label{fig:rise-bars}
 \end{figure}
 
-The cells trapped by the spurious-equilibrium mechanism -- $\mu=2.0$ across
-all solvers, and Euler's own $\mu=1.0$ -- sit roughly 25--35\% lower on this
+The trapped cells -- $\mu=2.0$ across all solvers (a confirmed spurious
+equilibrium) and Euler's $\mu=1.0$ (whose trap was not root-found) -- sit
+roughly 25--35\% lower on this
 chart than converged cells (mean rise $7.0$--$7.6$ against $9.9$--$12.8$; Euler
 at $\mu=1.0$ is $35\%$ below the three converged solvers at the same $\mu$), a modest gap within overlapping ranges rather
 than an order-of-magnitude separation, and by Table~\ref{tab:rise-absolute}
 partly a starting-point effect. $\mu=0.1$ is not converged for an unrelated
 reason: its trajectory never settles within the training window at all, and
-its bars sit in the same range as the converged $\mu\in\{5.0,8.0\}$ cells,
-occasionally above them. Whatever flatness there is belongs to the
-spurious-equilibrium trap, not to every cell the classifier marks as not
+its mean rises ($7.9$--$10.6$) span from just above the trapped cells to just
+above the converged $\mu\in\{5.0,8.0\}$ cells. Whatever flatness there is
+belongs to the trapped cells, not to every cell the classifier marks as not
 converged. Figure~\ref{fig:seed-converged-fraction} summarizes all 72
 seeded cells.
 
@@ -357,17 +377,18 @@ seeded cells.
 \includegraphics[width=\linewidth]{figures/track_d/seed_median_mse_heatmap.png}
 \end{minipage}
 \caption{Converged fraction (left) and median training MSE (right) over 3
-seeds, all 4 solvers $\times$ 6 $\mu$ (72 cells). The two agree everywhere:
-low converged-fraction cells are exactly the cells with elevated median
+seeds, all 4 solvers $\times$ 6 $\mu$ (72 cells). The two broadly agree: the
+cells with low converged fraction are the cells with elevated median
 error.}
 \label{fig:seed-converged-fraction}
 \end{figure}
 
 \begin{keypoint}[Verdict]
-Linear stability theory predicted no divergence, for the true system and
-for the trained networks, and none occurred. The sweep never reached a stiff
-regime, so it cannot test stiffness itself. What decides the outcome is a
-seed-dependent local minimum of training: at $\mu=2.0$ it produces a
+Linear stability theory predicted no divergence (at most a mild
+anti-damping for Euler at $\mu=0.1$), and none occurred. The sweep never
+reached a stiff regime, so it cannot test stiffness itself. At
+$\mu\in\{0.5,1.0,2.0\}$ what decides the outcome is, apart from one
+Euler-specific failure, a seed-dependent local minimum of training: at $\mu=2.0$ it produces a
 genuine, attracting spurious equilibrium of the learned field, confirmed by
 Newton's method and by its Jacobian, and shared by all four solvers trained
 from the same initialization. The loss-landscape measurement is consistent

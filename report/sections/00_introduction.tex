@@ -24,18 +24,20 @@ learns what shape each univariate function should take. In practice each
 edge function is represented as a fixed smooth residual plus a learnable
 expansion in a chosen basis,
 \begin{equation}
-\phi(x) = w_b\, b(x) + \sum_{i=1}^{G} c_i B_i(x), \qquad
+\phi(x) = w_b\, b(x) + \sum_{i=1}^{G} c_i B_i(u), \qquad u=\tanh x, \qquad
 b(x)=\mathrm{silu}(x) = \frac{x}{1+e^{-x}},
 \label{eq:kan-edge}
 \end{equation}
-where $B_i(x)$ are the $G$ basis functions centred on a grid of $G$ points,
+where $B_i$ are the $G$ basis functions centred on a grid of $G$ points in
+$[-1,1]$, evaluated at the normalized input $u$ (Section~\ref{sec:numerics}),
 $c_i$ are their trainable coefficients, and the trainable weight $w_b$ sets
 how much of the fixed residual $b(x)$ each edge keeps. Each edge therefore
 has $G+1$ parameters. (The original KAN implementation uses $G+k$ B-spline
 functions on $G$ intervals and a separate scale on the expansion; in the
 formulation used here that scale is absorbed into the $c_i$.) The choice of $B_i$ is a
 design decision, not a mathematical necessity: a Gaussian radial basis
-function (RBF) grid, $B_i(x)=\exp(-(x-\mu_i)^2/2\sigma^2)$, gives each edge
+function (RBF) grid, $B_i(u)=\exp(-(u-z_i)^2/2\delta^2)$ with grid spacing
+$\delta$, gives each edge
 smooth global support, while a degree-$k$ B-spline built by the Cox-de Boor
 recursion gives each edge compact local support, zero outside its own knot
 span. KAN-ODEs \cite{koenig2024kanode} put this construction inside a Neural
@@ -216,7 +218,7 @@ not directly against the paper's reported times.
 
 The base paper reports two central claims on the Lotka-Volterra
 predator-prey system: a KAN-ODE with 240 parameters extrapolates
-Lotka-Volterra's limit cycle accurately from a short training window, and it
+Lotka-Volterra's closed orbit accurately from a short training window, and it
 reaches a target training loss in roughly $10^4$ epochs against a
 parameter-matched multilayer-perceptron Neural ODE's $10^5$ -- a claimed
 tenfold training-speed advantage at 252 parameters. To obtain these results,
@@ -234,11 +236,12 @@ Gaussian RBF grid for the ODE setting. The two differ in ways that matter
 once the edge function sits inside a differentiated integrator: the Gaussian
 is infinitely differentiable, nonzero everywhere and a single closed-form
 expression, while the cubic B-spline is only twice continuously
-differentiable, exactly zero outside a few grid cells, and built by a
-recursion that is several times more expensive to evaluate
+differentiable, exactly zero outside a local knot span, and built by a
+recursion; the B-spline run took $3.9\times$ the RBF run's wall-clock time
 (Section~\ref{sec:numerics}). The switch is a trade-off, not an obvious
 improvement, so Section~\ref{sec:phase2} restores the B-spline and adds five
-further bases (Chebyshev, Lagrange, Newton and two rational kernels) to
+further bases (Chebyshev, Lagrange, Newton, and two further bell-shaped
+kernels, RSWAF and IQF) to
 measure it directly rather than assume it.
 
 Each of those three fixed choices maps directly onto one of this report's

@@ -3,7 +3,8 @@
 
 Two methods exist for computing gradients through a neural ODE. \textbf{Direct
 autograd} treats the numerical integrator as an ordinary computational
-graph: each of the solver's $N_t$ forward steps is recorded, and the reverse
+graph: each of the solver's $(N_t-1)m$ forward steps ($m$ substeps per
+output interval) is recorded, and the reverse
 pass walks back through every recorded step in turn, so peak memory grows
 linearly with the number of steps taken. \textbf{Adjoint sensitivity}
 \cite{chen2018neuralode} instead treats the forward solve as a black box and
@@ -14,22 +15,26 @@ backward-time differential equation,
 \begin{equation}
 \frac{d\mathbf{a}(t)}{dt} = -\mathbf{a}(t)^\top\frac{\partial \mathbf{f}_\theta}{\partial\mathbf{u}}(\mathbf{u}(t)),
 \qquad
-\frac{dL}{d\theta} = \int_{t_1}^{t_0}\mathbf{a}(t)^\top\frac{\partial\mathbf{f}_\theta}{\partial\theta}(\mathbf{u}(t))\,dt,
+\frac{dL}{d\theta} = -\int_{t_1}^{t_0}\mathbf{a}(t)^\top\frac{\partial\mathbf{f}_\theta}{\partial\theta}(\mathbf{u}(t))\,dt,
 \label{eq:adjoint}
 \end{equation}
-solved backward from $t_1$ to $t_0$ alongside the original state
+written here for a loss evaluated at $t_1$; for a loss over many observation
+times, as in Equation~\ref{eq:train-loss}, the adjoint picks up a jump
+$\partial L/\partial\mathbf u(t_n)$ at each observation. It is solved
+backward from $t_1$ to $t_0$ alongside the original state
 $\mathbf{u}(t)$ (recomputed rather than stored), so memory depends only on
 the size of the state and parameter vectors, not on how many steps the
 forward solve took -- an $O(1)$ memory cost in trajectory length, against
 direct autograd's $O(N_t)$. This project's own implementation documentation
 adopts direct autograd on the stated grounds that this $O(1)$ advantage does
-not matter for this project's short trajectories: training windows have
-$N_t\in[36,101]$ points, and the longest trajectory integrated anywhere in
-the project has 281 (the doubled Lotka-Volterra horizon of
+not matter for this project's short trajectories: the main training windows
+have $N_t\in[36,101]$ points ($19$--$71$ in the step-size sweep), and the
+longest trajectory in any training or evaluation run has 281 (the doubled
+Lotka-Volterra horizon of
 Table~\ref{tab:extrap-horizon}, and the $\Delta t=0.05$ step-size run). This
 section measures
 that claim directly. Unlike every other timing in this report, it runs on a
-GPU (NVIDIA RTX~3060, 12~GB, PyTorch 2.5.1 with CUDA 12.1), because peak
+GPU (NVIDIA RTX~3060, 12~GiB, PyTorch 2.5.1 with CUDA 12.1), because peak
 device memory is the quantity being measured. The adjoint path is one of
 the two components in this report taken from a library rather than written
 for the project (Section~\ref{sec:numerics}): \texttt{torchdiffeq}'s
@@ -85,7 +90,7 @@ it, giving $O(1)$ memory regardless of $N_t$.}
 \end{figure}
 
 \begin{expectbox}
-\expectrow{Question}{Does adjoint sensitivity's constant memory cost make it the better choice at this project's trajectory lengths, as the project's own documentation assumes?}
+\expectrow{Question}{Is the project documentation right that adjoint sensitivity's constant memory cost brings no benefit at this project's trajectory lengths?}
 \expectrow{Expected}{Direct autograd should be cheaper in memory at these short lengths, with adjoint's advantage only appearing once trajectories grow much longer.}
 \expectrow{Observed}{Adjoint already uses less memory at every length tested. The deciding cost is wall-clock, not memory: adjoint is $1.9$--$2.1\times$ slower.}
 \end{expectbox}
@@ -119,8 +124,7 @@ flat (0.7\% increase over an $89\times$ length increase).}
 
 \paragraph{Finding.} The measured memory data contradicts the stated
 premise behind the original choice, while still supporting its conclusion.
-The $O(N_t)$ vs.\ $O(1)$ scaling in Equation~\ref{eq:adjoint} predicts a
-crossover length below which direct autograd's smaller constant factor
+The original premise implied a crossover length below which direct autograd's smaller constant factor
 should still win on raw memory, since it avoids the adjoint method's own
 bookkeeping overhead; the data shows no such crossover inside the tested
 range. Adjoint uses \emph{less} memory than direct autograd at every tested
@@ -129,20 +133,23 @@ Figure~\ref{fig:adjoint-memory} shows direct autograd's per-step storage cost
 is already large enough at this project's scale to outweigh whatever
 constant overhead the adjoint method's own bookkeeping carries.
 Extrapolating the measured linear slope of direct autograd's memory growth
-($\approx0.045$~MB per point), adding 10~GB of activation memory, most of the
-card's free capacity, would take $N_t\approx225{,}000$ points; using the full
-12{,}288~MB would take $\approx270{,}000$. Either way, it is three orders of
-magnitude beyond anything this project integrates. The deciding factor for
-this project is wall-clock: solving the continuous adjoint ODE backward in
-time costs a consistent $1.9$--$2.1\times$ overhead at both tested lengths,
-turning a 53-minute Lotka-Volterra run into $\sim$112~minutes for a memory
-saving that never becomes load-bearing (peak usage is $0.17\%$ of card
-capacity). Gradient relative error is $2.85\times10^{-7}$ and
+($\approx0.045$~MB per point, memory measured in decimal megabytes), adding
+10~GB of activation memory, most of the card's free capacity, would take
+$N_t\approx224{,}000$ points; using the card's full 12~GiB ($\approx12{,}885$~MB)
+would take $\approx289{,}000$. Either way, it is three orders of magnitude
+beyond anything this project integrates. The deciding factor for this project
+is wall-clock: solving the continuous adjoint ODE backward in time costs a
+consistent $1.9$--$2.1\times$ overhead at both tested lengths. Extrapolated to
+the standard 10{,}000 epochs on this GPU, a Lotka-Volterra run would take
+$\sim$112~minutes with the adjoint against $\sim$53 with direct autograd, for
+a memory saving that never becomes load-bearing (peak usage is $0.17\%$ of
+card capacity). Gradient relative error is $2.85\times10^{-7}$ and
 $4.88\times10^{-7}$ respectively, well inside a $5\times10^{-3}$ tolerance --
 both methods agree numerically, so the choice reduces to a resource
-trade-off. Direct autograd is the faster option for every trajectory in this
-project's scope, the longest of which has $N_t=281$ points
-(Table~\ref{tab:adjoint-profiling}, Figure~\ref{fig:adjoint-memory}). The two
+trade-off. Direct autograd was faster at both timed lengths, and nothing in
+the memory data suggests the adjoint becomes worthwhile below this project's
+longest trajectory ($N_t=281$) (Table~\ref{tab:adjoint-profiling},
+Figure~\ref{fig:adjoint-memory}). The two
 gradient paths themselves are sketched in Figure~\ref{fig:adjoint-schematic}.
 
 \FloatBarrier

@@ -14,7 +14,7 @@ the code under `implementation/` is never modified.
 | `rise_bars.py` | `track_d/rise_comparison_bars.png`, from `rise_multiseed.json` |
 | `track_e_figures.py` | `track_e/` time-scale sweep, epidemic fit and pruning figures |
 | `closeout_figures.py` | `closeout/01`–`07`: the Phase-2 close-out figures (streamlines, step-size log-log, loss-decay curves, pendulum energy, t = 28 extrapolation). The originals in `implementation/results/figures/` label the loss curves "Extrapolation Test Loss" although they plot training loss; this corrects that |
-| `extra_figures.py` | `closeout/phase_space_kan_vs_mlp.png` (three saved phase-space plots side by side) and `phase4/epoch_budget_loss.png` (50,000-epoch training histories) |
+| `extra_figures.py` | `closeout/phase_space_kan_vs_mlp.png` (three saved phase-space plots side by side) and `phase4/epoch_budget_loss.png` (50,000-epoch training histories) and `phase2/sir_gated_loss_curves.png`, `phase2/pendulum_silu_win5_loss_curves.png` (the second curve relabelled as the full-horizon MSE it records, instead of "Test Extrapolation Loss") |
 | `retile_collages.py` | Superseded by `damping_figures.py`; re-tiles the old 1x4 collages into 2x2 grids |
 
 Run from anywhere, e.g. `python report/figure_scripts/damping_figures.py`.

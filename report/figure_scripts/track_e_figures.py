@@ -29,6 +29,10 @@ ep = load_patched("run_epidemic_fit", [
     ("Time-scale sweep on the empirical outbreak", "Time-scale sweep on the synthetic outbreak curve"),
     ("desc += f\", vanish_dim {cfg['vanish_dim']}\"", "desc += \", vanishing gate on I\""),
     ("\"+ vanish_dim 0\"", "\"+ vanishing gate\""),
+    # the off-scale arm is the time-scale-only one (C_FIT), not the projection arm
+    ("ha=\"right\", fontsize=8, color=C_ALT)", "ha=\"right\", fontsize=8, color=C_FIT)"),
+    ("\"plain arm continues to 6.2 →\"", "\"time-scale-only arm continues to 6.2 ↑\""),
+    ("desc += f\", {cfg['num_epochs']:,} ep\"", "desc += f\", {cfg['num_epochs']:,} epochs\""),
 ])
 runs = ep.load_runs(os.path.join(ep.ensure_results_dir(), ep.RUNS_SUBDIR))
 ep.plot_time_scale_sweep(runs, os.path.join(OUT, "epidemic_time_scale_sweep.png"))

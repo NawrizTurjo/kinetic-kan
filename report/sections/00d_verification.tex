@@ -34,7 +34,7 @@ error constant $K$ in Equation~\ref{eq:global-error}
 $\dot y=-y$ over $[0,1]$ (double precision, one substep). The automated
 test requires $|\hat p-p|$ below $0.20$ (Euler) to $0.45$ (fifth order).}
 \label{tab:observed-order}
-\begin{tabular}{@{}L{2.4cm} C{1.2cm} C{2.0cm} C{2.0cm} C{2.0cm} C{1.6cm} C{1.6cm}@{}}
+\begin{tabular}{@{}L{2.1cm} C{1.1cm} C{2.0cm} C{2.0cm} C{2.0cm} C{1.85cm} C{1.85cm}@{}}
 \toprule
 \hdrrow \thh{Solver} & \thh{Order $p$} & \thh{$e(h{=}0.1)$} & \thh{$e(h{=}0.05)$} & \thh{$e(h{=}0.025)$} & \thh{$\hat p$ (0.1$\to$0.05)} & \thh{$\hat p$ (0.05$\to$0.025)}\\
 \midrule
@@ -52,8 +52,9 @@ Midpoint and Heun agree to every digit here because, for a linear field,
 both second-order methods reduce to the same update
 $y_{n+1}=(1-h+h^2/2)\,y_n$. They differ only on nonlinear fields such as the
 learned ones. Further solver tests check that the Tsit5 and DOPRI5 tableaus
-are internally consistent (weights summing to one, the embedded fourth-order
-pair consistent), that energy on a harmonic oscillator drifts orders of
+are internally consistent (for DOPRI5, row sums equal to the nodes and the
+quadrature order conditions up to fifth order; for Tsit5, weights summing to
+one and a consistent embedded fourth-order pair), that energy on a harmonic oscillator drifts orders of
 magnitude less under RK4 and Tsit5 than under Euler, that time-dependent and
 backward-in-time integration are correct, and that gradients flow through
 every solver.
@@ -96,9 +97,10 @@ function trains any configuration (system, model, basis, solver, epochs,
 seed and fixes) and writes a self-describing results record: the full
 configuration, the software version and code revision, and every metric at
 both the selected and the final checkpoint. A benchmark driver runs lists of
-configurations through that function, and the tables in this report are
-collated from the saved records rather than typed by hand, so any number can
-be traced back to the run that produced it.
+configurations through that function, and the values in this report's
+tables are taken from the saved records (collated to CSV by a script)
+rather than typed in from memory, so any number can be traced back to the
+run that produced it.
 
 \paragraph{Post-hoc analyses.} A few numbers were computed afterwards from
 saved checkpoints and training records, without training anything: the
@@ -141,7 +143,8 @@ finite-difference sparse regression reproduces the saved noise-free result.
 \end{tikzpicture}}
 \caption{The benchmark pipeline. Model selection uses only the training
 window; the test window is used once, when the selected checkpoint is
-scored. The same code path produces every table in this report.}
+scored. The same training and scoring code produces the benchmark tables;
+the post-hoc analyses are separate scripts.}
 \label{fig:pipeline}
 \end{figure}
 

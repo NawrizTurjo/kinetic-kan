@@ -38,7 +38,7 @@ pc = load_patched(os.path.join(IMPL, "phase2_closeout.py"), "phase2_closeout_pat
     ('FIG_DIR = "results/figures"', f'FIG_DIR = {OUT!r}'),
     ('OUT_DIR = "results/phase2_closeout"', f'OUT_DIR = {tmp!r}'),
     ('"Task 2.3: Extrapolation Horizon Doubled to $t=28$ (8 periods)"',
-     '"Extrapolation horizon doubled to $t=28$ (about 8.4 limit cycles in total)"'),
+     '"Extrapolation horizon doubled to $t=28$ (about 8.4 cycles in total)"'),
     ("train | extrapolation | NEW far-extrapolation", "training | near extrapolation | far extrapolation"),
     ("CONFOUNDED: changing", "Note: changing"),
     ("reflects both effects. See docs/05.", "reflects both effects."),

@@ -20,7 +20,8 @@ The principal quantitative findings are:
   essentially flat out to twice the original horizon ($1.1\times$
   degradation), while a parameter-matched MLP degrades $8.3\times$ -- a
   $40.6\times$ KAN-ODE advantage (Table~\ref{tab:extrap-horizon}). At
-  50{,}000 epochs, with gradient clipping (Section~\ref{sec:phase4}), this
+  50{,}000 epochs, with gradient clipping and on a different platform
+  (Section~\ref{sec:phase4}), this
   reverses, and the MLP is $6.8$--$10.8\times$ more accurate at every horizon
   (Table~\ref{tab:extrap-horizon-50k}). The KAN-ODE reaches a
   well-extrapolating field sooner; it does not reach a better one on this
@@ -29,17 +30,20 @@ The principal quantitative findings are:
   accuracy is reproduced and its per-epoch cost relative to an MLP closely
   matched ($2.3\times$ against the paper's $2.7\times$); the
   tenfold epoch advantage is not (the MLP reaches $10^{-3}$ loss $4.1\times$
-  sooner), and the generalization advantage holds only at the shorter budget
+  sooner; in the clipped 50{,}000-epoch reruns the KAN-ODE reaches $10^{-3}$
+  first but $10^{-4}$ later, neither by a factor near ten), and the generalization advantage holds only at the shorter budget
   (Table~\ref{tab:paper-claims}).
-\item SIR's training failure traced to a $19\times$ unit-scale mismatch
-  between the network's initial field and the true dynamics. A change of
-  time units and a conservation projection, which assume nothing beyond
-  SIR's own equations, remove the divergence and the mass drift; adding a
-  vanishing-field gate on the infected fraction, a physical prior, moves
-  extrapolation $R^2$ from $-20.97$ to $+0.9981$.
+\item SIR's training failure traced to a roughly $18$--$19\times$ unit-scale
+  mismatch between the network's initial field and the true dynamics. A
+  change of time units and a conservation projection, which assume nothing
+  beyond SIR's own equations, remove the divergence and the mass drift but
+  leave extrapolation $R^2$ at $-0.145$ (from $-20.97$); adding a
+  vanishing-field gate on the infected fraction, a physical prior, raises it
+  to $+0.9981$.
 \item The implementation is verified independently of the benchmarks: every
   integrator reaches its theoretical order of convergence
-  (Table~\ref{tab:observed-order}), and 249 of 250 automated tests pass.
+  (Table~\ref{tab:observed-order}), and 249 of 250 automated tests pass;
+  the remaining one, which needs a GPU, is skipped.
 \item Direct autograd is the correct default for this project's scale:
   adjoint sensitivity already uses less memory at every tested trajectory
   length but costs a consistent $1.9$--$2.1\times$ wall-clock overhead.
@@ -48,17 +52,22 @@ The principal quantitative findings are:
   systematic bias in the learned field, consistent with the solver ablation's
   own Lipschitz-constant measurements.
 \item A learnable blend of B-spline and RBF basis functions never outperforms
-  the better pure basis on either system tested, and measuring each basis's
+  the better pure basis on Lotka-Volterra, or pure RBF on the pendulum (no
+  pure B-spline pendulum run was made), and measuring each basis's
   actual contribution shows the learned gate is a fair guide to how much each
   is used.
 \item The damping sweep never reached a stiff regime, and no cell diverged,
-  as linear stability of both the true and the learned field predicts. Its
-  failures trace to random initialization rather than solver order,
+  as expected from the small step size ($|h\lambda|\le0.30$), which keeps
+  every solver's discrete map close to the learned field's own flow (the only
+  predicted instability is a mild anti-damping for Euler at $\mu=0.1$). Its
+  failures at $\mu\in\{0.5,1.0,2.0\}$ trace to random initialization rather
+  than solver order, apart from one Euler-specific failure at $\mu=1.0$,
   confirmed at $\mu=2.0$ by a genuine, attracting spurious equilibrium that
   Newton's method locates in all four solvers' learned fields.
 \item With finite-difference derivatives, sparse regression is less
-  accurate than KAN-ODE at every noise level but far more robust ($9\times$
-  vs.\ $1540\times$ degradation from clean to $\sigma=0.1$). With exact
+  accurate than KAN-ODE at every noise level but degrades far less ($9\times$
+  vs.\ $1540\times$ from clean to $\sigma=0.1$, starting from a much higher
+  noise-free error). With exact
   derivatives it recovers the true equation, so on clean data the ranking
   reflects the derivative estimator, not the method. Two of the SIR
   stability fixes transfer to a synthetic, non-mechanistic epidemic curve;
@@ -84,13 +93,16 @@ applies and collected here.
 \item \textbf{Unmeasured recipe differences.} The audit
   (Table~\ref{tab:paper-audit}) found three differences from the paper's code
   whose effect has not been measured: the learning rate, the initial-weight
-  scale and the RBF width. Retraining the paper-specification MLP with the
+  scale and the RBF width. None was tested at the paper's values (the
+  learning rate was varied only downward, to $5\times10^{-4}$). Retraining the paper-specification MLP with the
   paper's learning rate and initialization is the single most informative
   next run, because it would show whether that MLP's failure here comes from
   the recipe or from the architecture.
-\item \textbf{Budget and clipping.} The KAN-versus-MLP reversal at 50{,}000
-  epochs coincides with the introduction of gradient clipping, and the two
-  were not separated. Only five configurations were retrained at the longer
+\item \textbf{Budget, clipping and platform.} The KAN-versus-MLP reversal at
+  50{,}000 epochs coincides with the introduction of gradient clipping and a
+  change of platform (Windows with PyTorch 2.5.1 for the original runs, 2.13
+  for the SiLU MLP; Linux with PyTorch 2.10 for the reruns), and neither was separated from the
+  budget. Only five configurations were retrained at the longer
   budget.
 \item \textbf{Scope of the ablations.} The solver, basis and step-size
   ablations, the budget check and the sparse-regression comparison were run
