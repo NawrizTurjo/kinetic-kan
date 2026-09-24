@@ -1,27 +1,45 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-This project reproduced a published KAN-ODE recipe on the Lotka-Volterra
-predator-prey system, extended it to two additional dynamical systems (a
-damped pendulum and an SIR epidemic model), and diagnosed and fixed two
+This project reimplemented a published KAN-ODE recipe from its components
+(a KAN layer with seven interchangeable bases, six explicit Runge-Kutta
+integrators and an instrumented training loop), verified them against known
+solutions, and reproduced the recipe on the Lotka-Volterra predator-prey
+system. It extended the recipe to two additional dynamical systems (a
+damped pendulum and an SIR epidemic model), diagnosed and fixed two
 genuine cross-domain training failures before running five further studies
 that each isolated a specific question about solver behavior, gradient
-dynamics, basis-function design, stiffness, and comparison against a
-fundamentally different modeling paradigm.
+dynamics, basis-function design, damping (originally intended as a
+stiffness probe), and comparison against a fundamentally different modeling
+paradigm.
 
 The principal quantitative findings are:
 
 \begin{itemize}
-\item KAN-ODE extrapolation error on Lotka-Volterra is essentially flat
-  across eight limit-cycle periods ($1.1\times$ degradation, training to
-  double horizon), while a parameter-matched MLP degrades $8.3\times$ over
-  the same extension -- a $40.6\times$ KAN-ODE advantage at the longest
-  horizon tested (Table~\ref{tab:extrap-horizon}).
+\item At 10{,}000 epochs, KAN-ODE extrapolation error on Lotka-Volterra is
+  essentially flat out to twice the original horizon ($1.1\times$
+  degradation), while a parameter-matched MLP degrades $8.3\times$ -- a
+  $40.6\times$ KAN-ODE advantage (Table~\ref{tab:extrap-horizon}). At
+  50{,}000 epochs, with gradient clipping (Section~\ref{sec:phase4}), this
+  reverses, and the MLP is $6.8$--$10.8\times$ more accurate at every horizon
+  (Table~\ref{tab:extrap-horizon-50k}). The KAN-ODE reaches a
+  well-extrapolating field sooner; it does not reach a better one on this
+  problem.
+\item Of the base paper's Lotka-Volterra claims, the 240-parameter model's
+  accuracy is reproduced and its per-epoch cost relative to an MLP closely
+  matched ($2.3\times$ against the paper's $2.7\times$); the
+  tenfold epoch advantage is not (the MLP reaches $10^{-3}$ loss $4.1\times$
+  sooner), and the generalization advantage holds only at the shorter budget
+  (Table~\ref{tab:paper-claims}).
 \item SIR's training failure traced to a $19\times$ unit-scale mismatch
-  between the network's initial field and the true dynamics, fixable by a
-  change of time units and a conservation projection -- two interventions
-  that assume nothing about the system beyond what its own equations state.
-  Extrapolation $R^2$ moved from $-20.97$ to $+0.9981$.
+  between the network's initial field and the true dynamics. A change of
+  time units and a conservation projection, which assume nothing beyond
+  SIR's own equations, remove the divergence and the mass drift; adding a
+  vanishing-field gate on the infected fraction, a physical prior, moves
+  extrapolation $R^2$ from $-20.97$ to $+0.9981$.
+\item The implementation is verified independently of the benchmarks: every
+  integrator reaches its theoretical order of convergence
+  (Table~\ref{tab:observed-order}), and 249 of 250 automated tests pass.
 \item Direct autograd is the correct default for this project's scale:
   adjoint sensitivity already uses less memory at every tested trajectory
   length but costs a consistent $1.9$--$2.1\times$ wall-clock overhead.
@@ -30,29 +48,66 @@ The principal quantitative findings are:
   systematic bias in the learned field, consistent with the solver ablation's
   own Lipschitz-constant measurements.
 \item A learnable blend of B-spline and RBF basis functions never outperforms
-  the better pure basis on either system tested.
-\item Stiffness-map failures at transitional damping ratios trace to random
-  initialization rather than solver order or numerical stiffness, confirmed
-  mechanistically by a genuine spurious equilibrium in the learned vector
-  field.
-\item KAN-ODE is more accurate than sparse symbolic regression at every noise
-  level tested, but sparse regression is far more robust ($9\times$ vs.\
-  $1540\times$ degradation from clean to $\sigma=0.1$). Two of the SIR
-  stability fixes transfer to a real, non-mechanistic epidemic curve; the
-  one that transfers best was predicted inapplicable.
+  the better pure basis on either system tested, and measuring each basis's
+  actual contribution shows the learned gate is a fair guide to how much each
+  is used.
+\item The damping sweep never reached a stiff regime, and no cell diverged,
+  as linear stability of both the true and the learned field predicts. Its
+  failures trace to random initialization rather than solver order,
+  confirmed at $\mu=2.0$ by a genuine, attracting spurious equilibrium that
+  Newton's method locates in all four solvers' learned fields.
+\item With finite-difference derivatives, sparse regression is less
+  accurate than KAN-ODE at every noise level but far more robust ($9\times$
+  vs.\ $1540\times$ degradation from clean to $\sigma=0.1$). With exact
+  derivatives it recovers the true equation, so on clean data the ranking
+  reflects the derivative estimator, not the method. Two of the SIR
+  stability fixes transfer to a synthetic, non-mechanistic epidemic curve;
+  the one that transfers best was predicted inapplicable.
 \end{itemize}
 
-Every quantitative claim in this report traces to a saved metrics file or a
-regenerable figure, and every study that tested a specific mechanistic
-hypothesis reports the outcome of a direct control arm rather than the
-hypothesis alone.
+Every quantitative claim in this report traces to a saved metrics file, a
+regenerable figure, or a stated post-hoc analysis of a saved checkpoint, and
+every study that tested a specific mechanistic hypothesis reports the outcome
+of a direct control arm rather than the hypothesis alone.
 
-The validation stage (Section~\ref{sec:phase4}) is the project's principal
-open item: the results in Sections~\ref{sec:track-a}--\ref{sec:track-e} rest
-on a single random seed and a fixed 10{,}000-epoch training budget.
-Completing the epoch-budget sensitivity check and the paper-implementation
-audit would extend confidence in every result reported here; the stiffness
-study's own experience -- where extending from one seed to three dissolved a
-headline finding -- demonstrates concretely why that extension matters.
+\subsection{Limitations}
+\label{sec:limitations}
+
+The conclusions above are bounded by the following, each stated where it
+applies and collected here.
+\begin{itemize}
+\item \textbf{Single seed.} Almost every result rests on one random seed.
+  The damping study, where extending from one seed to three dissolved a
+  headline finding, and the $3.5\times$ gap between the two second-order
+  solvers (Table~\ref{tab:solver-ablation}), show how large single-seed
+  variance can be.
+\item \textbf{Unmeasured recipe differences.} The audit
+  (Table~\ref{tab:paper-audit}) found three differences from the paper's code
+  whose effect has not been measured: the learning rate, the initial-weight
+  scale and the RBF width. Retraining the paper-specification MLP with the
+  paper's learning rate and initialization is the single most informative
+  next run, because it would show whether that MLP's failure here comes from
+  the recipe or from the architecture.
+\item \textbf{Budget and clipping.} The KAN-versus-MLP reversal at 50{,}000
+  epochs coincides with the introduction of gradient clipping, and the two
+  were not separated. Only five configurations were retrained at the longer
+  budget.
+\item \textbf{Scope of the ablations.} The solver, basis and step-size
+  ablations, the budget check and the sparse-regression comparison were run
+  on Lotka-Volterra only.
+\item \textbf{No stiff system, no implicit solver.} The damping sweep's
+  largest timescale ratio is $4.3$, and every solver is explicit, so this
+  report says nothing about stiffness proper.
+\item \textbf{Synthetic data only.} Every dataset, including the
+  non-mechanistic epidemic curve, is generated rather than recorded; no real
+  observational data was used.
+\item \textbf{Derivative estimation in the baseline.} Sparse regression was
+  fitted to finite-difference derivatives, which dominate its noise-free
+  error (Table~\ref{tab:sindy-derivative}); a weak or trajectory-fitted
+  formulation was not tried.
+\item \textbf{Hardware.} All timings are CPU timings on two different
+  machines, except the GPU memory study, and are comparable only within a
+  machine.
+\end{itemize}
 
 \FloatBarrier

@@ -12,7 +12,8 @@ every edge,
 \qquad (\alpha,\beta) = \operatorname{softmax}(\text{logits}),
 \label{eq:hybrid-basis}
 \end{equation}
-trained end-to-end from a neutral start ($\alpha=\beta=0.5$) with no
+shown in Figure~\ref{fig:hybrid-schematic} and trained end-to-end from a
+neutral start ($\alpha=\beta=0.5$) with no
 hand-set schedule, on Lotka-Volterra and the stability-fixed pendulum
 (Section~\ref{sec:phase2}). The blend weights are produced by a softmax over
 two learnable logits rather than, say, a single sigmoid-gated weight,
@@ -80,8 +81,8 @@ decision fixed at construction time.}
 \toprule
 \hdrrow \thh{System / basis} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{$R^2$} & \thh{Final gate}\\
 \midrule
-Lotka-Volterra -- RBF (pure) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $1.0000$ & --\\
-Lotka-Volterra -- B-spline (pure) & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $1.0000$ & --\\
+Lotka-Volterra -- RBF (pure) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & --\\
+Lotka-Volterra -- B-spline (pure) & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $0.99997$ & --\\
 Lotka-Volterra -- Hybrid & $1.47\times10^{-4}$ & $1.78\times10^{-4}$ & $0.9999$ & $\alpha{=}0.12,\beta{=}0.88$\\
 \addlinespace[2pt]
 Pendulum -- RBF (pure) & $9.28\times10^{-5}$ & $0.090$ & $+0.647$ & --\\
@@ -100,16 +101,59 @@ Pendulum -- Hybrid (10,000 epochs) & $9.44\times10^{-5}$ & $\mathbf{0.809}$ & $\
 \centering
 \includegraphics[width=\linewidth]{figures/track_c/pendulum_full_alpha_beta.png}
 \end{minipage}
-\caption{Learned $\alpha$/$\beta$ gate evolution: Lotka-Volterra settles into a
-genuine partial blend (left); the pendulum gate converges to $\approx\!98\%$
-RBF by epoch 250 (right), well before the overfitting onset discussed below.}
+\caption{Learned gate weights over training. Left: Lotka-Volterra settles at
+$\alpha=0.116$, $\beta=0.884$. Right: the pendulum gate reaches $\beta=0.995$ by
+epoch 250 and peaks at $0.998$ near epoch 1600, then drifts slowly back to
+$0.979$ over the rest of the run, the same period in which the model
+overfits (discussed below).}
 \label{fig:hybrid-gates}
 \end{figure}
 
-\paragraph{Lotka-Volterra: no benefit, real cost.} The gate settles into a
-genuine partial blend, retaining $\approx\!12\%$ B-spline, which confirms the
-mechanism works as designed. Hybrid ties both pure bases on final accuracy
-while paying roughly the \emph{sum} of their per-epoch compute.
+\paragraph{What the gate does and does not measure.} Because the
+coefficients $C$ are shared by both bases and free to grow, the gate is not
+identifiable on its own: a small $\alpha$ could in principle be offset by
+large coefficients, so the gate value alone does not say how much each basis
+contributes. Table~\ref{tab:hybrid-contrib} therefore measures the
+contributions directly. It splits each layer's basis output
+$C\,(\alpha\,\mathcal B^{\text{spline}}+\beta\,\mathcal B^{\text{RBF}})$ into
+its two parts and takes their root-mean-square along the model's own
+predicted trajectory. The measured shares track the gate closely, and are
+smaller still: the coefficients did not compensate for a small gate weight.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{Actual contribution of each basis in the trained hybrid models:
+root-mean-square of $\alpha\,C\mathcal B^{\text{spline}}$ and
+$\beta\,C\mathcal B^{\text{RBF}}$ over the predicted trajectory, per layer,
+with the residual path $W\,\mathrm{silu}(x)$ for scale.}
+\label{tab:hybrid-contrib}
+\begin{tabular}{@{}L{3.6cm} C{1.9cm} C{1.0cm} C{1.7cm} C{1.7cm} C{1.4cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Model} & \thh{Gate $(\alpha,\beta)$} & \thh{Layer} & \thh{B-spline part} & \thh{RBF part} & \thh{Residual} & \thh{B-spline share}\\
+\midrule
+Lotka-Volterra, 10k epochs & $(0.116,\,0.884)$ & 1 & 0.076 & 1.232 & 1.910 & 5.8\%\\
+ & & 2 & 0.165 & 2.125 & 2.686 & 7.2\%\\
+\addlinespace[2pt]
+Pendulum, 3k epochs & $(0.004,\,0.996)$ & 1 & 0.002 & 1.157 & 0.546 & 0.2\%\\
+ & & 2 & 0.005 & 2.459 & 1.390 & 0.2\%\\
+\addlinespace[2pt]
+Pendulum, 10k epochs & $(0.021,\,0.979)$ & 1 & 0.011 & 1.018 & 0.792 & 1.1\%\\
+ & & 2 & 0.025 & 2.339 & 1.364 & 1.1\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Lotka-Volterra: no benefit, real cost.} The gate settles at a
+partial blend in which the B-spline supplies 6--7\% of the basis output
+(Table~\ref{tab:hybrid-contrib}). The hybrid is about $2\times$ worse than
+either pure basis on both training MSE ($1.47\times10^{-4}$ against
+$8.83\times10^{-5}$ and $7.20\times10^{-5}$) and extrapolation MSE
+($1.78\times10^{-4}$ against $8.92\times10^{-5}$ and $8.38\times10^{-5}$;
+Table~\ref{tab:hybrid-basis}), while paying roughly the \emph{sum} of their
+per-epoch compute. This run used the same learning rate for the gate as for
+every other parameter.
 
 \paragraph{Pendulum: overfitting emerges only past a specific budget.} A
 short probe run at 2000 epochs first surfaced a practical wrinkle: the gate
@@ -117,8 +161,10 @@ moved in the correct direction (toward RBF) but too slowly, so the network
 still carried meaningful B-spline contamination at an epoch count where the
 pure-RBF pendulum recipe was already nearly converged. Giving the gate its
 own, faster learning rate ($15\times$ the base rate, direction untouched)
-closed nearly all of that gap at the same probe budget
-(Figure~\ref{fig:hybrid-probe}, left) and was carried into the full run.
+closed nearly all of that gap at the same probe budget and was carried into
+the full pendulum runs (Figure~\ref{fig:hybrid-probe}). The faster gate rate
+was applied to the pendulum only; the Lotka-Volterra hybrid above used the
+base rate.
 
 \begin{figure}[htbp]
 \centering
@@ -130,10 +176,10 @@ closed nearly all of that gap at the same probe budget
 \centering
 \includegraphics[width=\linewidth]{figures/track_c/hybrid_pendulum_3k_alpha_beta.png}
 \end{minipage}
-\caption{Left: the 2000-epoch probe run's gate trace, showing the slow drift
-toward RBF that motivated the gate-learning-rate fix. Right: the gate trace
-for the 3000-epoch pre-overfitting-optimum run discussed below, settling to
-$\beta\approx0.996$.}
+\caption{Left: the 2{,}000-epoch pendulum probe at the base gate learning
+rate, whose gate drifts toward RBF only slowly ($\beta=0.881$ at the end),
+which motivated the faster gate rate. Right: the 3{,}000-epoch pendulum run
+at the faster gate rate discussed below, settling at $\beta=0.996$.}
 \label{fig:hybrid-probe}
 \end{figure}
 
@@ -142,23 +188,34 @@ almost exactly, but its extrapolation collapses ($R^2=-2.17$): the monitor
 loss bottoms out near epoch 2950 ($\approx0.054$) then rises to a
 $\approx0.4$ plateau for the remaining 7000 epochs while training loss keeps
 improving -- textbook overfitting, visible directly in the saved training
-history. The gate settles well before this onset: $\beta$ reaches
-$\approx0.995$ by epoch 250, some 2750 epochs before overfitting begins, and
-pure RBF trained on the identical recipe shows no such pattern at all.
-Capping training at the pre-overfit optimum (epoch 3000, chosen from the
-10,000-epoch run's own point of minimum monitor loss) shows hybrid
-\emph{ahead} of pure RBF at the same epoch count ($0.055$ vs.\ $0.081$
-full-horizon MSE) with extrapolation $R^2=+0.580$, approaching pure RBF's
-fully-converged number ($+0.647$).
+history. The gate settles well before this onset: $\beta$ reaches $0.995$ by
+epoch 250 (Figure~\ref{fig:hybrid-gates}), and pure RBF trained on the
+identical recipe shows no such pattern at all. During the overfitting phase
+the gate drifts back from $0.998$ to $0.979$, but the B-spline part still
+supplies only 1.1\% of the basis output at the end
+(Table~\ref{tab:hybrid-contrib}). So the overfitting cannot be blamed on a
+large hidden B-spline contribution. Its cause is not identified here: the
+two models differ in their early training path as well as in that small
+residual B-spline term.
+
+One further number needs a caveat. Stopping at epoch 3000 gives the hybrid
+$0.055$ full-horizon MSE against pure RBF's $0.081$ at the same epoch, with
+extrapolation $R^2=+0.580$. That stopping point was chosen from the minimum
+of the monitored full-horizon loss, which includes the test window, so it is
+an \emph{oracle} early stop that uses test data, which this report's
+protocol otherwise forbids (Section~\ref{sec:phase1}). It shows that a good
+hybrid model exists along the training path. It does not show that training
+could find it without looking at the test window, and it is not counted in
+the verdict below.
 
 \begin{keypoint}[Verdict]
-The learnable hybrid basis never outperforms the better pure basis on either
-system at any budget tested. Its gate mechanism works exactly as designed --
-gradient-driven, converging differently and sensibly per system -- but that
-alone does not buy an accuracy edge, and on the pendulum specifically a
-network that \emph{starts} as a blend generalizes measurably worse over long
-training than one that starts pure RBF, despite an almost-identical final
-gate and matching training accuracy.
+Under this report's protocol, where the checkpoint is selected on training
+loss, the learnable hybrid basis never outperforms the better pure basis on
+either system. On Lotka-Volterra it is about $2\times$ worse than either pure
+basis at roughly the sum of their cost. On the pendulum it overfits badly
+after about 3000 epochs even though the B-spline supplies only about 1\% of
+its basis output. The gate moves in a sensible direction on each system, but
+a learned blend buys no accuracy here.
 \end{keypoint}
 
 \FloatBarrier

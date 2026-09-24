@@ -1,0 +1,207 @@
+\section{Datasets and Experimental Setup}
+\label{sec:setup}
+
+Every study in this report trains a model on a short observed window of one
+trajectory and then scores it on a later window it never saw. This section
+fixes, once, what those trajectories are, how they are generated and split,
+and which model and optimizer settings each system is trained with, so that
+later sections only need to state what they change.
+
+\subsection{The four dynamical systems}
+
+Three of the four systems are defined by a known ordinary differential
+equation; the fourth is deliberately \emph{not}, so that it can test whether
+fixes derived from a known equation still work when no such equation exists.
+
+\paragraph{Lotka-Volterra predator-prey.} The base paper's benchmark
+\cite{koenig2024kanode}: prey $u_1$ and predators $u_2$ follow
+\begin{equation}
+\dot u_1 = \alpha u_1 - \beta u_1 u_2, \qquad
+\dot u_2 = \delta u_1 u_2 - \gamma u_2,
+\qquad (\alpha,\beta,\gamma,\delta)=(1.5,\,1.0,\,3.0,\,1.0),
+\label{eq:lv}
+\end{equation}
+from $\mathbf{u}_0=(1,1)$. The system has a conserved quantity,
+$V(u_1,u_2)=\delta u_1-\gamma\ln u_1+\beta u_2-\alpha\ln u_2$, so every
+trajectory is a closed orbit. From this initial state the period is $3.32$
+time units, so the training window $[0,3.5]$ shows the model almost exactly
+one cycle. An accurate model must therefore keep returning to the
+same orbit, and any error in the learned field shows up as a slow drift in
+amplitude or phase that grows with the extrapolation horizon. (The base paper
+writes the same system with the names of $\gamma$ and $\delta$ swapped; the
+dynamics are identical.)
+
+\paragraph{Damped pendulum.} Angle $\theta$ and angular velocity $\omega$,
+\begin{equation}
+\dot\theta=\omega, \qquad \dot\omega=-\tfrac{g}{L}\sin\theta-\mu\,\omega,
+\qquad g/L=9.81,\ \mu=0.5,
+\label{eq:pendulum}
+\end{equation}
+from $(\theta_0,\omega_0)=(2.0,\,0)$ rad, a large initial swing where
+$\sin\theta\approx\theta$ is a poor approximation, so the model has to learn
+a genuinely nonlinear restoring force. Friction makes the trajectory spiral
+into the equilibrium $(0,0)$: the mechanical energy
+$E=\tfrac12 mL^2\omega^2+mgL(1-\cos\theta)$ satisfies
+$\dd E/\dd t=-mL^2\mu\,\omega^2\le0$, so it can never increase. A model can
+fit the trajectory closely and still break this law, which makes it an
+independent physical check (Section~\ref{sec:phase2}). The damping study (Section~\ref{sec:track-d})
+varies $\mu\in\{0.1,0.5,1,2,5,8\}$.
+
+\paragraph{SIR epidemic.} Susceptible, infected and recovered fractions of a
+fixed population,
+\begin{equation}
+\dot S=-\beta SI, \qquad \dot I=\beta SI-\gamma I, \qquad \dot R=\gamma I,
+\qquad \beta=0.35,\ \gamma=0.10\ \ (R_0=\beta/\gamma=3.5),
+\label{eq:sir}
+\end{equation}
+from $(S_0,I_0,R_0)=(0.99,\,0.01,\,0)$, with time measured in days. The
+right-hand sides sum to zero, so $S+I+R=1$ holds exactly for all time. The
+infected curve rises to a single peak and then decays, so the extrapolation
+window tests whether the model has learned the \emph{end} of an outbreak from
+data that mostly shows its growth.
+
+\paragraph{Synthetic non-mechanistic epidemic curve.} To test whether the SIR
+fixes transfer to data that no compartmental ODE generated
+(Section~\ref{sec:track-e}), an infection curve is built directly from a
+closed-form skewed bell shape rather than from any differential equation,
+\begin{equation}
+\tilde I(t)=\exp\!\Big(-\tfrac12\big(\tfrac{t-38}{14}\big)^2\Big)\Big(1+\tanh\big(1.4\,\tfrac{t-38}{14}\big)\Big)+\varepsilon_t,
+\qquad \varepsilon_t\sim\mathcal N(0,\,0.01^2),
+\label{eq:synthetic-epidemic}
+\end{equation}
+sampled daily for $t\in\{0,\dots,120\}$, clipped at zero and smoothed with a
+7-day moving average, the way public case counts are usually reported. The
+second state is a cumulative-recovered proxy,
+$\tilde R(t)=0.08\sum_{s\le t}\tilde I(s)$. Both columns are min-max
+normalized to $[0,1]$. The $\tanh$ factor makes the rise steeper than the
+decay, which no symmetric SIR peak reproduces exactly. This curve is
+\emph{synthetic}: it imitates the shape of a real outbreak but is not
+recorded case data.
+
+\subsection{Ground truth, sampling and train/test splits}
+
+The three mechanistic systems are integrated to near machine precision
+(SciPy's \texttt{solve\_ivp}, eighth-order Dormand-Prince, relative and
+absolute tolerance $10^{-12}$), far tighter than any error the learned models
+reach, so the reference trajectory contributes no measurable error of its
+own. Each trajectory is sampled on a uniform grid of spacing $\Delta t$ and
+cut at $t_{\text{train}}$: points up to and including $t_{\text{train}}$ form
+the training set, and every later point forms the test (extrapolation) set.
+There is one trajectory per system, trained full-batch; there is no random
+shuffling and no validation split, because the test window is defined by
+time, not sampled from the same distribution as training.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Dataset definitions. ``Train'' is $[0,t_{\text{train}}]$; ``Test''
+is $(t_{\text{train}},t_{\text{end}}]$. Point counts include both endpoints
+of the training window.}
+\label{tab:datasets}
+\begin{tabularx}{\textwidth}{@{}L{2.6cm} C{1.25cm} C{1.3cm} C{1.3cm} C{1.9cm} C{1.9cm} X@{}}
+\toprule
+\hdrrow \thh{System} & \thh{State dim.} & \thh{Spacing $\Delta t$} & \thh{$t_{\text{end}}$} & \thh{Train window (points)} & \thh{Test window (points)} & \thh{Test window covers}\\
+\midrule
+Lotka-Volterra & 2 & 0.1 & 14 & $[0,3.5]$ (36) & $(3.5,14]$ (105) & $\approx3.2$ unseen cycles; $(14,28]$ adds $\approx4.2$ more (Table~\ref{tab:extrap-horizon})\\
+Damped pendulum & 2 & 0.05 & 10 & $[0,5]$ (101)\textsuperscript{a} & $(5,10]$ (100) & late decay toward rest\\
+SIR & 3 & 0.5 & 80 & $[0,50]$ (101) & $(50,80]$ (60) & end of the outbreak\\
+Synthetic epidemic & 2 & 1 day & 120 & days 0--44 (45)\textsuperscript{b} & days 45--120 (76) & decay after the peak\\
+\bottomrule
+\end{tabularx}
+
+\smallskip
+\raggedright\footnotesize
+\textsuperscript{a}The original recipe used $[0,3]$ (61 points); Section~\ref{sec:phase2} explains why it was extended.
+\textsuperscript{b}Split controls in Section~\ref{sec:track-e} move the cut to day 60 and day 70.
+\end{table}
+
+\paragraph{Observation noise.} Where a study adds noise (the Lotka-Volterra
+noise sweep, Section~\ref{sec:track-e}), independent Gaussian noise
+$\mathcal N(0,\sigma^2)$ with $\sigma\in\{0,0.01,0.05,0.1\}$ is added to the
+\emph{training} observations only. The test window is always scored against
+the clean reference trajectory, so the reported error measures how well the
+model recovered the true dynamics, not how well it reproduced the noise.
+
+\subsection{Models and training settings}
+
+All KAN-ODEs use the edge parameterization of
+Equation~\ref{eq:kan-edge} with a $\tanh$ input normalizer and a SiLU
+residual path (Section~\ref{sec:numerics} gives the exact computation). A
+KAN layer from $n_{\text{in}}$ to $n_{\text{out}}$ nodes with $G$ basis
+functions per edge has
+\begin{equation}
+P_{\text{layer}} = n_{\text{out}}\,n_{\text{in}}\,(G+1)
+\label{eq:param-count}
+\end{equation}
+parameters: $G$ basis coefficients plus one residual weight on each of its
+$n_{\text{in}}n_{\text{out}}$ edges. The size of the network differs by
+system, because SIR's three-dimensional state and the pendulum's
+sharper nonlinearity needed more capacity than Lotka-Volterra.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Model and training settings for each system's main runs. Studies
+that deviate (solver or basis ablations, the damping sweep's 2{,}000-epoch
+budget and its range of damping coefficients) say so where they are
+reported.}
+\label{tab:train-settings}
+\begin{tabularx}{\textwidth}{@{}L{3.3cm} C{2.5cm} C{2.3cm} C{2.3cm} X@{}}
+\toprule
+\hdrrow \thh{Setting} & \thh{Lotka-Volterra} & \thh{Pendulum} & \thh{SIR} & \thh{Synthetic epidemic}\\
+\midrule
+KAN widths & $[2,10,2]$ & $[2,10,2]$ & $[3,16,3]$ & $[2,10,2]$\\
+Basis, grid size $G$ & RBF, 5 & RBF, 8 & RBF, 8 & RBF, 5\\
+Parameters (Eq.~\ref{eq:param-count}) & 240 & 360 & 864 & 240\\
+Solver, substeps $m$ & Tsit5, 2 & Tsit5, 2 & Tsit5, 2 & Tsit5, 2\\
+Learning rate (Adam) & $2\times10^{-3}$ & $3\times10^{-3}$ & $3\times10^{-3}$ & $2\times10^{-3}$\\
+Gradient-norm clipping & none (1.0 in the extended-budget reruns, Section~\ref{sec:phase4}) & 1.0 & 1.0 & 1.0\\
+Epochs & 10{,}000 & 10{,}000 & 10{,}000 & 2{,}000 (probes), 5{,}000 (full)\\
+Structural fixes & none & none & time scale $s=10$, projection, gate on $I$ & time scale $s=24$; projection and gate tested as arms\\
+Seed & 42 & 42 & 42 & 42\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{MLP baselines.} Two multilayer-perceptron Neural ODEs are trained
+on Lotka-Volterra under exactly the same protocol for comparison: the base
+paper's literal architecture, $[2,50,2]$ with $\tanh$ (252 parameters), and a
+parameter-matched deeper network, $[2,14,8,8,2]$ with SiLU (252 parameters),
+introduced because the literal one fails to train under this protocol
+(Table~\ref{tab:mlp-breakdown}).
+
+\paragraph{Why 10{,}000 epochs.} The base paper trains for $10^5$ epochs.
+This project fixed its budget at $10^4$ for three reasons. First, cost: the
+full ablation is 24 Lotka-Volterra configurations plus three other systems,
+and at the measured $0.03$--$0.67$~s per epoch on a CPU a $10^5$-epoch
+sweep of the Lotka-Volterra ablation alone would take on the order of a week
+of serial CPU time, before any other system or follow-up study. Second, the paper itself reports that its
+KAN-ODE reaches $2.6\times10^{-5}$ training loss within $10^4$ epochs,
+already below its MLP's $10^5$-epoch result, so $10^4$ is where the paper's
+own speed claim is made. Third, the ablations compare configurations against
+each other at a common budget, so what matters is whether the
+\emph{ranking} is stable, not whether each run has fully converged. That last
+assumption was tested directly by retraining five configurations to
+25{,}000--50{,}000 epochs; Section~\ref{sec:phase4} reports the result, which
+confirms the ranking within the KAN variants but reverses the KAN-versus-MLP
+comparison.
+
+\paragraph{Training objective and model selection.} Each epoch integrates the
+learned field once over the whole training window from the known initial
+state and minimizes the mean squared error against the observed points,
+\begin{equation}
+\mathcal L(\theta)=\frac{1}{N_{\text{train}}\,d}\sum_{n=0}^{N_{\text{train}}-1}\big\lVert \hat{\mathbf u}_\theta(t_n)-\mathbf u(t_n)\big\rVert_2^2,
+\label{eq:train-loss}
+\end{equation}
+where $d$ is the state dimension and $\hat{\mathbf u}_\theta(t_n)$ is the
+integrator's prediction. No sparsity or smoothness regularization is added
+in any run. Adam uses a constant learning rate with no schedule, matching the
+base paper. The checkpoint that is reported is the one with the lowest
+\emph{training} loss seen during the run; the test window is monitored but
+never used to select a model, so no reported number is tuned on the data it
+is scored on. Algorithm~\ref{alg:train} in Section~\ref{sec:numerics} gives
+the complete loop.
+
+\FloatBarrier

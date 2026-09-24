@@ -1,0 +1,182 @@
+\section{Verification and Testing Framework}
+\label{sec:verification}
+
+Every result in this report depends on code written for this project: seven
+basis functions, six integrators, the training loop and every diagnostic.
+Before any of that code is trusted to produce a benchmark number, it is
+checked against cases whose correct answer is known independently. This
+section describes those checks and the pipeline that turns one training run
+into the numbers in the tables.
+
+\subsection{Solver verification against a known solution}
+
+The integrators are checked on $\dot y=-y$, $y(0)=1$, whose exact solution
+$y(t)=e^{-t}$ is known. Integrating to $t=1$ with $n$ equal steps gives an
+error $e(h)=|y_n-e^{-1}|$ at step $h=1/n$, and by
+Equation~\ref{eq:global-error} the observed order between two step sizes is
+\begin{equation}
+\hat p=\frac{\log e(h_1)-\log e(h_2)}{\log h_1-\log h_2}.
+\label{eq:observed-order}
+\end{equation}
+Table~\ref{tab:observed-order} shows that every solver reaches its
+theoretical order. Halving the step divides the error by $2^{p}$, as
+predicted. It also shows a difference that order alone does not capture: at
+the same fifth order, Tsit5's error is about $5\times$ smaller than
+DOPRI5's, because Tsitouras chose its coefficients to minimize the leading
+error constant $K$ in Equation~\ref{eq:global-error}
+\cite{tsitouras2011tsit5}.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Observed convergence order of this project's integrators on
+$\dot y=-y$ over $[0,1]$ (double precision, one substep). The automated
+test requires $|\hat p-p|$ below $0.20$ (Euler) to $0.45$ (fifth order).}
+\label{tab:observed-order}
+\begin{tabular}{@{}L{2.4cm} C{1.2cm} C{2.0cm} C{2.0cm} C{2.0cm} C{1.6cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Solver} & \thh{Order $p$} & \thh{$e(h{=}0.1)$} & \thh{$e(h{=}0.05)$} & \thh{$e(h{=}0.025)$} & \thh{$\hat p$ (0.1$\to$0.05)} & \thh{$\hat p$ (0.05$\to$0.025)}\\
+\midrule
+Forward Euler & 1 & $1.92\times10^{-2}$ & $9.39\times10^{-3}$ & $4.65\times10^{-3}$ & 1.03 & 1.02\\
+Midpoint & 2 & $6.62\times10^{-4}$ & $1.59\times10^{-4}$ & $3.91\times10^{-5}$ & 2.06 & 2.03\\
+Heun & 2 & $6.62\times10^{-4}$ & $1.59\times10^{-4}$ & $3.91\times10^{-5}$ & 2.06 & 2.03\\
+Classical RK4 & 4 & $3.33\times10^{-7}$ & $2.00\times10^{-8}$ & $1.22\times10^{-9}$ & 4.06 & 4.03\\
+DOPRI5 & 5 & $1.21\times10^{-9}$ & $3.48\times10^{-11}$ & $1.04\times10^{-12}$ & 5.12 & 5.06\\
+Tsit5 & 5 & $2.56\times10^{-10}$ & $6.43\times10^{-12}$ & $1.77\times10^{-13}$ & 5.31 & 5.18\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Midpoint and Heun agree to every digit here because, for a linear field,
+both second-order methods reduce to the same update
+$y_{n+1}=(1-h+h^2/2)\,y_n$. They differ only on nonlinear fields such as the
+learned ones. Further solver tests check that the Tsit5 and DOPRI5 tableaus
+are internally consistent (weights summing to one, the embedded fourth-order
+pair consistent), that energy on a harmonic oscillator drifts orders of
+magnitude less under RK4 and Tsit5 than under Euler, that time-dependent and
+backward-in-time integration are correct, and that gradients flow through
+every solver.
+
+\subsection{The automated test suite}
+
+The checks run as an automated \texttt{pytest} suite of 250 tests. On the
+final code, 249 pass and 1 is skipped: that test measures peak GPU memory
+and runs only when a CUDA device is present. Table~\ref{tab:test-suite}
+groups the tests by what they protect.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Automated tests, grouped by the component they verify.}
+\label{tab:test-suite}
+\begin{tabularx}{\textwidth}{@{}L{3.6cm} C{1.1cm} X@{}}
+\toprule
+\hdrrow \thh{Component} & \thh{Tests} & \thh{What is checked}\\
+\midrule
+Integrators & 32 & observed order (Table~\ref{tab:observed-order}); tableau consistency; energy drift; substep monotonicity; non-autonomous and backward integration; batching; gradient flow\\
+Basis functions and KAN layer & 57 & shape and validity of all seven bases; exact known values (Chebyshev values and recurrence, Newton values, Lagrange cardinal property); partition of unity (B-spline, Lagrange); gradient flow through every basis; layer forward and backward passes\\
+MLP baseline & 22 & parameter count and KAN/MLP parameter matching; supported activations; initialization statistics; gradient flow through the ODE; seed reproducibility\\
+Datasets & 10 & shapes, splits and reproducibility; pendulum energy conserved at $\mu=0$ and dissipated at $\mu>0$; the SIR invariant $S+I+R=1$; epidemic-curve normalization\\
+Metrics & 11 & MSE, MAE, $R^2$, relative $L_2$, gradient norm and function-evaluation counts on inputs with known answers; Lipschitz estimate on a linear map and on $\sin$\\
+Training pipeline & 23 & end-to-end training; the selected checkpoint is the best one, not the last; a reloaded checkpoint rebuilds the same field, including every fix; rescaling time equals rescaling the field, and $s=1$ changes nothing bit for bit; the projected field sums to zero far outside the training window; the gated field vanishes on $u_d=0$ (Eqs.~\ref{eq:time-scale}--\ref{eq:vanishing-gate})\\
+Plotting & 7 & every figure function runs on real outputs\\
+Study-specific checks & 88 & adjoint vs.\ direct gradient agreement (8); gradient-noise statistic (18); hybrid-basis gate (10); sparse-regression and pruning procedures (33); damping-study verdict classifier and non-finite guard (19)\\
+\midrule
+\textbf{Total} & \textbf{250} & 249 passed, 1 skipped (requires CUDA)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{From a configuration to a table entry}
+
+Figure~\ref{fig:pipeline} shows the path every benchmark number takes. One
+function trains any configuration (system, model, basis, solver, epochs,
+seed and fixes) and writes a self-describing results record: the full
+configuration, the software version and code revision, and every metric at
+both the selected and the final checkpoint. A benchmark driver runs lists of
+configurations through that function, and the tables in this report are
+collated from the saved records rather than typed by hand, so any number can
+be traced back to the run that produced it.
+
+\paragraph{Post-hoc analyses.} A few numbers were computed afterwards from
+saved checkpoints and training records, without training anything: the
+pendulum models rescored on a common test window, the hybrid basis's
+measured contributions, the RBF/B-spline comparison at a matched budget, the
+far-horizon scores of the 50{,}000-epoch models, the Newton root-finding and
+Jacobian spectra of the damping study, the damping study's trajectories
+redrawn for its figures, and the exact-derivative sparse regression. Each is
+produced by a short script in the project repository
+(\texttt{implementation/experiments/posthoc\_checks}), and every redrawn
+report figure by a script in \texttt{report/figure\_scripts}. These scripts
+were added with this revision of the report, after the results commit named
+on the title page, and are not covered by the automated tests of
+Table~\ref{tab:test-suite}. Their outputs were checked against the saved
+records they build on instead: each rebuilt checkpoint reproduces its own
+recorded metrics (for example, the 10{,}000-epoch far-horizon scores to
+three significant figures, the pendulum and SIR $R^2$ exactly, and every
+damping-study trajectory its recorded best training MSE), and the
+finite-difference sparse regression reproduces the saved noise-free result.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\small,
+  st/.style={draw=ink!60, fill=codebg, rounded corners=2pt, minimum height=9mm, text width=2.35cm, align=center, font=\scriptsize},
+  key/.style={draw=accent, fill=accentsoft, rounded corners=2pt, minimum height=9mm, text width=2.2cm, align=center, font=\scriptsize},
+  arr/.style={-{Stealth[length=2mm]}, draw=ink!65, thick}]
+  \node[st]  (cfg) at (0,0)     {Configuration\\system, model, basis,\\solver, epochs, seed};
+  \node[st]  (dat) at (2.9,0)   {Data generator\\reference solve,\\train/test split};
+  \node[key] (trn) at (5.8,0)   {Training loop\\Algorithm~\ref{alg:train}};
+  \node[st]  (ckp) at (8.7,0)   {Checkpoint with\\lowest\\training loss};
+  \node[st]  (scr) at (11.6,0)  {Scoring on the\\full horizon};
+  \node[st]  (rec) at (14.5,0)  {Results record\\config, metrics,\\history, figures};
+  \node[st]  (tab) at (14.5,-2.0) {Collated tables\\and report figures};
+  \node[key] (tst) at (5.8,-2.0) {Automated tests\\(Table~\ref{tab:test-suite})};
+  \draw[arr] (cfg) -- (dat); \draw[arr] (dat) -- (trn); \draw[arr] (trn) -- (ckp);
+  \draw[arr] (ckp) -- (scr); \draw[arr] (scr) -- (rec); \draw[arr] (rec) -- (tab);
+  \draw[arr, dashed, accent] (tst) -- node[right, font=\tiny\sffamily\color{accent}]{verify every component first} (trn);
+  \node[font=\tiny\sffamily\color{ink!60}] at (8.7,-0.75) {test window never used here};
+\end{tikzpicture}}
+\caption{The benchmark pipeline. Model selection uses only the training
+window; the test window is used once, when the selected checkpoint is
+scored. The same code path produces every table in this report.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Metrics}
+
+A model's predicted trajectory $\hat{\mathbf u}$ is compared with the
+reference $\mathbf u$ on a set $\mathcal T$ of time points (the test window
+unless stated otherwise), with $d$ state components:
+\begin{align}
+\mathrm{MSE}&=\frac{1}{|\mathcal T|\,d}\sum_{t\in\mathcal T}\lVert\hat{\mathbf u}(t)-\mathbf u(t)\rVert_2^2,
+\qquad \mathrm{RMSE}=\sqrt{\mathrm{MSE}},\label{eq:metric-mse}\\
+R^2&=1-\frac{\sum_{t\in\mathcal T}\lVert\hat{\mathbf u}(t)-\mathbf u(t)\rVert_2^2}{\sum_{t\in\mathcal T}\lVert\mathbf u(t)-\bar{\mathbf u}\rVert_2^2},
+\qquad
+\text{rel.\ }L_2=\frac{\lVert\hat{\mathbf u}-\mathbf u\rVert_2}{\lVert\mathbf u\rVert_2},\label{eq:metric-r2}
+\end{align}
+where $\bar{\mathbf u}$ is the per-component mean over $\mathcal T$. $R^2=1$
+is a perfect match, $R^2=0$ is no better than predicting that mean, and a
+negative $R^2$ is worse than it. The smoothness of a learned field is
+summarized by an empirical Lipschitz estimate,
+\begin{equation}
+\hat L=\max_{k}\frac{\lVert\mathbf f_\theta(\mathbf u_k+\boldsymbol\epsilon_k)-\mathbf f_\theta(\mathbf u_k)\rVert_2}{\lVert\boldsymbol\epsilon_k\rVert_2},
+\qquad \lVert\boldsymbol\epsilon_k\rVert_2=10^{-3},
+\label{eq:lipschitz}
+\end{equation}
+taken over the training states $\mathbf u_k$, each with a random perturbation
+direction. This is the largest local slope of the field observed along the
+training trajectory. It is a \emph{lower} bound on the field's true Lipschitz
+constant, which would require a maximum over all pairs of points, and it is
+used only to compare how sharp different trained fields are. Training cost
+is reported as function evaluations per epoch (Equation~\ref{eq:nfe}) and as
+wall-clock time. All timings are CPU timings (a local development machine,
+or cloud CPUs for the extended-budget runs of Section~\ref{sec:phase4}),
+except the adjoint-versus-autograd comparison of Section~\ref{sec:track-a},
+which measures GPU memory and runs on an RTX~3060. Timings are compared
+only within one machine, except in the cost note of Section~\ref{sec:phase4},
+where the difference between machines is itself the point.
+
+\FloatBarrier

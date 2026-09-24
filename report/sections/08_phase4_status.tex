@@ -1,54 +1,251 @@
-\section{Validation Status: Epoch-Budget Sensitivity and Implementation Audit}
+\section{Validation: Epoch Budget, Implementation Audit and Paper Claims}
 \label{sec:phase4}
 
-Two supervisor-requested validation tasks were scoped as follow-on work to the
-benchmark ablation (Section~\ref{sec:phase2}): an epoch-budget sensitivity
-check, and a baseline-vs-paper implementation audit. Both are fully designed
-and their execution infrastructure is complete, but neither has been run to
-completion as of this report.
+Every comparison so far was made at a fixed 10{,}000-epoch budget and under
+this project's own recipe. This section tests both choices. It retrains the
+configurations whose ranking matters most at up to five times the budget,
+compares this project's recipe field by field with the base paper's text
+and code, and sets each of the paper's claims next to what this project
+measured.
 
-\subsection{Epoch-budget sensitivity check}
+\subsection{Epoch-budget sensitivity}
 
-The benchmark ablation trained all 24 Lotka-Volterra configurations for a
-fixed 10{,}000 epochs; whether that budget is long enough for the reported
-\emph{rankings} to be trustworthy (as opposed to absolute numbers) was never
-independently checked. Five representative configurations were selected to
-re-train at $5\times$ budget (50{,}000 epochs): Euler (the one solver that
-does not reach $10^{-4}$ within 10,000 epochs), Tsit5 with the RBF basis (the project's reference
-point), B-spline (the near-tie with RBF in Table~\ref{tab:basis-ablation}),
-and both MLP baselines (the parameter-matched version, and the version
-matching the paper's literal specification, which fails to train at all
-under this project's protocol). Ready-to-run training scripts for all five
-configurations already exist, targeting the same cloud CPU infrastructure
-used elsewhere in this project, at a measured $\approx17.0$~h total CPU-time
-($\approx9.3$~h wall-clock run in parallel). As of this report, none of the
-five have been executed against that budget; the design is complete and
-awaits compute time.
+\begin{expectbox}
+\expectrow{Question}{Are the rankings in Tables~\ref{tab:solver-ablation}--\ref{tab:kan-vs-mlp} a property of the configurations, or of stopping at 10{,}000 epochs?}
+\expectrow{Expected}{Every configuration was still improving at 10{,}000 epochs, so absolute errors should fall; the ranking should hold if 10{,}000 epochs was long enough to separate them.}
+\expectrow{Observed}{The ranking among KAN variants mostly holds. The KAN-versus-MLP comparison reverses: at 50{,}000 epochs (with gradient clipping) the parameter-matched MLP extrapolates $6.8\times$ better than KAN-ODE.}
+\end{expectbox}
 
-\subsection{Baseline-vs-paper implementation audit}
+Five configurations were chosen to cover the comparisons a reader would
+question first: Euler (the one solver that does not reach $10^{-4}$ training
+loss within 10{,}000 epochs), Tsit5 with RBF (the reference point every other
+entry is compared against), the cubic B-spline (statistically tied with RBF
+in Table~\ref{tab:basis-ablation}), and both MLP baselines. Each was
+retrained from scratch on cloud CPUs with the same architecture, data,
+solver, learning rate and seed. Two things changed, not one. The obvious one
+is the number of epochs. The other is gradient-norm clipping at $1.0$, which
+the training code had adopted as its default after the first cross-domain
+runs exploded (Sections~\ref{sec:numerics} and~\ref{sec:phase2}), whereas the
+original 10{,}000-epoch Lotka-Volterra runs predate it and were unclipped. Clipping engaged on $4.3\%$ of steps for
+Tsit5/RBF, $4.7\%$ for Euler, $2.2\%$ for the B-spline, $11\%$ for the SiLU
+MLP and $99.3\%$ for the paper-specification MLP. For the first four it
+rarely acts and should matter little, but the comparison below is not a pure
+epoch-budget comparison, and the paper-specification MLP's extended run is
+in effect a different optimizer. Four runs went to 50{,}000 epochs ($5\times$
+the original budget). The B-spline ran to 25{,}000 ($2.5\times$), because an
+early timing measurement projected a 50{,}000-epoch run beyond the length of
+one compute session. That estimate later proved $1.6\times$ too pessimistic,
+but the shorter budget was kept and every B-spline comparison below is
+10{,}000 against 25{,}000 epochs.
 
-A field-by-field comparison of this project's recorded training recipe
-(a two-layer Kolmogorov-Arnold Network with 10 hidden nodes, a 5-point RBF
-grid, the Tsit5 solver, step size $\Delta t=0.1$, learning rate
-$2\times10^{-3}$, and 10{,}000 training epochs) against the original paper's
-own stated methodology
-\cite{koenig2024kanode} is a reading and documentation task that requires no
-additional compute, and has not yet been completed. One piece of evidence is
-already in hand: the
-paper's literal MLP baseline ($[2,50,2]$, tanh) fails to train under this
-project's protocol at all (Section~\ref{sec:phase2}), which points at an
-architecture/activation mismatch independent of epoch budget for that
-specific baseline -- the planned 50{,}000-epoch run of that exact
-configuration (above) is what would convert this from suggestive evidence
-into a confirmed answer.
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{The same five configurations at the original and the extended
+budget (Lotka-Volterra; best-training-loss checkpoint, as throughout).}
+\label{tab:epoch-budget}
+\begin{tabular}{@{}L{2.6cm} C{1.2cm} C{2.1cm} C{2.1cm} C{1.8cm} C{1.5cm}@{}}
+\toprule
+\hdrrow \thh{Configuration} & \thh{Epochs} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrap.\ $R^2$} & \thh{$L$}\\
+\midrule
+Euler, RBF & 10k & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & 8.55\\
+ & 50k & $8.85\times10^{-6}$ & $1.93\times10^{-4}$ & $0.99993$ & 7.72\\
+\addlinespace[2pt]
+Tsit5, RBF & 10k & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & 6.91\\
+ & 50k & $6.59\times10^{-6}$ & $4.03\times10^{-5}$ & $0.999986$ & 7.75\\
+\addlinespace[2pt]
+Tsit5, B-spline & 10k & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $0.99997$ & 8.44\\
+ & 25k & $9.65\times10^{-6}$ & $4.26\times10^{-5}$ & $0.999985$ & 7.05\\
+\addlinespace[2pt]
+MLP-ODE, SiLU & 10k & $9.50\times10^{-5}$ & $4.77\times10^{-4}$ & $0.99984$ & 5.07\\
+ & 50k & $\mathbf{1.82\times10^{-6}}$ & $\mathbf{5.90\times10^{-6}}$ & $\mathbf{0.999998}$ & 5.65\\
+\addlinespace[2pt]
+MLP-ODE, tanh (paper) & 10k & $1.08$ & $1.69$ & $0.42$ & 38.2\\
+ & 50k & $1.01$ & $4.32$ & $-0.48$ & 104.8\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{Ranking by extrapolation MSE before and after the extended budget
+(the paper-specification MLP is last at both budgets and is omitted).}
+\label{tab:epoch-ranking}
+\begin{tabular}{@{}C{1.0cm} L{4.4cm} L{4.4cm}@{}}
+\toprule
+\hdrrow \thh{Rank} & \thh{At 10{,}000 epochs} & \thh{At 25{,}000--50{,}000 epochs}\\
+\midrule
+1 & B-spline ($8.38\times10^{-5}$) & \textbf{MLP-ODE, SiLU} ($5.90\times10^{-6}$)\\
+2 & Tsit5, RBF ($8.92\times10^{-5}$) & Tsit5, RBF ($4.03\times10^{-5}$)\\
+3 & MLP-ODE, SiLU ($4.77\times10^{-4}$) & B-spline ($4.26\times10^{-5}$)\\
+4 & Euler ($2.51\times10^{-3}$) & Euler ($1.93\times10^{-4}$)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Tables~\ref{tab:epoch-budget} and~\ref{tab:epoch-ranking} give three
+separate answers.
+
+\paragraph{The comparisons among KAN variants mostly hold.} At 10{,}000
+epochs RBF and B-spline are $6\%$ apart in extrapolation error. The extended
+runs are $6\%$ apart as well, but that compares B-spline at 25{,}000 epochs with
+RBF at 50{,}000, so it is not a matched comparison. At a matched 25{,}000 epochs,
+only the training loss can be compared exactly, because the RBF run saved a
+checkpoint only at its best epoch overall. There, from the RBF run's own
+training history, the B-spline is ahead: $9.65\times10^{-6}$ against
+$1.28\times10^{-5}$, $25\%$ lower. So the two bases remain close, within a
+factor of two at every budget checked, but ``statistically tied at every
+budget'' is not established; with one seed, neither is a B-spline lead.
+Euler stays last. Its gap to Tsit5 narrows from $28\times$ to
+$4.8\times$, so part of Table~\ref{tab:solver-ablation}'s Euler penalty was
+slower convergence rather than a permanent floor, but a first-order
+integrator remains measurably worse after five times the training. These
+checks cover the two ends of the solver table; the middle-order solvers were
+not retrained.
+
+\paragraph{The KAN-versus-MLP comparison reverses.} The parameter-matched
+MLP improves $81\times$ in extrapolation error, against KAN-ODE's
+$2.2\times$, and ends $6.8\times$ ahead on the near window and $10.8\times$
+ahead on the far window (Table~\ref{tab:extrap-horizon-50k}). The KAN-ODE
+advantage of Tables~\ref{tab:kan-vs-mlp} and~\ref{tab:extrap-horizon} is
+therefore an advantage in how quickly it reaches a well-extrapolating field,
+not in the best field it can reach on this problem. One confound remains:
+clipping acted on $11\%$ of the MLP's steps but only $4.3\%$ of the KAN's,
+and its effect was not separated from that of the longer budget. A 50{,}000-epoch
+unclipped rerun of both would settle it.
+
+\paragraph{The paper-specification MLP is not an epoch-budget problem.}
+Given five times the budget, the $[2,50,2]$ tanh network does not converge:
+its training loss barely moves ($1.08\to1.01$), its extrapolation gets worse
+($R^2$ from $0.42$ to $-0.48$), its Lipschitz estimate nearly triples to
+$104.8$, and gradient clipping engages on $99.3\%$ of steps (its median
+unclipped gradient norm is $19.8$). More epochs, with clipping, do not rescue
+it: its failure under this protocol comes from the recipe, not the budget.
+The audit below identifies which parts of the recipe differ from the paper's.
+
+\paragraph{Cost.} The five runs took $23.2$ hours of CPU time in total, with
+$10.7$ hours of wall-clock time for the longest run. The cloud CPUs ran about
+$2.3$--$2.5\times$ slower per epoch than the development machine used to plan
+them, and a five-epoch timing sample overestimated the steady-state rate by
+$1.6\times$ because it was dominated by start-up cost. Budget estimates for
+runs like these should be calibrated on a few hundred epochs.
+
+\subsection{Implementation audit against the base paper}
+\label{sec:paper-audit}
+
+The paper's Lotka-Volterra recipe was read from its text
+\cite{koenig2024kanode} and from the driver script and layer code in its
+official repository \cite{koenig2024kanoderepo}. The repository's own README
+notes that its scripts were re-run shortly before release and ``are not the
+exact runs reported in the manuscript'', so where text and code disagree,
+both are listed. Table~\ref{tab:paper-audit} compares every setting that
+could change a result.
+
+\begin{table}[!ht]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.15}
+\caption{Base-paper recipe for Lotka-Volterra against this project's.
+Verdicts: \emph{match}; \emph{explained} (a deliberate difference whose
+effect is measured in this report); \emph{open} (a difference whose effect
+has not been measured).}
+\label{tab:paper-audit}
+\begin{tabularx}{\textwidth}{@{}L{2.5cm} L{3.4cm} L{3.2cm} X@{}}
+\toprule
+\hdrrow \thh{Setting} & \thh{Base paper (text / code)} & \thh{This project} & \thh{Verdict}\\
+\midrule
+System, parameters, $\mathbf u_0$ & same system; $\mathbf u_0=(1,1)$ & same & match (the paper swaps the names of $\gamma$ and $\delta$)\\
+Time window, spacing & $[0,14]$, train on $[0,3.5]$, spacing 0.1 & same & match; the paper's code keeps 35 training points ($t\le3.4$), this project 36 ($t\le3.5$)\\
+Ground truth & Tsit5, tolerance $10^{-12}$ & eighth-order Dormand-Prince, $10^{-12}$ & match in effect (both far below model error)\\
+KAN architecture & $[2,10,2]$, $G=5$, 240 parameters & same & match\\
+Grid, normalizer, residual & $G$ centres on $[-1,1]$; $\tanh$ on basis path; SiLU (Swish) on the raw input & same & match\\
+RBF kernel & text: $e^{-r^2/2h^2}$; code: $e^{-r^2/h^2}$ & $e^{-r^2/2h^2}$ (the text) & open: this project's kernels are $\sqrt2$ wider than the paper's code\\
+Initialization & Glorot uniform, then all parameters divided by $10^5$ & Glorot uniform, not rescaled & open: the paper's field starts near zero, this project's does not (Section~\ref{sec:phase2}, SIR)\\
+Optimizer & Adam, constant rate & Adam, constant rate & match\\
+Learning rate & text: baseline $10^{-3}$; code: $5\times10^{-4}$ (KAN), $10^{-2}$ (MLP) & $2\times10^{-3}$ for both & open, and the most likely reason the paper's MLP trains there but not here\\
+Epochs & $10^5$ & $10^4$; five configurations at $2.5$--$5\times10^4$ & explained (Table~\ref{tab:epoch-budget})\\
+Training solver & adaptive Tsit5, default tolerances & fixed-step Tsit5, $h=0.05$ & explained (Table~\ref{tab:solver-ablation}; truncation error is below the optimization noise)\\
+Gradient method & adjoint sensitivity (interpolating adjoint, library default) & direct autograd & explained (Section~\ref{sec:track-a}: gradients agree to $\sim10^{-7}$)\\
+Regularization & none for the main run; $L_1$ with $\lambda=5\times10^{-4}$ (Eq.~\ref{eq:l1-sparsity}) for the sparse run & none & explained (Section~\ref{sec:track-e}, pruning)\\
+MLP baseline & $[2,50,2]$, tanh, 252 parameters & same, plus a parameter-matched SiLU MLP & match; the SiLU MLP is an addition\\
+Seed & 0 & 42 & match in kind (single seed in both)\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Most settings match or differ for a reason whose effect this report
+measures. Three do not: the RBF width, the initial-weight rescaling and the
+learning rate. None was varied here, and the last two plausibly explain why
+the paper's $[2,50,2]$ tanh MLP trains in the paper and fails here, since a
+tanh network started at full Glorot scale and trained at a fifth of the
+paper's MLP learning rate is a different optimization problem. Retraining
+the paper-specification MLP with the paper's learning rate and
+initialization is the direct test, and it is the most important open item
+this audit leaves.
+
+\subsection{The paper's claims against this project's measurements}
+
+Table~\ref{tab:paper-claims} sets each quantitative Lotka-Volterra claim of
+the base paper next to the corresponding measurement in this report. One
+claim is reproduced outright: the 240-parameter KAN-ODE does learn the
+dynamics from a single training cycle and extrapolates with $R^2$ above
+$0.9999$. One is closely matched: KAN-ODE is a few times slower per epoch
+than the paper's MLP, by $2.3\times$ here against the paper's $2.7\times$ (19
+against 7 minutes per $10^4$ epochs), just below the paper's stated
+$2.5$--$3\times$ range.
+
+The paper's central efficiency claim, that KAN-ODE needs about $10\times$
+fewer epochs than a similarly sized MLP, is not reproduced: under this
+protocol the parameter-matched MLP reaches $10^{-3}$ training loss
+$4.1\times$ \emph{sooner}. The paper's accuracy claim holds only at the
+shorter budget. KAN-ODE extrapolates $5.4\times$ better at 10{,}000 epochs,
+and $6.8\times$ worse at 50{,}000 (with the clipping caveat above). The
+paper's own MLP result could not be reproduced at all, because its
+$[2,50,2]$ tanh network does not train under this recipe. The audit
+(Table~\ref{tab:paper-audit}) points to the learning rate and the
+initial-weight scale as the likely reasons, so this row is a statement about
+the recipe rather than evidence against the paper. The paper itself quotes
+this MLP's final training loss inconsistently: as $3.0\times10^{-5}$ in the
+text of its Section~III.1.1 and as $4.1\times10^{-5}$ in its Table~1 (width-50,
+252-parameter row; arXiv version~3 \cite{koenig2024kanode}). Finally, the paper's interpretability
+claim rests on $L_1$-regularized training and pruning, which this project did
+not run, so it is neither confirmed nor refuted here.
+
+\begin{table}[!ht]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\caption{Each quantitative Lotka-Volterra claim of the base paper, and what
+this project found under its own protocol (single seed).}
+\label{tab:paper-claims}
+\begin{tabularx}{\textwidth}{@{}L{4.0cm} X L{2.3cm}@{}}
+\toprule
+\hdrrow \thh{Paper's claim} & \thh{This project's measurement} & \thh{Verdict}\\
+\midrule
+A 240-parameter KAN-ODE learns the dynamics from $[0,3.5]$ and extrapolates to $t=14$ & Extrapolation $R^2=0.99997$ at 10k epochs, $0.999986$ at 50k (Tables~\ref{tab:solver-ablation},~\ref{tab:epoch-budget}) & reproduced\\
+KAN-ODE reaches $2.6\times10^{-5}$ training loss within $10^4$ epochs & $8.8\times10^{-5}$ at $10^4$ epochs; $6.6\times10^{-6}$ at $5\times10^4$ & same order; slower here\\
+KAN-ODE needs about $10\times$ fewer epochs than a similar MLP & The parameter-matched MLP reaches $10^{-3}$ $4.1\times$ \emph{sooner} and $10^{-4}$ sooner as well (Table~\ref{tab:kan-vs-mlp}) & not reproduced\\
+KAN-ODE iterates $2.5$--$3\times$ slower per epoch than the MLP (19 vs.\ 7 min per $10^4$ epochs) & $2.3\times$ slower than the same MLP ($0.1705$ vs.\ $0.0736$~s per epoch) & close ($2.3\times$ vs.\ the paper's $2.7\times$)\\
+KAN-ODE generalizes better than a similarly sized MLP & At 10k epochs: $5.4\times$ lower extrapolation error. At 50k epochs with gradient clipping: $6.8\times$ \emph{higher} (Table~\ref{tab:epoch-budget}) & depends on budget (and clipping)\\
+The paper's $[2,50,2]$ tanh MLP reaches $3\times10^{-5}$ training loss in $10^5$ epochs & Fails to train at $10^4$ and $5\times10^4$ epochs under this recipe (training loss $\approx1$) & not reproduced; recipe differs (Table~\ref{tab:paper-audit})\\
+Sparse, prunable edges recover a readable symbolic law & Not tested with sparsity; without it, pruning 2 of 40 edges destroys the fit (Section~\ref{sec:track-e}) & not tested as specified\\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \begin{keypoint}[Status]
-Both validation tasks are fully designed, justified, and infrastructure-ready.
-Execution remains outstanding. The five studies' findings
-(Sections~\ref{sec:track-a}--\ref{sec:track-e}) are stated in this report as
-measured under a fixed 10{,}000-epoch budget and this project's own recorded
-recipe, leaving the epoch-budget and paper-implementation-parity questions as
-open follow-up work.
+The epoch-budget reruns are complete. The implementation audit is complete
+as a comparison of settings, but none of the differences it found has been
+tested by retraining. Together they show three things. The ordering among
+KAN variants (Euler last, RBF and B-spline close) survives a longer budget.
+The KAN-ODE's extrapolation advantage over a parameter-matched MLP holds at
+10{,}000 epochs but not at 50{,}000, where gradient clipping also changed.
+And three recipe differences from the paper (learning rate, initial-weight
+scale and RBF width) remain unmeasured. Almost every result is still
+single-seed.
 \end{keypoint}
 
 \FloatBarrier

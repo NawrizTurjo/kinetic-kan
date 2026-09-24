@@ -7,21 +7,31 @@ reproduces the base paper's Lotka-Volterra benchmark, extends it to two
 additional dynamical systems (a damped pendulum and an SIR epidemic model),
 diagnoses and fixes two genuine cross-domain training failures, and runs
 five independent follow-on studies probing solver order, differentiation
-method, basis-function design, stiffness, and comparison against sparse
-symbolic regression.
+method, basis-function design, damping (originally intended as a stiffness
+probe), and comparison against sparse symbolic regression.
 
 \begin{keypoint}[Headline results]
 \begin{itemize}
-\item KAN-ODE's extrapolation error is essentially flat across eight
-  limit-cycle periods ($1.1\times$ degradation), while a parameter-matched
-  MLP degrades $8.3\times$ --- a $\mathbf{40.6\times}$ KAN-ODE advantage at
-  the longest horizon tested, materially stronger than the $5.4\times$
-  near-horizon comparison.
-\item The pendulum failure ($R^2=-1.318$) was fixed by extending the
-  training window; SIR's divergence traced to a $19\times$ unit-scale
-  mismatch at initialization, fixable by a change of time units and a
-  conservation projection. SIR extrapolation $R^2$ moved from $-20.97$ to
-  $+0.9981$.
+\item At the 10{,}000-epoch budget, KAN-ODE's extrapolation error is
+  essentially flat out to $t=28$ ($1.1\times$ degradation), while a
+  parameter-matched MLP degrades $8.3\times$ --- a $40.6\times$ KAN-ODE
+  advantage at the longest horizon. \textbf{This advantage depends on the
+  budget}: retrained to 50{,}000 epochs (with gradient clipping,
+  Section~\ref{sec:phase4}), the same MLP extrapolates $6.8\times$ (near) to
+  $10.8\times$ (far) \emph{better} than KAN-ODE.
+\item The paper's claim that KAN-ODE needs $10\times$ fewer epochs than an
+  MLP is not reproduced: the parameter-matched MLP reaches $10^{-3}$
+  training loss $4.1\times$ sooner. The paper's literal $[2,50,2]$ tanh MLP
+  fails to train under this recipe at any budget tested, and an audit of the
+  paper's code identifies a learning-rate and initialization difference as
+  the likely cause.
+\item The pendulum failure (extrapolation $R^2=-4.64$ on the common test
+  window, $-1.318$ on its own longer one) was fixed by extending the training
+  window, to $R^2=+0.647$. SIR's divergence traced to a $19\times$ unit-scale
+  mismatch at initialization: a change of time units and a conservation
+  projection remove the divergence ($R^2$ from $-20.97$ to $-0.145$), and a
+  vanishing-field gate on the infected fraction, a physical prior, brings
+  extrapolation $R^2$ to $+0.9981$.
 \item Adjoint sensitivity already uses less memory than direct autograd at
   every trajectory length tested ($17.1$ vs.\ $18.6$--$21.5$~MB), but costs
   $1.9$--$2.1\times$ wall-clock --- direct autograd remains the correct
@@ -30,23 +40,34 @@ symbolic regression.
   (Spearman $\rho=-0.088$, $p=0.87$); shared, order-independent spike bursts
   dominate all six solvers' gradient traces.
 \item A learnable spline/RBF basis blend never beats the better pure basis on
-  either system tested, and on the pendulum it overfits catastrophically past
-  $\sim$3{,}000 epochs in a way pure RBF does not.
-\item The stiffness--solver stability analysis traced failures at
-  $\mu\in\{0.5,1.0,2.0\}$ to random seed rather than solver order; the
-  $\mu=2.0$ trap is a genuine, solver-independent spurious equilibrium
-  confirmed from trained weights and from an independent loss-landscape
-  analysis.
-\item Sparse symbolic regression is far more noise-robust than KAN-ODE
-  ($9\times$ vs.\ $1540\times$ degradation, $\sigma=0\to0.1$) but strictly
-  less accurate at every level tested; a real, non-mechanistic epidemic curve
-  confirmed that two of SIR's three stability fixes transfer by their
-  original mechanism.
+  either system tested (it is about $2\times$ worse on Lotka-Volterra). On
+  the pendulum it overfits badly past $\sim$3{,}000 epochs, although measured
+  directly the B-spline supplies only $\sim$1\% of its basis output.
+\item The damping sweep never reaches a stiff regime (timescale ratio at
+  most $4.3$), and no run diverged, as the stability limits of both the true
+  and the learned field predict. Its failures at $\mu\in\{0.5,1.0,2.0\}$ trace to
+  the random seed rather than the solver. At $\mu=2.0$, Newton's method
+  confirms a genuine, attracting spurious equilibrium of the learned field,
+  shared by all four solvers.
+\item Sparse regression with finite-difference derivatives is far more
+  noise-robust than KAN-ODE ($9\times$ vs.\ $1540\times$ degradation,
+  $\sigma=0\to0.1$) but less accurate at every noise level. On noise-free
+  data, given exact derivatives, it recovers the true Lotka-Volterra
+  equation outright, so there the accuracy gap comes from the derivative
+  estimate; whether it does under noise was not tested.
+\item On a synthetic, non-mechanistic epidemic curve, two of SIR's three
+  stability fixes transfer, including the one predicted not to.
 \end{itemize}
 \end{keypoint}
 
-Every number and figure in this report is traceable to a saved training
-record or a regenerable figure from this project's own experiment logs.
-A validation stage (epoch-budget sensitivity, paper-implementation audit)
-is fully designed but has not yet executed; its completion is the natural
-next step for extending confidence in the results above.
+All seven basis functions, six integrators and the training loop were
+implemented for this project and verified before use. Every integrator
+reaches its theoretical order of convergence on a problem with a known
+solution, and 249 of 250 automated tests pass (the remaining one requires a
+GPU). Every number and figure in this report is traceable to a saved
+training record, a regenerable figure, or a post-hoc analysis script of a
+saved checkpoint (Section~\ref{sec:verification}). The main limitations are
+that almost every result is single-seed, that the budget reversal coincides
+with a change in gradient clipping, and that three differences from the
+paper's recipe (learning rate, initial-weight scale, RBF width) have been
+identified but not yet measured.

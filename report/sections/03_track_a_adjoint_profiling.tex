@@ -23,11 +23,27 @@ the size of the state and parameter vectors, not on how many steps the
 forward solve took -- an $O(1)$ memory cost in trajectory length, against
 direct autograd's $O(N_t)$. This project's own implementation documentation
 adopts direct autograd on the stated grounds that this $O(1)$ advantage does
-not matter for this project's short trajectories ($N_t\in[36,101]$). This
-section measures that claim directly on an RTX~3060, holding the integrator
-fixed (classical RK4 at matched step size on both paths; a forward-trajectory
-check confirms the two implementations agree to $\sim10^{-7}$ relative
-error) so that only the differentiation method varies.
+not matter for this project's short trajectories: training windows have
+$N_t\in[36,101]$ points, and the longest trajectory integrated anywhere in
+the project has 281 (the doubled Lotka-Volterra horizon of
+Table~\ref{tab:extrap-horizon}, and the $\Delta t=0.05$ step-size run). This
+section measures
+that claim directly. Unlike every other timing in this report, it runs on a
+GPU (NVIDIA RTX~3060, 12~GB, PyTorch 2.5.1 with CUDA 12.1), because peak
+device memory is the quantity being measured. The adjoint path is one of
+the two components in this report taken from a library rather than written
+for the project (Section~\ref{sec:numerics}): \texttt{torchdiffeq}'s
+\texttt{odeint\_adjoint}
+\cite{torchdiffeq}, compared against this project's own integrator with
+direct autograd. The integrator is held fixed on both paths (classical RK4
+at matched step size: 0.05 for Lotka-Volterra, and for SIR, which is trained
+with the time rescaling $s=10$ of Section~\ref{sec:phase2}, 0.025 in rescaled
+time $\tau$, i.e.\ 0.25 days; a
+forward-trajectory check confirms the two implementations agree to
+$\sim10^{-7}$ relative error), so only the differentiation method varies.
+The training comparison uses the two training-window lengths, $N_t=36$ and
+$101$; the memory sweep extends to $N_t\in\{36,101,201,\dots,3201\}$ to look
+for a crossover.
 
 \begin{figure}[htbp]
 \centering
@@ -112,9 +128,11 @@ length, including the shortest ($N_t=36$: $17.08$ vs.\ $18.61$~MB) --
 Figure~\ref{fig:adjoint-memory} shows direct autograd's per-step storage cost
 is already large enough at this project's scale to outweigh whatever
 constant overhead the adjoint method's own bookkeeping carries.
-Extrapolating the measured linear slope of direct autograd's memory growth,
-$N_t$ would need to reach $\approx225{,}000$ before it threatens a 12~GB
-card. The deciding factor for
+Extrapolating the measured linear slope of direct autograd's memory growth
+($\approx0.045$~MB per point), adding 10~GB of activation memory, most of the
+card's free capacity, would take $N_t\approx225{,}000$ points; using the full
+12{,}288~MB would take $\approx270{,}000$. Either way, it is three orders of
+magnitude beyond anything this project integrates. The deciding factor for
 this project is wall-clock: solving the continuous adjoint ODE backward in
 time costs a consistent $1.9$--$2.1\times$ overhead at both tested lengths,
 turning a 53-minute Lotka-Volterra run into $\sim$112~minutes for a memory
@@ -122,7 +140,9 @@ saving that never becomes load-bearing (peak usage is $0.17\%$ of card
 capacity). Gradient relative error is $2.85\times10^{-7}$ and
 $4.88\times10^{-7}$ respectively, well inside a $5\times10^{-3}$ tolerance --
 both methods agree numerically, so the choice reduces to a resource
-trade-off. Direct autograd is the faster option for every dataset in this
-project's scope ($N_t\le201$).
+trade-off. Direct autograd is the faster option for every trajectory in this
+project's scope, the longest of which has $N_t=281$ points
+(Table~\ref{tab:adjoint-profiling}, Figure~\ref{fig:adjoint-memory}). The two
+gradient paths themselves are sketched in Figure~\ref{fig:adjoint-schematic}.
 
 \FloatBarrier

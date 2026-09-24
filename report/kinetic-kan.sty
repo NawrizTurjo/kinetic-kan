@@ -15,6 +15,7 @@
 \RequirePackage{parskip}
 \setlength{\parskip}{3pt}
 \raggedbottom
+\setlength{\emergencystretch}{1.5em}
 
 % --- Tables, lists, floats ---
 \RequirePackage{booktabs}
@@ -127,6 +128,13 @@
 \newcommand{\dd}{\mathrm{d}}
 \newcommand{\Ltrunc}{L}          % Lipschitz-constant symbol, per docs/09
 \newcommand{\Ttrain}{T}          % training-window horizon symbol
+
+% --- Pseudocode (Algorithms in the numerical-implementation section) ---
+\RequirePackage{algorithm}
+\RequirePackage[noend]{algpseudocode}
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+\floatname{algorithm}{Algorithm}
 
 \RequirePackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit, backgrounds}

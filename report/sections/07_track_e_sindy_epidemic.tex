@@ -1,4 +1,4 @@
-\section{Sparse Regression Comparison and Real-World Epidemic Validation}
+\section{Sparse Regression Comparison and Non-Mechanistic Epidemic Validation}
 \label{sec:track-e}
 
 This section compares two fundamentally different ways of discovering
@@ -20,23 +20,36 @@ surviving terms until the active set stops changing. This is what makes the
 recovered model sparse and, in principle, human-readable -- unlike the KAN's
 240 free parameters, SINDy returns a short list of surviving terms with
 numeric coefficients attached, directly comparable to the true equation's
-own coefficients. The coefficient threshold is held fixed across the entire
-noise sweep so that the comparison measures noise sensitivity rather than
-per-level tuning. It is fit against the same noise-corrupted Lotka-Volterra
-observations the earlier KAN checkpoints (Section~\ref{sec:phase2}) were
-trained on, scored against clean ground truth.
+own coefficients. The implementation is \texttt{pysindy}'s
+\cite{desilva2020pysindy,kaptanoglu2022pysindy} sequentially
+thresholded least squares with threshold $0.05$, held fixed across the
+entire noise sweep so that the comparison measures noise sensitivity rather
+than per-level tuning. The derivatives it regresses against are estimated
+by plain finite differences from the observations. It is fit on the same 36
+training observations the KAN-ODE noise-sweep models were trained on
+($t\in[0,3.5]$, $\Delta t=0.1$, noise $\sigma\in\{0,0.01,0.05,0.1\}$ added to
+the training points; Section~\ref{sec:setup}). The recovered equation is then
+integrated over $[0,14]$ and scored against the clean ground truth, exactly
+as the KAN-ODE is.
+
+The two methods are not fitted the same way. KAN-ODE is trained through the
+integrator on trajectory error, while SINDy fits pointwise derivative
+estimates, so SINDy's accuracy is limited by how well 36 points at spacing
+$0.1$ determine a derivative. That limit turns out to dominate the
+comparison, as the check at the end of this subsection shows.
 
 \begin{expectbox}
 \expectrow{Question}{How does a sparse, symbolic method compare to a dense, 240-parameter neural method as observation noise increases?}
 \expectrow{Expected}{Sparse regression's tiny library should make it more robust to noise; KAN-ODE's larger parameter count should make it more accurate.}
-\expectrow{Observed}{Both expectations hold, but the KAN-ODE advantage collapses $170\times$ across the sweep, from $1110\times$ at zero noise to $6.5\times$ at $\sigma=0.1$.}
+\expectrow{Observed}{With finite-difference derivatives, both hold: KAN-ODE is more accurate at every noise level, but its advantage collapses from $1110\times$ to $6.5\times$. Given exact derivatives, SINDy recovers the true equation outright, so the accuracy ranking reflects the derivative estimator, not the two model classes.}
 \end{expectbox}
 
 \begin{table}[!ht]
 \centering
 \small
 \renewcommand{\arraystretch}{1.1}
-\caption{Extrapolation MSE vs.\ observation noise $\sigma$.}
+\caption{Extrapolation MSE on $(3.5,14]$ vs.\ observation noise $\sigma$
+(sparse regression with finite-difference derivatives, threshold 0.05).}
 \label{tab:sindy-noise}
 \begin{tabularx}{\textwidth}{@{}C{1.3cm} C{2.6cm} C{2.6cm} X@{}}
 \toprule
@@ -57,12 +70,53 @@ trained on, scored against clean ground truth.
 \label{fig:sindy-noise}
 \end{figure}
 
-KAN-ODE wins on absolute accuracy at every level, but the margin collapses
+In Table~\ref{tab:sindy-noise} and Figure~\ref{fig:sindy-noise}, KAN-ODE
+wins on absolute accuracy at every level, but the margin collapses
 $170\times$ across the sweep (sparse regression degrades $9.0\times$ from
 $\sigma=0$ to $0.1$; KAN-ODE degrades $1540\times$). The sparse regression's
 six-term library caps how much noise can move it; the KAN's 240 free
 parameters fit the noise directly and the error compounds through the
-solver. Per-term recovery shows the bilinear cross-term ($xy$) is recovered
+solver.
+
+\paragraph{How much of SINDy's error is the derivative estimate?} SINDy's
+noise-free error of $9.9\times10^{-2}$ is surprisingly large for a library
+that contains the exact Lotka-Volterra terms. To separate the method from
+its derivative estimator, the noise-free fit was repeated with the exact
+derivatives, computed from Equation~\ref{eq:lv} at the same 36 points, in
+place of the finite differences (Table~\ref{tab:sindy-derivative}).
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Noise-free sparse regression on the 36 training points with
+estimated and with exact derivatives (threshold 0.05). The finite-difference
+row reproduces Table~\ref{tab:sindy-noise}.}
+\label{tab:sindy-derivative}
+\begin{tabularx}{\textwidth}{@{}L{2.8cm} X C{2.4cm}@{}}
+\toprule
+\hdrrow \thh{Derivatives} & \thh{Recovered equation} & \thh{Extrapolation MSE}\\
+\midrule
+Finite differences & $\dot x=1.470x-0.980xy$;\quad $\dot y=-0.175+0.060x-2.840y+0.946xy$ & $9.90\times10^{-2}$\\
+Exact & $\dot x=1.500x-1.000xy$;\quad $\dot y=-3.000y+1.000xy$ & $\mathbf{8.8\times10^{-13}}$\\
+\midrule
+\multicolumn{2}{@{}l}{\emph{For comparison:} KAN-ODE, noise-free, 10{,}000 epochs} & $8.92\times10^{-5}$\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+With exact derivatives SINDy recovers the true equation to three decimals
+and extrapolates eight orders of magnitude better than KAN-ODE. The finite
+differences carry only a $3.5\%$ root-mean-square error in the derivatives,
+but that is enough for the fit to admit two spurious terms, a constant and a
+linear $x$ term, which then accumulate over the extrapolation window. On
+noise-free data, therefore, the ranking in Table~\ref{tab:sindy-noise} is a
+statement about finite-difference derivatives at this sampling density, not
+about sparse regression against KAN-ODE. A fairer comparison would fit SINDy
+without pointwise derivatives, for example with a weak (integral) formulation
+or by fitting its coefficients to trajectory error as the KAN-ODE is. Neither
+was run, and whether SINDy would keep its advantage under noise is untested.
+Per-term recovery shows the bilinear cross-term ($xy$) is recovered
 to within $5.7\%$ at every noise level -- exactly the term a single-layer KAN
 edge, being strictly univariate, cannot represent directly, since each edge
 is a function of only one input variable and a layer sums its edges
@@ -70,14 +124,15 @@ additively. This asymmetry -- sparse regression writes $xy$ as a literal
 library column, while a KAN can only approximate it through composition
 across a hidden layer -- means a term-by-term symbolic comparison would be
 comparing a coefficient against a distributed representation, so the
-comparison used here is trajectory reconstruction instead.
+comparison used here is trajectory reconstruction instead
+(Figure~\ref{fig:sindy-trajectories}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/sindy_vs_kan_trajectories.png}
-\caption{Reconstructed trajectories at $\sigma=0$ and $\sigma=0.1$: sparse
-regression loses amplitude under noise; KAN-ODE keeps amplitude but drifts
-in phase.}
+\caption{Reconstructed trajectories at $\sigma=0$ and $\sigma=0.1$ (sparse
+regression with finite-difference derivatives): sparse regression loses
+amplitude under noise; KAN-ODE keeps amplitude but drifts in phase.}
 \label{fig:sindy-trajectories}
 \end{figure}
 
@@ -103,30 +158,44 @@ spline-coefficient magnitude and masking the weakest, applied to the existing
 (never retrained) noise-sweep checkpoints, removes the two weakest of forty
 edges and raises the noise-free full-horizon MSE from $8.90\times10^{-5}$ to
 $3.43$ -- a factor of $3.9\times10^{4}$, worse than predicting the constant
-dataset mean ($2.91$). Every checkpoint was trained with no sparsity-inducing
+dataset mean ($2.91$; Figure~\ref{fig:pruning}). Every checkpoint was trained with no sparsity-inducing
 regularization applied at all, so nothing during training ever asked the
 network to concentrate its fit onto a few edges; the flat plateau at
 $\approx3.5$--$3.8$ across all pruning levels of 25\% or more is the
-signature of a model where every edge carries part of the fit, confirming
-that the pruning procedure itself works correctly on a network that has no
-prunable structure to find.
+signature of a model where the fit is spread across many edges: no small
+subset of edges carries it, so there is no sparse structure for a
+magnitude-based pruning rule to recover. This says nothing about whether the
+pruning procedure would find such structure in a network trained to have
+it; that would need the $L_1$-regularized retraining of
+Equation~\ref{eq:l1-sparsity}, which was not run.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/pruning_degradation.png}
-\caption{Full-horizon MSE vs.\ edge-pruning fraction, all four noise levels.}
+\caption{Full-horizon MSE vs.\ edge-pruning fraction for the noise-sweep
+KAN-ODE models, all four noise levels, pruned without retraining.}
 \label{fig:pruning}
 \end{figure}
 
 \subsection{Testing whether SIR's fixes transfer to a non-mechanistic epidemic curve}
 
-A real, asymmetric log-normal outbreak curve, never previously used and
-generated by no compartmental ODE, tests whether the SIR fixes of
+A synthetic, asymmetric outbreak curve generated by no compartmental ODE
+(Equation~\ref{eq:synthetic-epidemic}, Table~\ref{tab:datasets}), tests whether the SIR fixes of
 Section~\ref{sec:phase2} generalize by mechanism rather than by coincidence
 of the SIR system's own structure. The same init-time diagnostic used to
 root-cause SIR reproduces an almost identical speed-mismatch signature
-($18.77\times$ vs.\ SIR's $19\times$), justifying a time rescaling by a
-factor of 24 \emph{a priori}, before any training.
+($18.77\times$ against SIR's $19\times$), which says that time rescaling is
+needed. It does not by itself set the factor. The factor comes from a
+horizon rule: choose $s$ so that the rescaled horizon is $T/s=5$, the regime in
+which Lotka-Volterra ($T=3.5$) and the fixed pendulum ($T=5$) train. For SIR
+this rule gives the $s=10$ already used ($50/10=5$). For the epidemic curve it
+was applied to the full 120-day record, giving $s=120/5=24$; applied to the
+45-day training window, as for SIR, it would give $s=9$. The time-scale sweep
+(Figure~\ref{fig:time-scale-sweep}) was run in the same batch as the $s=24$
+arms, so the project's records cannot show that 24 was fixed before the
+sweep's results were seen. The sweep's training loss is, however, flat
+across $s\in[10,40]$, so it could not have singled out 24, and every arm
+below is compared at the same $s$.
 
 \begin{expectbox}
 \expectrow{Question}{SIR's three stability fixes were each derived from a property of the SIR generator itself -- do they still work on data no compartmental model produced?}
@@ -138,20 +207,26 @@ factor of 24 \emph{a priori}, before any training.
 \centering
 \small
 \renewcommand{\arraystretch}{1.15}
-\caption{Which of SIR's three fixes transfer to a non-mechanistic curve.}
+\caption{Which of SIR's three fixes transfer to the non-mechanistic curve.
+All factors compare best training MSE at $s=24$ against the time-rescaling-only
+arm trained for the same number of epochs: 2{,}000 epochs for the projection
+($6.80\times10^{-2}$ against $2.74\times10^{-3}$) and 5{,}000 epochs for the
+gate ($4.67\times10^{-5}$ against $2.20\times10^{-3}$; in extrapolation MSE the
+gate's advantage is $26\times$, $0.155$ against $4.06$).}
 \label{tab:fix-transfer}
 \begin{tabularx}{\textwidth}{@{}L{3.4cm} L{4.4cm} C{1.6cm} X@{}}
 \toprule
 \hdrrow \thh{Fix} & \thh{Precondition} & \thh{Holds?} & \thh{Outcome}\\
 \midrule
-Time rescaling & None -- a unit change & Yes & Removes a $263{,}049\times$ gradient spike\\
-Conservation via subspace projection & An exact invariant, $\sum y=c$ & No ($\sum y$ spans $0.002$--$1.54$) & Inapplicable; $25\times$ worse fit\\
-Vanishing-field gate at the equilibrium point & $y_d=0$ is a manifold of equilibria & Yes (unexpectedly) & Best single option, $47\times$ better fit\\
+Time rescaling & None -- a unit change & Yes & Removes the $263{,}049\times$ spike ratio (maximum over median gradient norm)\\
+Conservation via subspace projection & An exact invariant, $\sum y=c$ & No ($\sum y$ spans $0.002$--$1.54$) & Inapplicable; $25\times$ worse training fit than rescaling alone\\
+Vanishing-field gate on $I$ & $I=0$ is a manifold of equilibria & Yes (unexpectedly) & Best single option; $47\times$ better training fit, $26\times$ better extrapolation than rescaling alone\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-The vanishing-field gate was \emph{predicted} inapplicable: the infected
+Table~\ref{tab:fix-transfer} summarizes the outcome. The vanishing-field
+gate was \emph{predicted} inapplicable: the infected
 fraction at $t=0$ is $0.0027$, seemingly too small to avoid freezing the
 field entirely. A control arm overturns that prediction: gating the learned
 field by the initial state correctly encodes that the rate of change is
@@ -169,17 +244,27 @@ rescaling factor.}
 
 \paragraph{The extrapolation runaway traces to the train/test split.} The
 default split lands exactly on the infected peak (0\% of the decay phase is
-in the training window), so every model is asked to predict a monotone decay
-it has never observed. Moving the split just 15 days later collapses the
-predicted maximum from $6.18\times$ the true peak to $0.964$ (true maximum
-$=1.0$), turning over at day 47 against a true day 45 -- the runaway is a
-property of where the window ends, not of the method fitting the data.
+in the training window), so a model has to infer a decay it has never
+observed. The rescaling-only model ($s=24$, no gate, 2{,}000 epochs) fails to:
+its predicted infected curve never turns over and reaches $6.18\times$ the
+true peak (extrapolation MSE $6.99$). The gate model above is the exception
+that the structural prior makes possible. The split controls retrain the
+same rescaling-only configuration with the cut moved later. Moving it just
+15 days, to day 60, collapses the predicted maximum from $6.18$ to $0.964$
+(true maximum $=1.0$), turning over at day 47 against a true day 45
+(Figure~\ref{fig:real-epidemic-fit}, right). So the runaway \emph{peak} is a
+property of where the window ends. The tail is not fixed: past day 70 that
+same model's prediction drops steeply below zero, and its extrapolation MSE
+is still $0.397$. Seeing the peak is enough to place it, but not enough to
+learn how the decay ends.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.8\linewidth]{figures/track_e/real_epidemic_fit.png}
-\caption{Real epidemic fit: default split (runaway), the vanishing-field-gate
-arm, and the fifteen-day-later split control.}
+\caption{KAN-ODE on the synthetic, non-mechanistic outbreak curve. Left: the
+best configuration ($s=24$, vanishing gate on $I$, 5{,}000 epochs). Middle:
+the structural priors compared at $s=24$ and 2{,}000 epochs. Right: moving the
+train/test split from day 45 to day 60 or 70.}
 \label{fig:real-epidemic-fit}
 \end{figure}
 

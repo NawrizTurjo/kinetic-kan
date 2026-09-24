@@ -24,13 +24,16 @@ learns what shape each univariate function should take. In practice each
 edge function is represented as a fixed smooth residual plus a learnable
 expansion in a chosen basis,
 \begin{equation}
-\phi(x) = w_b\, b(x) + w_s\sum_{i=1}^{G+k} c_i B_i(x), \qquad
+\phi(x) = w_b\, b(x) + \sum_{i=1}^{G} c_i B_i(x), \qquad
 b(x)=\mathrm{silu}(x) = \frac{x}{1+e^{-x}},
 \label{eq:kan-edge}
 \end{equation}
-where $B_i(x)$ are the $G+k$ basis functions spanning a grid of $G$
-intervals, $c_i$ are trainable coefficients, and $w_b,w_s$ trade off the
-fixed residual against the learned expansion. The choice of $B_i$ is a
+where $B_i(x)$ are the $G$ basis functions centred on a grid of $G$ points,
+$c_i$ are their trainable coefficients, and the trainable weight $w_b$ sets
+how much of the fixed residual $b(x)$ each edge keeps. Each edge therefore
+has $G+1$ parameters. (The original KAN implementation uses $G+k$ B-spline
+functions on $G$ intervals and a separate scale on the expansion; in the
+formulation used here that scale is absorbed into the $c_i$.) The choice of $B_i$ is a
 design decision, not a mathematical necessity: a Gaussian radial basis
 function (RBF) grid, $B_i(x)=\exp(-(x-\mu_i)^2/2\sigma^2)$, gives each edge
 smooth global support, while a degree-$k$ B-spline built by the Cox-de Boor
@@ -43,12 +46,14 @@ forward in time.
 
 \subsection{Architecture, and what was built rather than imported}
 
-Every KAN-ODE trained for this report shares one architecture: a two-layer
-network with widths $[2,10,2]$, each edge carrying the expansion of
-Equation~\ref{eq:kan-edge} over a grid of $G=5$ basis functions, wrapped
-inside an explicit Runge-Kutta integrator that advances the state and hands
-the resulting trajectory to the loss. Figure~\ref{fig:kan-ode-architecture}
-shows this structure schematically.
+The reference KAN-ODE of this report, the base paper's Lotka-Volterra model,
+is a two-layer network with widths $[2,10,2]$, each edge carrying the
+expansion of Equation~\ref{eq:kan-edge} over a grid of $G=5$ basis
+functions, wrapped inside an explicit Runge-Kutta integrator that advances
+the state and hands the resulting trajectory to the loss. The other systems
+use the same structure at a different size (Table~\ref{tab:train-settings}).
+Figure~\ref{fig:kan-ode-architecture} shows the structure schematically, and
+marks the three places where this report changes it.
 
 \begin{figure}[htbp]
 \centering
@@ -190,21 +195,22 @@ each corresponds to.}
 With $G=5$ RBF centers per edge, layer one ($2\to10$) contributes
 $10\times(2\times5+2)=120$ parameters and layer two ($10\to2$) contributes
 $2\times(10\times5+10)=120$ parameters, for the $240$ total the base paper
-reports. The reference implementation, \texttt{pykan} \cite{liu2024kan},
-represents every edge with a full B-spline object and recomputes its grid
-during training. This project's KAN layer instead follows the
-\texttt{efficient-kan} reformulation \cite{blealtan2024efficientkan}: each
-edge's basis evaluation is a single matrix product against a precomputed
-grid, which is what makes every basis substituted into
-Equation~\ref{eq:kan-edge} (RBF, B-spline, Chebyshev, Lagrange, Newton) a
-swappable matrix rather than a swap of object type. That reformulation, and
-the explicit Runge-Kutta integrators advancing the field forward in time,
-were reimplemented directly in this project's own code rather than imported,
-so every basis and solver could be instrumented identically. The base
-paper's own implementation compiles its integration loop in Julia's SciML
-ecosystem; this project runs the same loop uncompiled in PyTorch, so
-wall-clock figures reported later are comparable across this project's own
-runs but not directly against the paper's reported times.
+reports. The reference Python KAN library, \texttt{pykan} \cite{liu2024kan},
+represents every edge with its own B-spline object and refits its grid
+during training. The base paper does not use it: its Julia code
+\cite{koenig2024kanoderepo} builds the network from the \texttt{KDense} layer
+of \texttt{Kolmogorov\-Arnold.jl} \cite{puri2024kolmogorovarnoldjl}, which
+evaluates every edge's basis functions in one array operation followed by a
+single matrix product. This project ports that layer to PyTorch, which makes
+every basis substituted into Equation~\ref{eq:kan-edge} a one-function change
+evaluated by an identical code path
+(Section~\ref{sec:numerics}, Algorithm~\ref{alg:kdense}). The explicit
+Runge-Kutta integrators, the training loop and all diagnostics were written
+for this project rather than imported, so every basis and solver could be
+instrumented identically. The base paper runs its integration loop in
+Julia's SciML ecosystem, while this project runs it in PyTorch, so wall-clock
+figures reported later are comparable across this project's own runs but
+not directly against the paper's reported times.
 
 \subsection{What the base paper fixed, and what this project varies}
 
@@ -223,26 +229,31 @@ by its constant memory cost regardless of trajectory length).
 
 The basis choice is not a detail invented for this project to vary: the
 original Kolmogorov-Arnold Network paper \cite{liu2024kan} used the cubic
-B-spline as its default edge basis, and the base paper switches to Gaussian
-RBF specifically for the ODE setting, since its derivative never vanishes --
-relevant once the edge function sits inside a differentiated integrator
-rather than a static regression. Section~\ref{sec:phase2} restores B-spline
-and adds two further global bases (Chebyshev, Lagrange), so the trade-off
-the switch was based on is measured directly rather than assumed.
+B-spline as its default edge basis, and the base paper replaces it with a
+Gaussian RBF grid for the ODE setting. The two differ in ways that matter
+once the edge function sits inside a differentiated integrator: the Gaussian
+is infinitely differentiable, nonzero everywhere and a single closed-form
+expression, while the cubic B-spline is only twice continuously
+differentiable, exactly zero outside a few grid cells, and built by a
+recursion that is several times more expensive to evaluate
+(Section~\ref{sec:numerics}). The switch is a trade-off, not an obvious
+improvement, so Section~\ref{sec:phase2} restores the B-spline and adds five
+further bases (Chebyshev, Lagrange, Newton and two rational kernels) to
+measure it directly rather than assume it.
 
 Each of those three fixed choices maps directly onto one of this report's
 studies: Section~\ref{sec:track-a} tests whether the adjoint method's
 memory motivation actually holds at this project's scale; Sections
 \ref{sec:phase2}, \ref{sec:track-b}, and \ref{sec:track-d} test the
-integrator choice, sweeping solver order and, in the stiffness study,
-solver order jointly with a physical stiffness parameter; and
+integrator choice, sweeping solver order and, in the damping study (originally intended as a stiffness probe),
+solver order jointly with the pendulum's damping coefficient; and
 Section~\ref{sec:track-c} tests the basis choice directly, by making the
 basis itself a learnable, trained quantity rather than a fixed decision made
 in advance. Section~\ref{sec:track-e} extends the comparison outside the
 base paper's own scope entirely, benchmarking KAN-ODE against a
 sparse-regression alternative built for the same symbolic-discovery goal the
-RBF basis was partly chosen to support, on both synthetic data and a real,
-non-mechanistic epidemic curve.
+RBF basis was partly chosen to support, on both synthetic Lotka-Volterra data and a
+synthetic, non-mechanistic epidemic curve.
 
 \subsection{Why training itself needs to be treated as an object of study}
 
@@ -252,23 +263,31 @@ equations, so any training failure is attributable to the architecture or
 optimization rather than to ambiguous target dynamics. The integrator's
 interaction with training is not predictable from classical numerical-analysis
 theory alone, because it sits inside a backpropagation graph rather than a
-standalone forward solve: a solver that is unconditionally stable classically
+standalone forward solve: a solver that is stable at the step size used
 can still train badly, train to a wrong answer, or fail to generalize.
 Diagnosing failures like these means treating training itself as an object of
 study, not just the final trajectory error.
 
 \subsection{Structure of this report}
 
-The report follows the order the work was carried out. A baseline recipe is
-reproduced and used to establish the evaluation protocol
-(Section~\ref{sec:phase1}), then stress-tested with a solver and
+Three method sections come first: the datasets, splits and training settings
+(Section~\ref{sec:setup}); the numerical implementation of the KAN layer,
+the integrators, the training loop and the structural fixes, with their
+algorithms and cost (Section~\ref{sec:numerics}); and the verification of
+that implementation against known solutions and an automated test suite
+(Section~\ref{sec:verification}). The results then follow the order the work
+was carried out. A baseline recipe is reproduced and used to establish the
+evaluation protocol (Section~\ref{sec:phase1}), then stress-tested with a solver and
 basis-function ablation that surfaces and fixes two training failures
 (Section~\ref{sec:phase2}). Five further studies build on that fixed
 baseline: gradient-method cost (Section~\ref{sec:track-a}), whether gradient
 noise explains a solver-order effect (Section~\ref{sec:track-b}), a learnable
-basis blend (Section~\ref{sec:track-c}), solver-stiffness interaction
+basis blend (Section~\ref{sec:track-c}), solver-damping interaction (planned as a stiffness test)
 (Section~\ref{sec:track-d}), and KAN-ODE against sparse regression on
-synthetic and real data (Section~\ref{sec:track-e}). A validation stage
-(Section~\ref{sec:phase4}) checks two remaining assumptions.
+synthetic data and a non-mechanistic epidemic curve
+(Section~\ref{sec:track-e}). A validation stage (Section~\ref{sec:phase4})
+retrains key configurations at up to five times the epoch budget and audits
+this project's recipe, and the base paper's claims, against the paper
+itself.
 Section~\ref{sec:discussion} draws together cross-cutting patterns, and
 Section~\ref{sec:conclusion} closes the report.

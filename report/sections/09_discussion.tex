@@ -1,7 +1,7 @@
 \section{Discussion}
 \label{sec:discussion}
 
-Six patterns recur across studies that were designed independently and
+Seven patterns recur across studies that were designed independently and
 address unrelated questions. Their recurrence is itself informative about how
 this class of model should be studied going forward.
 
@@ -23,68 +23,90 @@ fixed rests on an assumption of near-independence that does not hold here.
 
 \paragraph{A single seed and a single train/test split account for results
 that first looked like properties of the solver or the method.} The
-stiffness-map failures at $\mu\in\{0.5,1.0,2.0\}$ (Section~\ref{sec:track-d})
+damping-sweep failures at $\mu\in\{0.5,1.0,2.0\}$ (Section~\ref{sec:track-d})
 and the epidemic-fit extrapolation runaway (Section~\ref{sec:track-e}) both
 appeared, on first inspection, to indict a solver or a modeling approach.
-Retraining with additional seeds, in the stiffness-map case, and shifting the
-train/test split by fifteen days, in the epidemic case, resolved both into an
-artifact of one specific run's random initialization or one specific window
-boundary. Neither observation survives as a claim about solver order or about
-KAN-ODE's capacity once the seed or the split is varied. Every quantitative
-result in this report remains $N=1$; the stiffness study's small extension
+Retraining with additional seeds, in the damping-sweep case, and shifting the
+train/test split by fifteen days, in the epidemic case, resolved the first
+into an artifact of one run's random initialization, and the runaway peak
+(though not the decay tail) into an artifact of the window boundary. Neither
+observation survives as a claim about solver order or about
+KAN-ODE's capacity once the seed or the split is varied. Almost every
+quantitative result in this report is $N=1$; the damping study's small extension
 to $N=3$ was enough to dissolve a headline finding, which underscores how
 much of the remaining project rests on the same single-seed foundation.
 
+\paragraph{A fixed training budget is itself an experimental variable.}
+Comparing models at one epoch count answers ``which is better after this
+much training'', not ``which is better''. The two questions largely agreed
+for the comparisons among KAN variants: with $2.5$--$5\times$ the budget, RBF
+and B-spline stayed within a factor of two of each other and Euler stayed
+last (Section~\ref{sec:phase4}). They disagreed for the comparison that
+matters most to the base paper: the KAN-ODE's $5.4\times$ extrapolation lead
+over a parameter-matched MLP at 10{,}000 epochs became a $6.8\times$ deficit
+at 50{,}000. The longer runs also used gradient clipping, which the
+10{,}000-epoch runs did not, so that reversal is a combined effect of budget
+and clipping that this project did not separate. Rankings between models of
+different families, which converge at different rates, need to be checked at
+more than one budget, under otherwise identical settings, before they are
+read as properties of the models.
+
 \paragraph{Measuring a quantity before training is more informative than
 tuning after a failed run.} The SIR divergence (Section~\ref{sec:phase2}), the
-real-epidemic-data fit (Section~\ref{sec:track-e}), and the stiffness map's
+non-mechanistic epidemic fit (Section~\ref{sec:track-e}), and the damping sweep's
 spurious equilibrium (Section~\ref{sec:track-d}) were each root-caused by
 evaluating the model's own initial field, or its trained field at a candidate
 equilibrium, and comparing that number against the system's true scale. In
-every case this produced a specific, falsifiable prediction -- a rescaling
-factor, a fix that should or should not transfer, an equilibrium location --
-that a subsequent short run confirmed or refuted directly, in contrast to the
-open-ended search a hyperparameter sweep would have required.
+every case this produced a specific, falsifiable prediction -- that time
+must be rescaled, that a given fix should or should not transfer, where a
+spurious equilibrium lies -- that a subsequent short run or a direct
+computation confirmed or refuted, in contrast to the open-ended search a
+hyperparameter sweep would have required. The measurement did not always
+supply the numbers as well: the rescaling factors came from a separate
+horizon rule, not from the measured mismatch (Section~\ref{sec:track-e}).
 
 \paragraph{Training accuracy and generalization quality are decoupled.} The
 hybrid basis matches pure RBF's training loss to $1.7\%$ at 10{,}000 epochs
 yet collapses in extrapolation ($R^2=-2.17$ vs.\ $+0.647$,
-Section~\ref{sec:track-c}). The stiffness map's trapped models
+Section~\ref{sec:track-c}). The damping sweep's trapped models
 (Section~\ref{sec:track-d}) reach training losses of $1.8\times10^{-2}$ --
 qualitatively acceptable on a casual inspection -- while their learned field
-has a large nonzero derivative at the true equilibrium. And the
-epidemic-curve model (Section~\ref{sec:track-e}) produces a plausible
-training fit while predicting an infected peak six times the physical
-maximum. In all three cases, a reader who judged the model solely by
+is far from zero at the true equilibrium ($|\mathbf f_\theta(0,0)|\approx2.7$)
+and has its fixed point elsewhere. And the rescaling-only epidemic model
+(Section~\ref{sec:track-e}) produces a plausible training fit while predicting
+an infected peak six times the physical maximum. In all three cases, a reader who judged the model solely by
 training-window MSE would reach the wrong conclusion. The evaluation
 protocol established in Section~\ref{sec:phase1} -- scoring strictly on
 extrapolation, never on training loss -- was adopted precisely because this
-decoupling was anticipated, but these studies go further: they show that a
-model can produce numerically indistinguishable training fits from
-configurations that differ by two orders of magnitude in extrapolation
-quality. The number to watch is always the one computed outside the training
+decoupling was anticipated, but these studies go further: they show that
+configurations with numerically indistinguishable training fits can differ
+by nearly an order of magnitude in extrapolation error (the pendulum hybrid
+and pure RBF, $0.809$ against $0.090$, from training losses $1.7\%$ apart). The number to watch is always the one computed outside the training
 window, and no training-window metric tested in this project reliably
 predicts it.
 
-\paragraph{Cost and accuracy form a clear Pareto frontier.} Across the
+\paragraph{On Lotka-Volterra, extra cost did not buy accuracy.} Across the
 solver ablation (Section~\ref{sec:phase2}), the basis ablation, and the
-hybrid-basis study (Section~\ref{sec:track-c}), a consistent pattern
-emerges: the cheapest methods that work (Midpoint at $1/3$ the function
-evaluations of Tsit5; RBF at $1/3.9$ the wall-clock of B-spline) match the
-accuracy of their more expensive alternatives to within single-seed noise.
-Adding cost -- more function evaluations per step, more basis evaluations per
-edge, a second basis evaluated in parallel -- does not buy a measurable
-accuracy improvement on any system tested. The hybrid-basis result makes this
-particularly sharp: the blend pays roughly the sum of both bases' per-epoch
-compute for two extra parameters and never recovers the cost in accuracy.
+hybrid-basis study (Section~\ref{sec:track-c}), the same pattern appears on
+Lotka-Volterra at one seed. The cheapest methods that work (Midpoint at
+$1/3$ the function evaluations of Tsit5; RBF at $1/3.9$ the wall-clock of
+B-spline) match their more expensive alternatives about as closely as two
+runs at one seed can be told apart; the $3.5\times$ gap between Midpoint and
+Heun, two methods of equal cost, shows how large that single-seed spread can
+be. Adding cost, whether more function evaluations per step, more basis
+evaluations per edge, or a second basis evaluated in parallel, did not buy a
+measurable accuracy improvement in these runs. The hybrid basis is the
+clearest case, on both systems it was tried on: the blend pays roughly the
+sum of both bases' per-epoch compute and never recovers that cost in
+accuracy. Whether the pattern holds at more seeds, or on the other systems
+for the solver and basis ablations, was not tested.
 
 \paragraph{These KAN edges do not produce interpretable symbolic structure
 without explicit encouragement.} The pruning experiment
 (Section~\ref{sec:track-e}) found that removing the two weakest of forty edges
 degrades a noise-free model to worse than a constant predictor -- a factor of
-$3.9\times10^4$. Every edge carries part of the fit, the magnitude ranking
-is close to arbitrary, and no edge can be identified with a specific term in
-the governing equation. This is a direct consequence of training without
+$3.9\times10^4$. The fit is spread across many edges, so no small set of
+edges can be read off as the terms of the governing equation. This is a direct consequence of training without
 sparsity-inducing regularization, and it means the interpretability
 advantage that motivated the original choice of a smooth, globally-supported
 basis function remains a hypothesis rather than a demonstrated property of

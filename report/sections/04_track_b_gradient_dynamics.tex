@@ -69,7 +69,8 @@ including Tsit5, independent of solver order.}
 \end{figure}
 
 \paragraph{Finding.} Gradient-norm roughness does not explain Euler's
-convergence floor. All six traces are instead dominated by shared,
+convergence floor (Table~\ref{tab:gradient-noise}). All six traces are
+instead dominated (Figure~\ref{fig:gradient-noise}) by shared,
 order-independent spike bursts (1176 spike-epochs for Euler, 866 for Tsit5 in
 the last 4000 epochs, near-identical burst structure). Four checks rule out a
 numerical defect: zero non-finite gradients or losses across 60{,}000 logged
