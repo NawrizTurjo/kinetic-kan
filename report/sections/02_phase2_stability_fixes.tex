@@ -61,16 +61,16 @@ trajectory error.
 \caption{Solver ablation (fixed RBF basis, data spacing $\Delta t=0.1$ with
 two substeps, so integration step $h=0.05$; 240 parameters; 10{,}000 epochs).}
 \label{tab:solver-ablation}
-\begin{tabularx}{\textwidth}{@{}L{2.3cm} C{1.0cm} C{1.6cm} C{1.7cm} C{1.9cm} C{1.9cm} X@{}}
+\begin{tabularx}{\textwidth}{@{}L{2.2cm} C{0.9cm} C{1.6cm} C{1.7cm} C{1.9cm} C{1.7cm} C{1.3cm} X@{}}
 \toprule
-\hdrrow \thh{Solver} & \thh{Order} & \thh{Function evaluations / epoch} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrapolation $R^2$} & \thh{Lipschitz $L$}\\
+\hdrrow \thh{Solver} & \thh{Order} & \thh{Function evaluations / epoch} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrapolation $R^2$} & \thh{Lipschitz $L$} & \thh{Wall-clock}\\
 \midrule
-Forward Euler & 1 & 70 & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$\\
-Heun RK2 & 2 & 140 & $8.32\times10^{-5}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$\\
-Midpoint & 2 & 140 & $8.86\times10^{-5}$ & $8.95\times10^{-5}$ & $0.99997$ & $6.96$\\
-Classical RK4 & 4 & 280 & $9.41\times10^{-5}$ & $9.29\times10^{-5}$ & $0.99997$ & $6.88$\\
-DOPRI5 & 5 & 420 & $9.28\times10^{-5}$ & $9.21\times10^{-5}$ & $0.99997$ & $6.89$\\
-\textbf{Tsit5} & 5 & 420 & $\mathbf{8.83\times10^{-5}}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$\\
+Forward Euler & 1 & 70 & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$ & 254 s\\
+Heun RK2 & 2 & 140 & $8.32\times10^{-5}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$ & 499 s\\
+Midpoint & 2 & 140 & $8.86\times10^{-5}$ & $8.95\times10^{-5}$ & $0.99997$ & $6.96$ & 498 s\\
+Classical RK4 & 4 & 280 & $9.41\times10^{-5}$ & $9.29\times10^{-5}$ & $0.99997$ & $6.88$ & 1019 s\\
+DOPRI5 & 5 & 420 & $9.28\times10^{-5}$ & $9.21\times10^{-5}$ & $0.99997$ & $6.89$ & 1699 s\\
+\textbf{Tsit5} & 5 & 420 & $\mathbf{8.83\times10^{-5}}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$ & 1712 s\\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -94,6 +94,25 @@ be trusted. On this seed Midpoint matches Tsit5's accuracy within $0.3\%$ at
 one third of the function evaluations, but given Heun's result, calling it the
 cost-normalized optimum would need more seeds to confirm.
 
+The wall-clock column confirms that function evaluations are the operative
+cost. Training times of $254:499:498:1019:1699:1712$~s follow the evaluation
+counts' ratios of $1:2:2:4:6:6$ almost exactly, because backpropagation
+unrolls every stage of every step, so each extra stage adds forward and
+backward work in proportion. This close match also indicates that the
+timings are not contaminated by scheduling noise. Figure~\ref{fig:solver-curves}
+shows the training-loss histories: the five higher-order solvers track each
+other closely throughout, while Euler separates after about 2{,}000 epochs
+and descends more slowly for the rest of the run.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/closeout/05_solver_convergence.png}
+\caption{Training loss over 10{,}000 epochs for the six solvers (RBF basis,
+data spacing $\Delta t=0.1$, two substeps). The recurring spikes are the
+optimizer bursts analysed in Section~\ref{sec:track-b}.}
+\label{fig:solver-curves}
+\end{figure}
+
 \paragraph{Step size.} A separate sweep holds Tsit5 and the RBF basis fixed
 and varies the data spacing $\Delta t\in\{0.05,0.1,0.2\}$ over the same
 window $[0,3.5]$, so the integration step $h=\Delta t/2$ and the number of
@@ -110,6 +129,19 @@ the step doubles the function evaluations and the wall-clock time without
 buying accuracy. For a learned field, the step size matters through
 training (how many points the loss sees and how deep the backpropagation
 graph is), not through classical truncation error.
+Figure~\ref{fig:stepsize-loglog} shows the same data on log-log axes next to
+first- and second-order reference slopes: the extrapolation error follows
+neither, and the training error is almost flat across the three step sizes.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.7\linewidth]{figures/closeout/02_error_vs_stepsize_loglog.png}
+\caption{Training and extrapolation MSE against the data spacing $\Delta t$
+(Table~\ref{tab:stepsize}), with $O(\Delta t)$ and $O(\Delta t^2)$ reference
+lines. The minimum at $\Delta t=0.1$ is not a truncation-error effect, since
+the number of training points changes with $\Delta t$ as well.}
+\label{fig:stepsize-loglog}
+\end{figure}
 
 \begin{table}[!ht]
 \centering
@@ -230,6 +262,21 @@ opposite direction: its lowest Lipschitz constant in the table ($5.65$)
 reflects underfitting, not desirable flatness, since it is also the only
 basis that never reaches $10^{-3}$ training loss.
 
+The training histories (Figure~\ref{fig:basis-curves}) show the same
+ordering developing over time. The B-spline has the lowest loss early and
+again from about epoch 6000 onward. Chebyshev is lowest in between and
+reaches $10^{-3}$ first (at epoch 3892, against RBF's 5282), but it does not
+keep that lead. Newton stays
+an order of magnitude above every other basis throughout.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/closeout/06_basis_convergence.png}
+\caption{Training loss over 10{,}000 epochs for the seven bases (Tsit5,
+$G=5$).}
+\label{fig:basis-curves}
+\end{figure}
+
 \subsection{Testing the paper's KAN-versus-MLP claims}
 
 The base paper's two headline claims on Lotka-Volterra are that its 240-parameter
@@ -290,6 +337,59 @@ KAN-ODE lead measured at 10{,}000 epochs is therefore a statement about that
 setting, not a stable property of the two architectures on this problem.
 Both runs use a single seed.
 
+Figure~\ref{fig:kan-mlp-curves} shows where the speed difference comes from.
+The SiLU MLP's training loss falls much faster over the first 1{,}000 epochs
+and stays below the KAN-ODE's for most of the run, but it is interrupted by
+large recurring spikes. The KAN-ODE descends more slowly and more smoothly,
+and the two meet near $10^{-4}$ only at the end of the budget. The paper's
+tanh MLP levels off near a training loss of $1$ by about epoch 2000 and does
+not improve after that.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/closeout/03_kan_vs_mlp_convergence.png}
+\caption{Training loss over 10{,}000 epochs for the KAN-ODE and the two MLP
+baselines of Table~\ref{tab:kan-vs-mlp}.}
+\label{fig:kan-mlp-curves}
+\end{figure}
+
+\paragraph{Phase-space geometry.} Trajectory error alone does not show how
+each model fails. Figure~\ref{fig:phase-space-models} plots each model's
+predicted orbit against the true limit cycle. The KAN-ODE and the SiLU MLP
+both close the orbit correctly and are hard to tell apart by eye. Both show
+slight jaggedness at the right-hand turning point, where the true orbit bends
+most sharply, and the MLP's extrapolated segment sits slightly off the true
+orbit near its top ($x\approx3$--$4$). The $5.4\times$ gap in extrapolation MSE
+between them is therefore a small difference in absolute terms, not a
+qualitative one. The paper-specification tanh MLP converges to a
+different, stable but wrong closed orbit: its prey range is roughly right, but
+its predator range collapses to $[1.0,1.9]$ against the true $[0.26,4.58]$, and
+its training and extrapolated segments coincide, so it has not diverged. Its
+Lipschitz estimate of $38.2$, against the KAN-ODE's $6.9$, reflects a much
+sharper learned field. Figure~\ref{fig:lv-streamlines} shows the KAN-ODE's
+learned vector field itself, whose streamlines carry the trajectory around
+the orbit. Away from the orbit the field is not constrained by any data, and
+its streamlines there need not match the true system's.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/closeout/phase_space_kan_vs_mlp.png}
+\caption{Predicted Lotka-Volterra orbits at 10{,}000 epochs. Left: KAN-ODE
+(RBF, 240 parameters). Middle: parameter-matched SiLU MLP. Right: the paper's
+$[2,50,2]$ tanh MLP. Solid orange is the training window, dashed red the
+extrapolation, black the true orbit.}
+\label{fig:phase-space-models}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\linewidth]{figures/closeout/01_phase_portrait_streamlines.png}
+\caption{The KAN-ODE's learned vector field on Lotka-Volterra (streamlines,
+colored by $\lVert\mathbf f_\theta\rVert$), with the true and predicted
+orbits.}
+\label{fig:lv-streamlines}
+\end{figure}
+
 \begin{table}[!ht]
 \centering
 \footnotesize
@@ -329,6 +429,45 @@ network: a \emph{higher} learning rate of $10^{-2}$ rather than
 $2\times10^{-3}$, and initial weights divided by $10^5$, so the network starts
 near zero (Table~\ref{tab:paper-audit}). Whether those settings rescue tanh
 was not tested.
+
+\subsection{Robustness to observation noise}
+
+The reference KAN-ODE recipe was retrained with Gaussian noise of standard
+deviation $\sigma\in\{0.01,0.05,0.1\}$ added to the 36 training observations
+only, and scored against the clean trajectory (Section~\ref{sec:setup}).
+Table~\ref{tab:noise} gives the results. The same four models are the KAN-ODE
+side of the sparse-regression comparison of Section~\ref{sec:track-e}.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{KAN-ODE under observation noise (Lotka-Volterra, RBF, Tsit5,
+10{,}000 epochs). Noise is added to the training points only; every metric
+is computed against the clean trajectory.}
+\label{tab:noise}
+\begin{tabular}{@{}C{1.3cm} C{2.1cm} C{2.1cm} C{1.9cm} C{1.6cm} C{2.3cm}@{}}
+\toprule
+\hdrrow \thh{Noise $\sigma$} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{Extrapolation $R^2$} & \thh{Relative $L_2$} & \thh{Extrapolation MSE vs.\ clean}\\
+\midrule
+0.00 & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & $0.33\%$ & --\\
+0.01 & $1.23\times10^{-4}$ & $1.22\times10^{-3}$ & $0.99958$ & $1.22\%$ & $13.6\times$\\
+0.05 & $7.41\times10^{-4}$ & $2.54\times10^{-2}$ & $0.99129$ & $5.55\%$ & $284\times$\\
+0.10 & $2.28\times10^{-3}$ & $1.37\times10^{-1}$ & $0.95282$ & $12.92\%$ & $1541\times$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The degradation is steady rather than abrupt. Between $\sigma=0.01$ and $0.1$
+a $10\times$ increase in noise raises the extrapolation error $113\times$,
+close to the $\sigma^2$ scaling expected when noise in the fitted field
+simply propagates through the integration, and with no sign of a stability
+breakdown. Even at $\sigma=0.1$ the model still explains $95\%$ of the
+extrapolation variance and keeps the limit cycle closed. The noisier runs are
+also the only ones in the Lotka-Volterra ablation that clearly stopped
+improving: their best training loss changed by only $8$--$9\%$ over the last
+2{,}000 epochs, against a factor of $1.5$--$2$ for the clean and $\sigma=0.01$
+runs, consistent with having reached the floor set by the noise.
 
 \subsection{Diagnosing and fixing two cross-domain failures}
 
@@ -580,8 +719,20 @@ MLP-ODE (tanh, paper specification) & $1.08\times10^{0}$ & $1.69\times10^{0}$ & 
 \end{tabular}
 \end{table}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/closeout/07_extrapolation_t28.png}
+\caption{The three 10{,}000-epoch models integrated to $t=28$ (green line:
+end of training at $t=3.5$; purple line: original horizon $t=14$). The
+KAN-ODE and the SiLU MLP stay on the true cycle; the MLP's predator peaks
+begin to lag slightly after $t\approx20$. The paper's tanh MLP keeps a
+stable but wrong cycle: its predator amplitude is far too small and its prey
+peaks lag further behind every cycle.}
+\label{fig:extrap-t28}
+\end{figure}
+
 The KAN-ODE's error is essentially flat across the doubled horizon
-($8.83\to8.92\to9.72\times10^{-5}$, a $10\%$ rise from the training window
+(Figure~\ref{fig:extrap-t28}; $8.83\to8.92\to9.72\times10^{-5}$, a $10\%$ rise from the training window
 to the far window), while the parameter-matched MLP degrades $8.3\times$ over
 the same extension. At this budget the KAN-ODE advantage therefore widens
 with horizon: from $5.4\times$ on the near window to $\mathbf{40.6\times}$
@@ -638,6 +789,20 @@ is violated on 40 of 200 predicted steps. The model is under-damped:
 the true angular displacement decays to $0.004$ by $t=9.1$ while the
 predicted trajectory continues oscillating at $0.237$. This energy
 diagnostic is an independent confirmation of the under-damping, expressed
-as a violated conservation law rather than a trajectory RMSE.
+as a violated conservation law rather than a trajectory RMSE
+(Figure~\ref{fig:pendulum-energy}): after the training window ends at
+$t=5$, the predicted energy stops tracking the true curve and stays well
+above it, between about $0.5$ and $1.5$, with small upward jumps, while the
+true energy keeps decaying toward zero.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/closeout/04_pendulum_energy.png}
+\caption{The adopted pendulum model ($\mu=0.5$, training window $[0,5]$).
+Left: predicted and true phase-space spirals; in extrapolation the predicted
+spiral stops contracting and circles at too large an amplitude. Right:
+predicted and true mechanical energy.}
+\label{fig:pendulum-energy}
+\end{figure}
 
 \FloatBarrier

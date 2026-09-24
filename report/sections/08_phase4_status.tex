@@ -126,6 +126,26 @@ unclipped gradient norm is $19.8$). More epochs, with clipping, do not rescue
 it: its failure under this protocol comes from the recipe, not the budget.
 The audit below identifies which parts of the recipe differ from the paper's.
 
+\paragraph{Training histories.} Figure~\ref{fig:budget-loss} shows the best
+training loss of the extended runs over all 50{,}000 epochs. The KAN-ODE and
+the SiLU MLP are close until about epoch 5000, after which the MLP pulls
+ahead and keeps widening its lead; both are still descending at 50{,}000
+epochs. The histories also make the clipping confound visible. By epoch
+10{,}000 the clipped reruns had already reached a lower training loss than
+the original unclipped 10{,}000-epoch runs: $3.85\times10^{-5}$ against
+$8.83\times10^{-5}$ for the KAN-ODE, and $2.24\times10^{-5}$ against
+$9.50\times10^{-5}$ for the MLP. So the reruns differ from the originals
+already within the original budget, not only beyond it.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/phase4/epoch_budget_loss.png}
+\caption{Best training MSE so far over 50{,}000 epochs for four of the
+extended-budget runs (all with gradient clipping at 1.0). The dotted line
+marks the original 10{,}000-epoch budget.}
+\label{fig:budget-loss}
+\end{figure}
+
 \paragraph{Cost.} The five runs took $23.2$ hours of CPU time in total, with
 $10.7$ hours of wall-clock time for the longest run. The cloud CPUs ran about
 $2.3$--$2.5\times$ slower per epoch than the development machine used to plan

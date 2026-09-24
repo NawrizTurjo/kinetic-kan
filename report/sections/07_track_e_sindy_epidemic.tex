@@ -26,7 +26,8 @@ thresholded least squares with threshold $0.05$, held fixed across the
 entire noise sweep so that the comparison measures noise sensitivity rather
 than per-level tuning. The derivatives it regresses against are estimated
 by plain finite differences from the observations. It is fit on the same 36
-training observations the KAN-ODE noise-sweep models were trained on
+training observations the KAN-ODE noise-sweep models of
+Table~\ref{tab:noise} were trained on
 ($t\in[0,3.5]$, $\Delta t=0.1$, noise $\sigma\in\{0,0.01,0.05,0.1\}$ added to
 the training points; Section~\ref{sec:setup}). The recovered equation is then
 integrated over $[0,14]$ and scored against the clean ground truth, exactly
@@ -116,8 +117,49 @@ about sparse regression against KAN-ODE. A fairer comparison would fit SINDy
 without pointwise derivatives, for example with a weak (integral) formulation
 or by fitting its coefficients to trajectory error as the KAN-ODE is. Neither
 was run, and whether SINDy would keep its advantage under noise is untested.
-Per-term recovery shows the bilinear cross-term ($xy$) is recovered
-to within $5.7\%$ at every noise level -- exactly the term a single-layer KAN
+Table~\ref{tab:sindy-terms} lists the coefficient each fit recovers for the
+four true terms. The bilinear cross-term ($xy$) is recovered to within
+$5.7\%$ at every noise level. What degrades with noise is the linear
+coefficient $\alpha$ of $x$, from $2.0\%$ to $44.6\%$ error, together with the
+number of spurious terms admitted by the fixed threshold, which rises from 2
+to 7--8. SINDy's breakdown at $\sigma\ge0.05$ is therefore a failure to pin the
+linear rates, not a failure to find the interaction structure.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{Relative error of each true coefficient recovered by sparse
+regression with finite-difference derivatives, and the number of spurious
+library terms kept (threshold 0.05, 36 training points).}
+\label{tab:sindy-terms}
+\begin{tabular}{@{}C{1.3cm} C{2.0cm} C{2.0cm} C{2.0cm} C{2.0cm} C{1.8cm}@{}}
+\toprule
+\hdrrow \thh{Noise $\sigma$} & \thh{$x$ in $\dot x$ ($\alpha$)} & \thh{$xy$ in $\dot x$ ($\beta$)} & \thh{$y$ in $\dot y$ ($\gamma$)} & \thh{$xy$ in $\dot y$ ($\delta$)} & \thh{Spurious terms}\\
+\midrule
+0.00 & $2.0\%$ & $2.0\%$ & $5.3\%$ & $5.4\%$ & 2\\
+0.01 & $5.6\%$ & $5.3\%$ & $4.9\%$ & $4.9\%$ & 4\\
+0.05 & $28.3\%$ & $5.2\%$ & $11.9\%$ & $3.7\%$ & 8\\
+0.10 & $44.6\%$ & $5.7\%$ & $2.9\%$ & $3.1\%$ & 7\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Smoothed derivatives do not help here.} \texttt{pysindy}'s smoothed
+finite differences, a common defence against noisy derivatives, were also
+tried. They recover the coefficients worse than plain finite differences at
+every noise level: the worst term's error is $87\%$ at $\sigma=0$ and $101\%$ at
+$\sigma=0.1$, against $5.4\%$ and $44.6\%$, and the fit keeps 8 spurious terms at
+every level. In extrapolation they are worse at three of the four noise
+levels (only at $\sigma=0.01$ are they slightly better, $0.133$ against
+$0.158$). The cause is the filter window rather than the method: the default
+Savitzky-Golay window of 11 points spans $1.1$ time units at $\Delta t=0.1$, a
+third of the $3.32$-unit cycle and nearly a third of the whole 36-point
+training series, so the smoothing flattens the peaks the derivative
+information lives in.
+
+The cross-term result matters for the comparison because $xy$ is exactly the
+term a single-layer KAN
 edge, being strictly univariate, cannot represent directly, since each edge
 is a function of only one input variable and a layer sums its edges
 additively. This asymmetry -- sparse regression writes $xy$ as a literal
