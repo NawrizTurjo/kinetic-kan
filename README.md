@@ -8,7 +8,6 @@
 [![Python 3.10+](<https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue.svg>)]()
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
-[![Phase 2 Status](https://img.shields.io/badge/Phase%202-Complete%20(Lorenz%20dropped)-success.svg)]()
 [![Target Venue](<https://img.shields.io/badge/Target-CMAME%20%2F%20NeurIPS%20SciML-purple.svg>)]()
 
 ---
@@ -29,9 +28,6 @@ This project performs a comprehensive, two-part investigation:
    - Benchmarks symbolic equation discovery against **SINDy** under Gaussian observational noise ($\sigma \le 0.10$), plus a fit to real epidemic data.
    - Profiles memory and runtime of **Continuous Adjoint Sensitivity ($O(1)$ memory)** vs. **Direct Autograd ($O(N_t)$ memory)**.
 
-> The 3D Lorenz attractor system was explored in early scoping (`data/lorenz.py` still
-> exists, unused) but has been **deliberately dropped** from the final project scope —
-> see [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md) §1.2.
 
 ---
 
@@ -51,12 +47,6 @@ this file does not drift out of sync again.
 | **2105055** | **Abrar Jahin**           | **D** — Stiffness–Solver Stability Phase Map (Damped Pendulum)           | `feat/p3-stiffness-map`     |
 | **2105043** | **Monjur Hossain Khan**   | **E** — SINDy Comparison under Noise + Real Epidemic Fit                 | `feat/p3-sindy-epidemic`    |
 
-> Note: the 3D Lorenz attractor track from the original proposal has been
-> **deliberately dropped** from project scope (not deferred) — see
-> [`docs/12_phase3_roadmap.md`](./docs/12_phase3_roadmap.md) §1.2. `data/lorenz.py`
-> remains in the repository as unused, harmless code; no team member or Phase 3 track
-> depends on it.
-
 ---
 
 ## 🗂️ Project & Repository Architecture
@@ -64,12 +54,9 @@ this file does not drift out of sync again.
 ```text
 kinetic-kan/
 ├── docs/                           # Master project documentation, proposals & blueprints
-│   ├── 00_course_guidelines/       # Official syllabus & course notices
-│   ├── 01_literature_and_ideas/    # Literature survey, candidate paper audits & notes
-│   ├── 02_proposal/                # Proposal decks (.pptx) & written guides
-│   ├── 03_presentation/            # Compiled LaTeX Beamer proposal decks (.tex, .pdf)
-│   ├── 04_project_blueprint/       # Master technical deep dive & execution blueprints
-│   └── README.md                   # Documentation index & team charter
+│   ├── base_paper/                 # Reference papers and literature
+│   ├── course_guidelines/          # Official syllabus & course notices
+│   └── presentation/               # Compiled presentation decks
 │
 ├── implementation/                 # Active, modular PyTorch KAN-ODE implementation
 │   ├── kan/                        # Kolmogorov-Arnold Network Core Layers
@@ -92,24 +79,38 @@ kinetic-kan/
 │   │   ├── metrics.py              # MSE, NFE tracker, parameter counter, Lipschitz bounds
 │   │   └── plotting.py             # Phase portraits, streamplots, loss curves & 3D renders
 │   │
-│   ├── experiments/                # Phase 3 tracks land here, one folder per track (not yet created —
-│   │                                #   see docs/12_phase3_roadmap.md §Part 2 for the planned layout)
+│   ├── experiments/                # Phase 3 tracks implementation
+│   │   ├── adjoint_profiling/      # Track A implementation
+│   │   ├── epoch_budget_check/     # Epoch budget constraints and evaluation
+│   │   ├── gradient_dynamics/      # Track B implementation
+│   │   ├── hybrid_basis/           # Track C implementation
+│   │   ├── sindy_epidemic/         # Track E implementation
+│   │   └── stiffness_map/          # Track D implementation
 │   │
 │   ├── results/                    # Experimental artifacts & checkpoint stores
-│   │   ├── kanode_rbf_tsit5/       # Original 10,000-epoch baseline run artifacts
-│   │   ├── benchmarks/             # Phase 2 production sweeps: solvers, bases, noise, step-size, etc.
-│   │   ├── _probe/, _fixed/        # Cross-domain stability fix probes & full runs (pendulum, SIR)
-│   │   ├── phase2_closeout/        # Extrapolation-to-t=28, energy-dissipation JSON
-│   │   ├── figures/                # 300 DPI publication figures (Task 2.5)
+│   │   ├── benchmarks/             # Phase 2 production sweeps
+│   │   ├── eval/                   # Model evaluation artifacts
+│   │   ├── figures/                # Output plots and diagrams
+│   │   ├── kanode_rbf_tsit5/       # Original baseline run artifacts
+│   │   ├── phase2_closeout/        # Extrapolation & energy dissipation
+│   │   ├── phase3/                 # Phase 3 track outputs
+│   │   ├── phase4/                 # Phase 4 track outputs
+│   │   ├── quick_benchmarks/       # Quick evaluation results
 │   │   ├── tables/                 # Collated per-run and summary CSVs
-│   │   └── phase3/                 # Phase 3 track outputs land here (not yet created)
+│   │   └── _fixed/, _probe/        # Cross-domain stability fix probes & runs
 │   │
-│   ├── train.py                    # Main KAN-ODE / MLP-ODE training loop with stability guards & gradient-norm logging
-│   ├── evaluate.py                 # Checkpoint evaluation, metric extraction & trajectory plotting
-│   ├── test_facility.py            # Automated ablation benchmark suite (--mode solvers/activations)
-│   ├── analyze_fixes.py            # Read-only diagnostic reader for any results tree
-│   ├── phase2_closeout.py          # Extrapolation/energy/figure generation, no new training
-│   └── README.md                   # Implementation quickstart guide & modularity documentation
+│   ├── train.py                    # Main KAN-ODE / MLP-ODE training loop
+│   ├── evaluate.py                 # Checkpoint evaluation & trajectory plotting
+│   ├── test_facility.py            # Automated ablation benchmark suite
+│   ├── analyze_fixes.py            # Diagnostic reader for results tree
+│   └── phase2_closeout.py          # Extrapolation/energy/figure generation
+│
+├── report/                         # Project reports and LaTeX assets
+│   ├── figures/                    # Output figures for reports
+│   ├── frontmatter/                # Title page, abstract, etc.
+│   ├── reproduce/                  # Automated figure & table generation scripts
+│   ├── sections/                   # LaTeX source files for report sections
+│   └── tools/                      # LaTeX tooling (e.g. tectonic)
 │
 ├── tests/                          # Production-grade PyTest validation suite (143/143 passing)
 │   ├── test_solvers.py             # Numerical order verification O(h^p) & energy conservation
@@ -118,9 +119,8 @@ kinetic-kan/
 │   ├── test_mlp_ode.py             # MLP-ODE parameter-matching to paper Table I
 │   ├── test_metrics.py             # SciML metrics correctness
 │   ├── test_plotting.py            # Plotting utilities
-│   └── test_datasets.py            # Deterministic seed reproducibility & physical invariants
-│   # test_p3_<slug>.py files land here as each Phase 3 track (below) is implemented —
-│   # e.g. Track A's test_adjoint.py does not exist yet; see docs/12_phase3_roadmap.md
+│   ├── test_datasets.py            # Deterministic seed reproducibility & physical invariants
+│   └── test_p3_*.py                # Track-specific test suites (adjoint, gradient, hybrid, etc.)
 │
 ├── pyproject.toml                  # Tool configs (pytest, ruff, mypy, coverage)
 ├── requirements.txt                # Pinned dependency manifest
