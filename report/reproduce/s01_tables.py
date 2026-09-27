@@ -119,15 +119,18 @@ def main():
     # --- Phase 4: 10k against the extended budget
     p4 = [("Euler / RBF", "solver_euler", "euler_50k"), ("Tsit5 / RBF", "basis_rbf", "kan_50k"),
           ("Tsit5 / B-spline", "basis_bspline", "bspline_25k"), ("MLP-ODE, SiLU", "mlp_silu", "mlp_silu_50k"),
-          ("MLP-ODE, tanh (paper)", "mlp_tanh", "mlp_tanh_50k")]
+          ("MLP-ODE, tanh (paper)", "mlp_tanh", "mlp_tanh_50k"),
+          ("MLP-ODE, tanh (paper's lr/init)", "mlp_tanh_exact", "mlp_tanh_exact_50k")]
     T["phase4"] = {}
     rows = []
     for lab, short, long in p4:
         s, l = row(short), row(long)
         T["phase4"][lab] = {"10k": s, "extended": l}
         for r, tag in [(s, "10k"), (l, f"{l['epochs'] // 1000}k")]:
-            clip = "" if tag == "10k" else f"{100 * r['clip']:.1f}%"
-            gm = "" if tag == "10k" else f"{r['grad_med']:.3f}"
+            # mlp_tanh_exact{,_50k} deliberately ran with no gradient clipping
+            # (see the module docstring of that recipe), so it has no clip stats.
+            clip = "" if tag == "10k" or r["clip"] is None else f"{100 * r['clip']:.1f}%"
+            gm = "" if tag == "10k" or r["grad_med"] is None else f"{r['grad_med']:.3f}"
             rows.append([lab if tag == "10k" else "", tag, sci(r["train_mse"]), sci(r["extrap_mse"]),
                          f"{r['extrap_r2']:.6f}", f"{r['lipschitz']:.2f}", clip, gm])
     md += ["## tab:phase4 (10k against the extended budget)", "", md_table(

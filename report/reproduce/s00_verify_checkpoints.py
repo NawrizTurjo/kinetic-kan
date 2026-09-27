@@ -19,7 +19,10 @@ def main():
     devs = {}
     for key in RUNS:
         mt = metrics(key)
-        if mt["config"]["dt"] != 0.1 or mt["config"]["noise_std"] != 0.0:
+        # the paper-exact-recipe follow-up runs (mlp_tanh_exact*) omit dt/noise_std
+        # from their config because they call generate_lotka_volterra_data() with
+        # no arguments; its defaults are dt=0.1, noise_std=0.0, the values checked here.
+        if mt["config"].get("dt", 0.1) != 0.1 or mt["config"].get("noise_std", 0.0) != 0.0:
             continue
         pr = rollout(key)
         mse = float(np.mean((pr[N_TRAIN:N_14] - Y28[N_TRAIN:N_14]) ** 2))

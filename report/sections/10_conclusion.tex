@@ -38,8 +38,12 @@ The principal quantitative findings are:
   error rather than a more accurate field; the KAN advantage widens to
   $40.6\times$ at twice the horizon (Table~\ref{tab:extrap-horizon}). At
   $5\times10^4$ epochs the comparison reverses and the MLP is $6.8\times$
-  better. The paper's literal tanh MLP fails permanently, and it is the only
-  baseline against which the paper's tenfold speed claim holds.
+  better. The paper's literal tanh MLP fails under this project's default
+  optimizer settings, but trains under the paper's own learning rate and
+  near-zero initialization scale, reaching $R^2=0.9998$ at $5\times10^4$
+  epochs, still $73\times$ behind the SiLU MLP on extrapolation MSE; the
+  paper's tenfold speed claim compared against the uncorrected baseline, not
+  an architectural limitation.
 \item SIR's training failure traced to a $19\times$ unit-scale mismatch
   between the network's initial field and the true dynamics, fixable by a
   change of time units and a conservation projection -- two interventions

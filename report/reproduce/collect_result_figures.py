@@ -19,6 +19,8 @@ from common import REPORT, RES, ROOT
 
 ABL = RES / "benchmarks"
 P4 = RES / "phase4" / "epoch_budget_check"
+EXACT10 = RES / "mlp_paperspec_exact_10k_result"
+EXACT50 = RES / "mlp_paperspec_exact_50k_result"
 
 # report/figures/<dest>  <-  implementation/results/<source>
 MANIFEST = {
@@ -43,6 +45,15 @@ MANIFEST = {
     "phase4/euler_50k_loss_curves.png": P4 / "euler_50k" / "loss_curves.png",
     "phase4/bspline_25k_loss_curves.png": P4 / "bspline_25k" / "loss_curves.png",
     "phase4/mlp_paperspec_50k_loss_curves.png": P4 / "mlp_paperspec_50k" / "loss_curves.png",
+    # paper's own lr/init follow-up (Section 9): these two loss_curves.png did not
+    # exist in the source run folders (the one-off Kaggle script that produced
+    # them saved only metrics.json/training_history.json/eval plots, not a loss
+    # curve), so they were generated once, into those same folders, by calling
+    # this project's own utils.plotting.plot_loss_curves on the saved
+    # training_history.json -- the identical function and title convention
+    # implementation/train.py uses for every other run's loss_curves.png.
+    "phase4/mlp_tanh_exact_10k_loss_curves.png": EXACT10 / "loss_curves.png",
+    "phase4/mlp_tanh_exact_50k_loss_curves.png": EXACT50 / "loss_curves.png",
 }
 
 

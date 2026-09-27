@@ -63,6 +63,11 @@ RUNS.update({
     "kan_50k": P4 / "tsit5_rbf_50k", "euler_50k": P4 / "euler_50k",
     "bspline_25k": P4 / "bspline_25k", "mlp_silu_50k": P4 / "mlp_silu_50k",
     "mlp_tanh_50k": P4 / "mlp_paperspec_50k",
+    # paper's own learning rate (1e-2) and near-zero init scale (Glorot / 1e5)
+    # for the identical [2,50,2]+tanh architecture; see mlp_tanh / mlp_tanh_50k
+    # above for the same architecture under this project's DEFAULT lr/init.
+    "mlp_tanh_exact": RES / "mlp_paperspec_exact_10k_result",
+    "mlp_tanh_exact_50k": RES / "mlp_paperspec_exact_50k_result",
 })
 for s in ["0", "0.01", "0.05", "0.1"]:
     RUNS[f"noise_{s}"] = B / "noise" / f"sigma{s}"

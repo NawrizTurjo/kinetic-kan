@@ -27,8 +27,10 @@ conclusions at up to five times the training budget.
   $5.4\times$ better than a parameter-matched MLP (a $48\times$ smaller
   period error), widening to $40.6\times$ at twice the horizon. At
   $5\times10^4$ epochs this \emph{reverses}: the MLP is $6.8\times$ better.
-  The paper's literal tanh MLP never trains, and the paper's tenfold speed
-  claim holds only against it.
+  The paper's literal tanh MLP fails under this project's default optimizer
+  settings, but trains under the paper's own learning rate and near-zero
+  initialization scale ($R^2=0.9998$ at $5\times10^4$ epochs); the paper's
+  tenfold speed claim compared against the uncorrected baseline.
 \item \textbf{Bases.} B-spline and RBF are tied at both budgets; global
   polynomials extrapolate $4$--$5\times$ worse. Locality, not conditioning,
   separates them.

@@ -71,3 +71,5 @@ Epoch milestones are in numbers.json -> epochs_to_train_mse (s11); field error, 
 |  | 50k | 1.82e-06 | 5.90e-06 | 0.999998 | 5.65 | 11.1% | 0.162 |
 | MLP-ODE, tanh (paper) | 10k | 1.08e+00 | 1.69e+00 | 0.421472 | 38.22 |  |  |
 |  | 50k | 1.01e+00 | 4.32e+00 | -0.484088 | 104.75 | 99.3% | 19.808 |
+| MLP-ODE, tanh (paper's lr/init) | 10k | 1.11e-03 | 9.65e-03 | 0.996689 | 9.23 |  |  |
+|  | 50k | 5.43e-05 | 4.31e-04 | 0.999852 | 9.67 |  |  |

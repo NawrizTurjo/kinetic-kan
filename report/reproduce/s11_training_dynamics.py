@@ -43,7 +43,12 @@ def milestones():
 def paper_targets():
     return {"kan_50k_to_2.6e-5": first_epoch_below(history("kan_50k")["train_losses"], 2.6e-5),
             "mlp_silu_50k_to_3.0e-5": first_epoch_below(history("mlp_silu_50k")["train_losses"], 3.0e-5),
-            "mlp_tanh_50k_min_train_loss": float(history("mlp_tanh_50k")["train_losses"].min())}
+            "mlp_tanh_50k_min_train_loss": float(history("mlp_tanh_50k")["train_losses"].min()),
+            # the paper-exact lr/init follow-up (Section 9): does it reach the
+            # paper's own reported targets within its budget?
+            "mlp_tanh_exact_50k_to_3.0e-5": first_epoch_below(history("mlp_tanh_exact_50k")["train_losses"], 3.0e-5),
+            "mlp_tanh_exact_50k_to_1.0e-4": first_epoch_below(history("mlp_tanh_exact_50k")["train_losses"], 1.0e-4),
+            "mlp_tanh_exact_50k_min_train_loss": float(history("mlp_tanh_exact_50k")["train_losses"].min())}
 
 
 def phase4_crossover():
@@ -61,7 +66,8 @@ def phase4_crossover():
 
 def main():
     ms = milestones()
-    for key in ["solver_euler", "solver_tsit5", "basis_bspline", "mlp_silu", "kan_50k", "mlp_silu_50k"]:
+    for key in ["solver_euler", "solver_tsit5", "basis_bspline", "mlp_silu", "kan_50k", "mlp_silu_50k",
+                "mlp_tanh_exact", "mlp_tanh_exact_50k"]:
         print(f"  {key:14s} epochs to 1e-2/1e-3/1e-4/1e-5: {list(ms[key].values())}")
     pt = paper_targets()
     print("  paper targets:", pt)
