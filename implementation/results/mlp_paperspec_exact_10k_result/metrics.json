@@ -1,0 +1,68 @@
+{
+    "config": {
+        "model_type": "mlp",
+        "dataset": "lotka_volterra",
+        "layers_hidden": [
+            2,
+            50,
+            2
+        ],
+        "mlp_act": "tanh",
+        "solver": "tsit5",
+        "substeps": 2,
+        "lr": 0.01,
+        "init_scale": 1e-05,
+        "num_epochs": 10000,
+        "seed": 42,
+        "parameters": 252,
+        "t_start": 0.0,
+        "t_end": 14.0,
+        "t_train_end": 3.5,
+        "n_train_points": 36,
+        "n_full_points": 141,
+        "data_params": {
+            "alpha": 1.5,
+            "beta": 1.0,
+            "gamma": 3.0,
+            "delta": 1.0
+        },
+        "device": "cpu",
+        "torch_version": "2.10.0+cpu",
+        "note": "paper-exact lr + init_scale audit run; everything else matches mlpode_baseline/mlp_paperspec_50k for direct comparison"
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 9913,
+        "best_train_mse_during_training": 0.0011134473606944084
+    },
+    "best": {
+        "train_mse": 0.0011134474771097302,
+        "extrap_mse": 0.009645534679293633,
+        "full_mse": 0.007467130199074745,
+        "extrap_rmse": 0.09821168300815149,
+        "extrap_mae": 0.07472744584083557,
+        "extrap_r2": 0.9966892600059509,
+        "extrap_rel_l2": 0.03422245755791664,
+        "full_r2": 0.9974358081817627
+    },
+    "final": {
+        "train_mse": 0.005800682585686445,
+        "extrap_mse": 0.010639331303536892,
+        "full_mse": 0.00940393190830946,
+        "extrap_rmse": 0.10314713424781559,
+        "extrap_mae": 0.07379092276096344,
+        "extrap_r2": 0.9963481426239014,
+        "extrap_rel_l2": 0.03594224154949188,
+        "full_r2": 0.9967707395553589
+    },
+    "estimated_lipschitz_bound": 9.232234954833984,
+    "nfe_per_epoch_train": 420,
+    "training_time_seconds": 1051.9404468536377,
+    "seconds_per_epoch": 0.10519404468536377,
+    "stability": {
+        "nonfinite_grad_steps": 0,
+        "first_nonfinite_epoch": null,
+        "aborted_at_epoch": null,
+        "epochs_run": 10000
+    }
+}

@@ -1,0 +1,68 @@
+{
+    "config": {
+        "model_type": "mlp",
+        "dataset": "lotka_volterra",
+        "layers_hidden": [
+            2,
+            50,
+            2
+        ],
+        "mlp_act": "tanh",
+        "solver": "tsit5",
+        "substeps": 2,
+        "lr": 0.01,
+        "init_scale": 1e-05,
+        "num_epochs": 50000,
+        "seed": 42,
+        "parameters": 252,
+        "t_start": 0.0,
+        "t_end": 14.0,
+        "t_train_end": 3.5,
+        "n_train_points": 36,
+        "n_full_points": 141,
+        "data_params": {
+            "alpha": 1.5,
+            "beta": 1.0,
+            "gamma": 3.0,
+            "delta": 1.0
+        },
+        "device": "cpu",
+        "torch_version": "2.10.0+cpu",
+        "note": "paper-exact lr + init_scale audit run; everything else matches mlpode_baseline/mlp_paperspec_50k for direct comparison"
+    },
+    "selection": {
+        "criterion": "min_train_mse",
+        "best_epoch": 49835,
+        "best_train_mse_during_training": 5.432577745523304e-05
+    },
+    "best": {
+        "train_mse": 5.432577745523304e-05,
+        "extrap_mse": 0.0004305067122913897,
+        "full_mse": 0.0003344604920130223,
+        "extrap_rmse": 0.020748655674317548,
+        "extrap_mae": 0.014947747811675072,
+        "extrap_r2": 0.9998522400856018,
+        "extrap_rel_l2": 0.0072299945168197155,
+        "full_r2": 0.9998851418495178
+    },
+    "final": {
+        "train_mse": 0.00031765326275490224,
+        "extrap_mse": 0.0018201676430180669,
+        "full_mse": 0.0014365470269694924,
+        "extrap_rmse": 0.042663422776636976,
+        "extrap_mae": 0.030996760353446007,
+        "extrap_r2": 0.9993752241134644,
+        "extrap_rel_l2": 0.014866327866911888,
+        "full_r2": 0.9995067119598389
+    },
+    "estimated_lipschitz_bound": 9.6666259765625,
+    "nfe_per_epoch_train": 420,
+    "training_time_seconds": 6131.292247533798,
+    "seconds_per_epoch": 0.12262584495067597,
+    "stability": {
+        "nonfinite_grad_steps": 0,
+        "first_nonfinite_epoch": null,
+        "aborted_at_epoch": null,
+        "epochs_run": 50000
+    }
+}
