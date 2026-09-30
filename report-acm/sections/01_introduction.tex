@@ -103,24 +103,36 @@ conclusions survive a five times larger training budget.
 \renewcommand{\arraystretch}{1.18}
 \caption{Summary of the studies in this report.}
 \label{tab:work-summary}
-\begin{tabularx}{\textwidth}{@{}L{2.7cm} L{4.6cm} Y C{0.7cm}@{}}
-\toprule
-\hdrrow \thh{Study} & \thh{Why we ran it} & \thh{What we observed} & \thh{Sec.}\\
-\midrule
-Baseline reproduction: KAN-ODE vs.\ MLP-ODE & Test the base paper's two headline claims (accuracy and training speed) at matched parameter count. & KAN-ODE extrapolates $5.4\times$ better at $10^4$ epochs, a gap explained by a $48\times$ smaller period error. The MLP trains $4.1\times$ \emph{faster}. The paper's literal tanh MLP trains only under the paper's own learning rate and initialization. & \ref{sec:kan-vs-mlp}\\
-Integrator ablation & The paper fixes Tsit5; does solver order matter for training? & All six solvers pass their order conditions to round-off. Above order two, accuracy is flat: Midpoint matches Tsit5 within $0.3\%$ at $29\%$ of the cost. The Euler model learns the inverse modified equation, and no model transfers across solver families. & \ref{sec:solver-results}\\
-Basis-function ablation & The paper switched from B-spline to RBF; is that justified? & B-spline and RBF are tied, with RBF $3.9\times$ cheaper. Global polynomials extrapolate $4$--$5\times$ worse. Locality, not conditioning, separates the bases. & \ref{sec:basis-results}\\
-Step-size and noise sensitivity & How sensitive is the fit to sampling density and observation noise? & Step size acts as a data-density choice (non-monotone). Extrapolation MSE scales as $12.9\,\sigma^{2.02}$ with noise. & \ref{sec:dt-noise}\\
-What the trained fields learned & Does low trajectory error mean the right vector field? & No. Every model is an attracting limit cycle around a spurious unstable equilibrium, accurate only in a thin tube around the training orbit. & \ref{sec:numerics}\\
-Cross-domain failures and fixes & Does the Lotka-Volterra recipe transfer to the pendulum and SIR? & A longer training window fixes the pendulum. SIR's $19\times$ scale mismatch at initialization is fixed by time rescaling and a conservation projection; adding a vanishing-field gate gives $R^2$: $-20.97\to+0.998$. The KAN advantage widens to $40.6\times$ at twice the horizon. & \ref{sec:crossdomain}\\
-Adjoint vs.\ direct autograd & The paper uses the adjoint for its memory saving; does that matter at our scale? & The adjoint uses less memory at every length tested but is $1.9$--$2.1\times$ slower, so we use direct autograd. & \ref{sec:track-a}\\
-Gradient-norm dynamics & Is Euler's convergence floor caused by noisier gradients? & No ($\rho=-0.088$, $p=0.87$); gradient spike bursts are shared across all solvers. & \ref{sec:track-b}\\
-Learnable hybrid basis & Can the network learn its own B-spline/RBF blend? & The gate works as designed but never beats the better pure basis, and it overfits on the pendulum past 3000 epochs. & \ref{sec:track-c}\\
-Stiffness--solver map & Do explicit solvers fail as the pendulum's damping grows? & Zero divergences, as linear stability predicts. The failures trace to the random seed and a spurious learned equilibrium. & \ref{sec:track-d}\\
-Sparse regression and epidemic transfer & How does KAN-ODE compare with SINDy under noise, and do the SIR fixes transfer to a non-mechanistic outbreak curve? & KAN-ODE is more accurate at every noise level, but degrades $1540\times$ against SINDy's $9\times$. Pruning finds no sparse structure. Two of three SIR fixes transfer. & \ref{sec:track-e}\\
-Epoch-budget validation & Do the $10^4$-epoch conclusions survive five times the budget? & Solver and basis rankings hold. KAN vs.\ MLP \emph{reverses}: the MLP is $6.8\times$ better at $5\times10^4$ epochs. & \ref{sec:phase4}\\
-Comparison with the base paper & Audit our recipe against the paper field by field. & Architecture and basis match. The KAN's training speed is reproduced within $1.4\times$. The tenfold speed advantage depends on the MLP baseline's optimizer settings. & \ref{sec:audit}\\
-\bottomrule
+\begin{tabularx}{\textwidth}{|C{0.35cm}|L{2.6cm}|L{4.5cm}|Y|C{0.6cm}|}
+\hline
+\hdrrow \thh{\#} & \thh{Study} & \thh{Why we ran it} & \thh{What we observed} & \thh{Sec.}\\
+\hline
+1 & Baseline reproduction: KAN-ODE vs.\ MLP-ODE & Test the base paper's two headline claims (accuracy and training speed) at matched parameter count. & KAN-ODE extrapolates $5.4\times$ better at $10^4$ epochs, a gap explained by a $48\times$ smaller period error. The MLP trains $4.1\times$ \emph{faster}. The paper's literal tanh MLP trains only under the paper's own learning rate and initialization. & \ref{sec:kan-vs-mlp}\\
+\hline
+2 & Integrator ablation & The paper fixes Tsit5; does solver order matter for training? & All six solvers pass their order conditions to round-off. Above order two, accuracy is flat: Midpoint matches Tsit5 within $0.3\%$ at $29\%$ of the cost. The Euler model learns the inverse modified equation, and no model transfers across solver families. & \ref{sec:solver-results}\\
+\hline
+3 & Basis-function ablation & The paper switched from B-spline to RBF; is that justified? & B-spline and RBF are tied, with RBF $3.9\times$ cheaper. Global polynomials extrapolate $4$--$5\times$ worse. Locality, not conditioning, separates the bases. & \ref{sec:basis-results}\\
+\hline
+4 & Step-size and noise sensitivity & How sensitive is the fit to sampling density and observation noise? & Step size acts as a data-density choice (non-monotone). Extrapolation MSE scales as $12.9\,\sigma^{2.02}$ with noise. & \ref{sec:dt-noise}\\
+\hline
+5 & What the trained fields learned & Does low trajectory error mean the right vector field? & No. Every model is an attracting limit cycle around a spurious unstable equilibrium, accurate only in a thin tube around the training orbit. & \ref{sec:numerics}\\
+\hline
+6 & Cross-domain failures and fixes & Does the Lotka-Volterra recipe transfer to the pendulum and SIR? & A longer training window fixes the pendulum. SIR's $19\times$ scale mismatch at initialization is fixed by time rescaling and a conservation projection; adding a vanishing-field gate gives $R^2$: $-20.97\to+0.998$. The KAN advantage widens to $40.6\times$ at twice the horizon. & \ref{sec:crossdomain}\\
+\hline
+7 & Adjoint vs.\ direct autograd & The paper uses the adjoint for its memory saving; does that matter at our scale? & The adjoint uses less memory at every length tested but is $1.9$--$2.1\times$ slower, so we use direct autograd. & \ref{sec:track-a}\\
+\hline
+8 & Gradient-norm dynamics & Is Euler's convergence floor caused by noisier gradients? & No ($\rho=-0.088$, $p=0.87$); gradient spike bursts are shared across all solvers. & \ref{sec:track-b}\\
+\hline
+9 & Learnable hybrid basis & Can the network learn its own B-spline/RBF blend? & The gate works as designed but never beats the better pure basis, and it overfits on the pendulum past 3000 epochs. & \ref{sec:track-c}\\
+\hline
+10 & Stiffness--solver map & Do explicit solvers fail as the pendulum's damping grows? & Zero divergences, as linear stability predicts. The failures trace to the random seed and a spurious learned equilibrium. & \ref{sec:track-d}\\
+\hline
+11 & Sparse regression and epidemic transfer & How does KAN-ODE compare with SINDy under noise, and do the SIR fixes transfer to a non-mechanistic outbreak curve? & KAN-ODE is more accurate at every noise level, but degrades $1540\times$ against SINDy's $9\times$. Pruning finds no sparse structure. Two of three SIR fixes transfer. & \ref{sec:track-e}\\
+\hline
+12 & Epoch-budget validation & Do the $10^4$-epoch conclusions survive five times the budget? & Solver and basis rankings hold. KAN vs.\ MLP \emph{reverses}: the MLP is $6.8\times$ better at $5\times10^4$ epochs. & \ref{sec:phase4}\\
+\hline
+13 & Comparison with the base paper & Audit our recipe against the paper field by field. & Architecture and basis match. The KAN's training speed is reproduced within $1.4\times$. The tenfold speed advantage depends on the MLP baseline's optimizer settings. & \ref{sec:audit}\\
+\hline
 \end{tabularx}
 \end{table*}
 
