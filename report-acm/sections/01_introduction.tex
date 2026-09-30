@@ -1,0 +1,147 @@
+A Neural ODE \cite{chen2018neuralode} learns an unknown dynamical system
+$\dot{\mathbf{u}}(t) = \mathbf{F}(\mathbf{u}(t))$ by fitting a vector field
+$\mathbf{f}_\theta(\mathbf{u}(t))$ and integrating it numerically. The usual
+choice for $\mathbf{f}_\theta$ is a multilayer perceptron (MLP), with fixed
+activations on the nodes and all learnable structure in the linear weights,
+$\mathbf{y} = \sigma(\mathbf{W}\mathbf{x}+\mathbf{b})$. A Kolmogorov-Arnold
+Network (KAN) \cite{liu2024kan} flips this around: every \emph{edge} carries
+its own learnable univariate function $\phi(x)$, and each node just sums its
+incoming edges, $y_j = \sum_i \phi_{i,j}(x_i)$. The idea comes from the
+Kolmogorov-Arnold representation theorem, which says that any continuous
+multivariate function on a bounded domain can be written as a finite
+composition of continuous univariate functions and addition,
+\begin{equation}
+f(\mathbf{x}) = \sum_{q=1}^{2n+1}\Phi_q\!\left(\sum_{p=1}^{n}\phi_{q,p}(x_p)\right),
+\label{eq:kolmogorov-arnold}
+\end{equation}
+so no nonlinearity has to be fixed in advance; the network learns the shape
+of each univariate function. In practice each edge function is a fixed
+smooth residual plus a learnable expansion in a chosen basis. In the form we
+implement,
+\begin{equation}
+\phi(x) = w_b\, b(x) + \sum_{i=1}^{G} c_i\, B_i\big(\mathrm{norm}(x)\big),
+\label{eq:kan-edge}
+\end{equation}
+with $b(x)=\mathrm{silu}(x) = x/(1+e^{-x})$ and $\mathrm{norm}(x)=\tanh x$.
+Here $B_1,\dots,B_G$ are $G$ basis functions attached to a uniform grid of
+knots $z_g\in[-1,1]$ with spacing $h=2/(G-1)$, the $c_i$ are trainable
+coefficients, and $w_b$ weights the residual. (The original \texttt{pykan}
+form carries $G+k$ spline functions and a separate scale $w_s$ on the
+expansion; with one coefficient per basis function that scale is redundant,
+so we drop it.) The choice of $B_i$ is a design decision rather than a
+mathematical necessity. A Gaussian radial basis function (RBF) grid,
+$B_i(u)=\exp(-(u-z_i)^2/2h^2)$, gives each edge smooth support that decays
+quickly but never reaches zero. A degree-$k$ B-spline built by the
+Cox-de Boor recursion instead gives each edge compact local support, exactly
+zero outside its own knot span.
+
+\subsection{The base paper: KAN-ODEs}
+\label{sec:base-paper}
+
+Koenig et al.\ \cite{koenig2024kanode} put this construction inside a Neural
+ODE's vector field, $\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with
+every edge of $\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and
+obtain the trajectory by numerically integrating that field forward in time.
+On the Lotka-Volterra predator-prey system they report two central claims:
+a KAN-ODE with 240 parameters extrapolates the system's oscillation
+accurately from a short training window, and it reaches a target training
+loss in roughly $10^4$ epochs where a parameter-matched (252-parameter)
+MLP-based Neural ODE needs $10^5$, a tenfold training-speed advantage. The
+paper also applies KAN-ODEs to other systems, including inferring hidden
+physics; we focus on its Lotka-Volterra benchmark.
+
+To get these results the paper commits to three design decisions, which we
+treat as free variables:
+\begin{enumerate}
+\item the \textbf{integrator}: an adaptive fifth-order Runge-Kutta method,
+  Tsit5 \cite{tsitouras2011tsit5};
+\item the \textbf{basis}: Gaussian RBF;
+\item the \textbf{differentiation method} used to get gradients through the
+  integrator: continuous adjoint sensitivity, chosen for its constant memory
+  cost in trajectory length.
+\end{enumerate}
+The basis choice is not something we invented to vary. The original KAN
+paper \cite{liu2024kan} used cubic B-splines by default, and the base paper
+switched to Gaussian RBF for the ODE setting because its derivative never
+vanishes, which matters once the edge function sits inside a differentiated
+integrator rather than a static regression. We restore B-spline and add five
+further bases, so the trade-off behind that switch is measured rather than
+assumed.
+
+\subsection{Why training needs to be studied, not just the final error}
+
+Besides Lotka-Volterra, we use two textbook systems, the SIR epidemic model
+and a damped pendulum, chosen because their governing equations are simple
+and well understood. Any training failure can then be blamed on the
+architecture or the optimization rather than on ambiguous target dynamics.
+The integrator's interaction with training is not predictable from classical
+numerical analysis alone, because the integrator sits inside a
+backpropagation graph rather than a standalone forward solve: a solver that
+is perfectly stable in the classical sense can still train badly, train to a
+wrong answer, or fail to generalize. Section~\ref{sec:numerics} makes this
+concrete. A network trained through Forward Euler learns the \emph{inverse
+modified equation} of backward error analysis rather than the physical
+field, and every trained model, KAN or MLP, replaces Lotka-Volterra's family
+of neutral orbits with a single attracting limit cycle. Diagnosing behaviour
+like this means treating training itself as an object of study.
+
+\subsection{Summary of our work}
+\label{sec:work-summary}
+
+Table~\ref{tab:work-summary} lists every study we ran, why we ran it, what we
+found, and where it is reported. In short, our objectives were to:
+(i)~reproduce the base paper's Lotka-Volterra benchmark with every
+integrator and basis implemented and verified from its defining formula;
+(ii)~vary each of the paper's three fixed design choices and measure what
+it actually costs or buys; (iii)~check whether the recipe transfers to other
+dynamical systems, and fix it where it does not; and (iv)~test whether our
+conclusions survive a five times larger training budget.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\caption{Summary of the studies in this report.}
+\label{tab:work-summary}
+\begin{tabularx}{\textwidth}{|C{0.35cm}|L{2.6cm}|L{4.5cm}|Y|C{0.6cm}|}
+\hline
+\hdrrow \thh{\#} & \thh{Study} & \thh{Why we ran it} & \thh{What we observed} & \thh{Sec.}\\
+\hline
+1 & Baseline reproduction: KAN-ODE vs.\ MLP-ODE & Test the base paper's two headline claims (accuracy and training speed) at matched parameter count. & KAN-ODE extrapolates $5.4\times$ better at $10^4$ epochs, a gap explained by a $48\times$ smaller period error. The MLP trains $4.1\times$ \emph{faster}. The paper's literal tanh MLP trains only under the paper's own learning rate and initialization. & \ref{sec:kan-vs-mlp}\\
+\hline
+2 & Integrator ablation & The paper fixes Tsit5; does solver order matter for training? & All six solvers pass their order conditions to round-off. Above order two, accuracy is flat: Midpoint matches Tsit5 within $0.3\%$ at $29\%$ of the cost. The Euler model learns the inverse modified equation, and no model transfers across solver families. & \ref{sec:solver-results}\\
+\hline
+3 & Basis-function ablation & The paper switched from B-spline to RBF; is that justified? & B-spline and RBF are tied, with RBF $3.9\times$ cheaper. Global polynomials extrapolate $4$--$5\times$ worse. Locality, not conditioning, separates the bases. & \ref{sec:basis-results}\\
+\hline
+4 & Step-size and noise sensitivity & How sensitive is the fit to sampling density and observation noise? & Step size acts as a data-density choice (non-monotone). Extrapolation MSE scales as $12.9\,\sigma^{2.02}$ with noise. & \ref{sec:dt-noise}\\
+\hline
+5 & What the trained fields learned & Does low trajectory error mean the right vector field? & No. Every model is an attracting limit cycle around a spurious unstable equilibrium, accurate only in a thin tube around the training orbit. & \ref{sec:numerics}\\
+\hline
+6 & Cross-domain failures and fixes & Does the Lotka-Volterra recipe transfer to the pendulum and SIR? & A longer training window fixes the pendulum. SIR's $19\times$ scale mismatch at initialization is fixed by time rescaling and a conservation projection; adding a vanishing-field gate gives $R^2$: $-20.97\to+0.998$. The KAN advantage widens to $40.6\times$ at twice the horizon. & \ref{sec:crossdomain}\\
+\hline
+7 & Adjoint vs.\ direct autograd & The paper uses the adjoint for its memory saving; does that matter at our scale? & The adjoint uses less memory at every length tested but is $1.9$--$2.1\times$ slower, so we use direct autograd. & \ref{sec:track-a}\\
+\hline
+8 & Gradient-norm dynamics & Is Euler's convergence floor caused by noisier gradients? & No ($\rho=-0.088$, $p=0.87$); gradient spike bursts are shared across all solvers. & \ref{sec:track-b}\\
+\hline
+9 & Learnable hybrid basis & Can the network learn its own B-spline/RBF blend? & The gate works as designed but never beats the better pure basis, and it overfits on the pendulum past 3000 epochs. & \ref{sec:track-c}\\
+\hline
+10 & Stiffness--solver map & Do explicit solvers fail as the pendulum's damping grows? & Zero divergences, as linear stability predicts. The failures trace to the random seed and a spurious learned equilibrium. & \ref{sec:track-d}\\
+\hline
+11 & Sparse regression and epidemic transfer & How does KAN-ODE compare with SINDy under noise, and do the SIR fixes transfer to a non-mechanistic outbreak curve? & KAN-ODE is more accurate at every noise level, but degrades $1540\times$ against SINDy's $9\times$. Pruning finds no sparse structure. Two of three SIR fixes transfer. & \ref{sec:track-e}\\
+\hline
+12 & Epoch-budget validation & Do the $10^4$-epoch conclusions survive five times the budget? & Solver and basis rankings hold. KAN vs.\ MLP \emph{reverses}: the MLP is $6.8\times$ better at $5\times10^4$ epochs. & \ref{sec:phase4}\\
+\hline
+13 & Comparison with the base paper & Audit our recipe against the paper field by field. & Architecture and basis match. The KAN's training speed is reproduced within $1.4\times$. The tenfold speed advantage depends on the MLP baseline's optimizer settings. & \ref{sec:audit}\\
+\hline
+\end{tabularx}
+\end{table*}
+
+The rest of the paper follows the course's required structure.
+Section~\ref{sec:method} gives the numerical methods: the KAN-ODE model, the
+integrators, the basis families, the two gradient methods, the hybrid basis
+and sparse regression. Section~\ref{sec:impl} describes the datasets,
+training recipe, evaluation protocol and compute budget.
+Section~\ref{sec:results} reports each study in the order of
+Table~\ref{tab:work-summary}, compares our findings with the base paper, and
+discusses the patterns that recur across studies.
+Section~\ref{sec:conclusion} concludes with limitations and future work.

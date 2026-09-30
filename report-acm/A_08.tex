@@ -1,0 +1,109 @@
+\documentclass[sigconf,nonacm]{acmart}
+\usepackage{kk-acm}
+\graphicspath{{../report/}}
+
+\settopmatter{printfolios=true}
+
+\begin{document}
+
+\title{Kinetic-KAN: Solver-Aware Neural Dynamics}
+\subtitle{Project Final Report \textperiodcentered{} Group A\_08, Section A}
+
+\author{Nawriz Ahmed Turjo}
+\affiliation{%
+  \department{Student ID 2105032}
+  \institution{Bangladesh University of Engineering and Technology}
+  \city{Dhaka}
+  \country{Bangladesh}}
+
+\author{Abhishek Roy}
+\affiliation{%
+  \department{Student ID 2105033}
+  \institution{Bangladesh University of Engineering and Technology}
+  \city{Dhaka}
+  \country{Bangladesh}}
+
+\author{Monjur Hossain Khan (Shovon)}
+\affiliation{%
+  \department{Student ID 2105043}
+  \institution{Bangladesh University of Engineering and Technology}
+  \city{Dhaka}
+  \country{Bangladesh}}
+
+\author{Shams Hossain Simanto}
+\affiliation{%
+  \department{Student ID 2105048}
+  \institution{Bangladesh University of Engineering and Technology}
+  \city{Dhaka}
+  \country{Bangladesh}}
+
+\author{Md.\ Abrar Jahin}
+\affiliation{%
+  \department{Student ID 2105055}
+  \institution{Bangladesh University of Engineering and Technology}
+  \city{Dhaka}
+  \country{Bangladesh}}
+
+\renewcommand{\shortauthors}{Group A\_08}
+
+\begin{abstract}
+Kolmogorov-Arnold Network ODEs (KAN-ODEs) replace the multilayer perceptron
+inside a Neural ODE with a network whose every edge is a learnable univariate
+function. We reproduce the Lotka-Volterra benchmark of the KAN-ODE base paper
+in PyTorch, implementing six explicit Runge-Kutta integrators and seven basis
+families from their defining formulas and verifying every integrator's order
+to round-off. We then treat the paper's three fixed design choices
+(integrator, basis and gradient method) as variables, extend the recipe to a
+damped pendulum, an SIR epidemic model and a non-mechanistic outbreak curve, and run
+follow-on studies on adjoint sensitivity, gradient dynamics, a learnable
+basis blend, solver stiffness and sparse symbolic regression. Above order
+two, the solver does not change accuracy: Midpoint matches Tsit5 within
+$0.3\%$ at $29\%$ of the cost. Networks learn the field their solver needs
+(the Euler-trained model matches the inverse modified equation), and every
+trained model, KAN or MLP, is an attracting limit cycle rather than the true
+neutral centre. At $10^4$ epochs KAN-ODE extrapolates $5.4\times$ better
+than a parameter-matched MLP, but at $5\times10^4$ epochs the MLP is
+$6.8\times$ better. B-spline and RBF bases are tied, while global polynomials
+extrapolate $4$--$5\times$ worse. SIR's training failure traces to a
+$19\times$ unit-scale mismatch at initialization; time rescaling, a
+conservation projection and a vanishing-field gate move extrapolation $R^2$
+from $-20.97$ to $+0.998$. All results are single-seed.
+\end{abstract}
+
+\keywords{Kolmogorov-Arnold networks, neural ordinary differential equations,
+Runge-Kutta methods, basis functions, numerical stability, extrapolation}
+
+\maketitle
+
+\section{Introduction and Base Paper Review}
+\label{sec:introduction}
+\input{sections/01_introduction}
+
+\section{Methodology}
+\label{sec:method}
+\input{sections/02_methodology}
+
+\section{Implementation and Experiments}
+\label{sec:impl}
+\input{sections/03_implementation}
+
+\section{Results and Discussion}
+\label{sec:results}
+\input{sections/04_results}
+
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+\input{sections/05_conclusion}
+
+\begin{acks}
+We thank our supervisor, Niaz Rahman (Lecturer, Department of CSE, BUET),
+for his guidance throughout this project.
+\end{acks}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

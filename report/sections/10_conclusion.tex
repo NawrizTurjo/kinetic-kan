@@ -47,8 +47,9 @@ The principal quantitative findings are:
 \item SIR's training failure traced to a $19\times$ unit-scale mismatch
   between the network's initial field and the true dynamics, fixable by a
   change of time units and a conservation projection -- two interventions
-  that assume nothing about the system beyond what its own equations state.
-  Extrapolation $R^2$ moved from $-20.97$ to $+0.9981$.
+  that assume nothing about the system beyond what its own equations state
+  and that together remove the divergence. Adding a vanishing-field gate
+  moved extrapolation $R^2$ from $-20.97$ to $+0.9981$.
 \item Direct autograd is the correct default for this project's scale:
   adjoint sensitivity already uses less memory at every tested trajectory
   length but costs a consistent $1.9$--$2.1\times$ wall-clock overhead.
@@ -65,7 +66,7 @@ The principal quantitative findings are:
 \item KAN-ODE is more accurate than sparse symbolic regression at every noise
   level tested, but sparse regression is far more robust ($9\times$ vs.\
   $1540\times$ degradation from clean to $\sigma=0.1$). Two of the SIR
-  stability fixes transfer to a real, non-mechanistic epidemic curve; the
+  stability fixes transfer to a non-mechanistic outbreak curve; the
   one that transfers best was predicted inapplicable.
 \end{itemize}
 

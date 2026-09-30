@@ -1,0 +1,214 @@
+\subsection{Epoch-budget validation}
+\label{sec:phase4}
+
+Every result in Sections~\ref{sec:kan-vs-mlp}--\ref{sec:track-e} was measured
+at a fixed $10^4$-epoch budget, a tenth of the base paper's, for the cost
+reasons of Section~\ref{sec:budget}. Here we ask whether that budget is long
+enough for the \emph{rankings} to be trusted, and whether any gap to the
+paper comes from the budget or from an implementation difference.
+
+\begin{expectbox}
+\expectrow{Question}{Do the conclusions drawn at $10^4$ epochs survive five times the training budget?}
+\expectrow{Expected}{Absolute errors fall; orderings between configurations hold, since every $10^4$-epoch model had already reached a training loss near $10^{-4}$.}
+\expectrow{Observed}{Three of four conclusions hold. The fourth, the one the paper headlines, reverses: at $5\times10^4$ epochs the parameter-matched MLP extrapolates $6.8\times$ \emph{better} than KAN-ODE.}
+\end{expectbox}
+
+\subsubsection{Design}
+
+We chose five configurations to test the conclusions most exposed to the
+budget: Euler (the one solver short of $10^{-4}$ at $10^4$ epochs),
+Tsit5/RBF (the reference), B-spline (the near-tie with RBF), and both MLP
+baselines. Each was retrained from scratch at $5\times10^4$ epochs with the
+recipe of Table~\ref{tab:recipe} unchanged, on cloud CPUs. The B-spline run
+was cut to $2.5\times10^4$ epochs because its short calibration run
+predicted about 35 hours for the full budget. The real run turned out
+$1.63\times$ faster than that calibration ($1.544$ against $2.52$~s/epoch),
+a reminder that a five-epoch sample is dominated by start-up cost. The batch
+used $23.2$ serial CPU-hours against a planned $17.0$, and $10.7$ hours of
+wall-clock with the five jobs in parallel. Before analysis we checked every
+run's stored metrics against the epoch count of its training log, and
+reloaded and re-scored every checkpoint; the rollouts reproduce the stored
+extrapolation MSE to within $0.6\%$.
+
+We added a sixth configuration later, as a separate follow-up. The
+implementation audit (Section~\ref{sec:audit}) turned up the base paper's own
+learning rate and initialization scale for its MLP baseline, so we reran
+both budgets with the identical $[2,50,2]$ tanh architecture under those
+settings instead of our default. We report it alongside the original five
+throughout.
+
+\subsubsection{Results}
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{The five originally planned configurations at $10^4$ epochs
+(Sections~\ref{sec:kan-vs-mlp}--\ref{sec:basis-results}) and at the extended budget, plus a sixth added
+after auditing the paper's own optimizer settings for its MLP baseline
+(Section~\ref{sec:audit}). ``Clip'' is the fraction of optimizer steps on
+which gradient clipping at norm $1.0$ engaged; $\|\nabla\|_{\text{med}}$ is
+the median pre-clip gradient norm over the extended run. The sixth
+configuration ran with no clipping by design (see the paragraph following
+this table), so those two columns are blank throughout.}
+\label{tab:phase4}
+\begin{tabularx}{\textwidth}{@{}Y C{1.1cm} C{2.0cm} C{2.0cm} C{1.8cm} C{1.0cm} C{1.1cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Configuration} & \thh{Epochs} & \thh{Training MSE} & \thh{Extrap.\ MSE} & \thh{Extrap.\ $R^2$} & \thh{$\hat L$} & \thh{Clip} & \thh{$\|\nabla\|_{\text{med}}$}\\
+\midrule
+Euler / RBF & 10k & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$ & & \\
+ & \textbf{50k} & $8.85\times10^{-6}$ & $1.93\times10^{-4}$ & $0.99993$ & $7.72$ & $4.7\%$ & $0.147$\\
+\addlinespace
+Tsit5 / RBF & 10k & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & $6.91$ & & \\
+ & \textbf{50k} & $6.59\times10^{-6}$ & $4.02\times10^{-5}$ & $0.999986$ & $7.75$ & $4.3\%$ & $0.169$\\
+\addlinespace
+Tsit5 / B-spline & 10k & $7.20\times10^{-5}$ & $8.38\times10^{-5}$ & $0.99997$ & $8.44$ & & \\
+ & \textbf{25k} & $9.65\times10^{-6}$ & $4.26\times10^{-5}$ & $0.999985$ & $7.05$ & $2.2\%$ & $0.033$\\
+\addlinespace
+MLP-ODE, SiLU & 10k & $9.50\times10^{-5}$ & $4.77\times10^{-4}$ & $0.99984$ & $5.07$ & & \\
+ & \textbf{50k} & $\mathbf{1.82\times10^{-6}}$ & $\mathbf{5.90\times10^{-6}}$ & $\mathbf{0.999998}$ & $5.65$ & $11.1\%$ & $0.162$\\
+\addlinespace
+MLP-ODE, tanh (paper, default lr/init) & 10k & $1.08\times10^{0}$ & $1.69\times10^{0}$ & $0.4215$ & $38.2$ & & \\
+ & \textbf{50k} & $1.01\times10^{0}$ & $4.32\times10^{0}$ & $-0.4841$ & $104.8$ & $99.3\%$ & $19.8$\\
+\addlinespace
+MLP-ODE, tanh (paper's own lr/init) & 10k & $1.11\times10^{-3}$ & $9.65\times10^{-3}$ & $0.99669$ & $9.23$ & & \\
+ & \textbf{50k} & $5.43\times10^{-5}$ & $4.31\times10^{-4}$ & $0.99985$ & $9.67$ & -- & -- \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/tsit5_rbf_50k_loss_curves.png}
+  \caption{KAN-ODE, Tsit5 / RBF, 50k}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/mlp_silu_50k_loss_curves.png}
+  \caption{MLP-ODE, SiLU, 50k}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/euler_50k_loss_curves.png}
+  \caption{KAN-ODE, Euler / RBF, 50k}
+\end{subfigure}\\[4pt]
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/bspline_25k_loss_curves.png}
+  \caption{KAN-ODE, Tsit5 / B-spline, 25k}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/mlp_paperspec_50k_loss_curves.png}
+  \caption{MLP-ODE, tanh (paper's default lr/init), 50k}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.32\textwidth}
+  \includegraphics[width=\linewidth]{figures/phase4/mlp_tanh_exact_50k_loss_curves.png}
+  \caption{MLP-ODE, tanh (paper's own lr/init), 50k}
+\end{subfigure}
+\caption{Training and test loss of the six extended runs, as saved by each
+run. Training loss is logged every epoch; the test loss (full horizon
+$[0,14]$) every ten epochs, and it spikes by up to two orders of magnitude
+throughout, which is why the comparison in the text uses a 500-epoch rolling
+median rather than raw values. Panel (f) shows the identical $[2,50,2]$ tanh
+architecture of panel (e), retrained with only the learning rate and
+initialization scale changed to the values in the paper's own published
+code.}
+\label{fig:phase4-curves}
+\end{figure*}
+
+Every working configuration improves its training MSE by $7.5$--$52\times$
+(Table~\ref{tab:phase4}); what matters is which orderings survive.
+Table~\ref{tab:phase4-verdicts} gives the verdict for each conclusion the
+earlier sections draw.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Which $10^4$-epoch conclusions survive the extended budget.}
+\label{tab:phase4-verdicts}
+\begin{tabularx}{\textwidth}{@{}L{4.6cm} L{3.2cm} L{3.0cm} Y@{}}
+\toprule
+\hdrrow \thh{Conclusion at $10^4$ epochs} & \thh{At $10^4$} & \thh{At $5\times10^4$} & \thh{Verdict}\\
+\midrule
+RBF and B-spline are statistically tied & $6.1\%$ apart & $5.6\%$ apart (25k) & \textbf{Holds}. The basis choice can be made on cost.\\
+Euler is the worst solver & $28.1\times$ Tsit5 & $4.8\times$ Tsit5 & \textbf{Holds}, with a much smaller margin: part of the gap was under-training.\\
+The paper-spec MLP fails because of its architecture, not its budget & train $1.08$, $R^2=0.42$ & train $1.01$, $R^2=-0.48$ & \textbf{Budget part holds; architecture part reversed.} More epochs alone do not help, but the identical architecture trains under the paper's own learning rate and initialization (below): $R^2=0.9998$ at this budget.\\
+KAN-ODE extrapolates better than a parameter-matched MLP & KAN $5.35\times$ better & MLP $6.82\times$ better & \textbf{Reverses.} The advantage is a budget effect.\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\paragraph{The paper-spec MLP is stuck, not slow.} With five times the
+budget its training loss moves by $7\%$ ($1.083\to1.011$), its extrapolation
+error rises $2.6\times$, and $R^2$ turns negative. The optimizer spends the
+run in a pathological regime: clipping engages on $99.3\%$ of steps against
+$2$--$11\%$ for every other configuration, the median pre-clip gradient norm
+is $19.8$ against $0.03$--$0.17$, and the Lipschitz estimate nearly triples
+to $104.8$, an order of magnitude above every other model. This settles half
+of the question left open in Section~\ref{sec:kan-vs-mlp}: whatever is wrong
+here is a property of this training run, not of the epoch count, since five
+times the budget only entrenches it. It is not, however, a property of the
+architecture itself. The next paragraph shows the identical network
+training cleanly once its optimizer settings are corrected.
+
+\paragraph{Resolving the audit's open optimizer row: the paper's own learning
+rate and initialization.} The base paper's own published code (not
+distributed with our project, but readable in its public repository) sets
+two things differently for its MLP baseline than our default: a learning
+rate of $10^{-2}$ (five times our $2\times10^{-3}$) and Glorot initial
+weights divided by $10^5$, near zero rather than full-scale. Holding
+architecture, activation, dataset, solver and seed fixed and changing only
+those two settings, the identical $[2,50,2]$ tanh network trains cleanly at
+both budgets (Table~\ref{tab:phase4}, row six; panel f of
+Figure~\ref{fig:phase4-curves}). At $10^4$ epochs, training MSE falls from
+$1.08$ to $1.11\times10^{-3}$ and extrapolation MSE from $1.69$ to
+$9.65\times10^{-3}$ ($R^2:0.42\to0.997$). At $5\times10^4$ epochs training
+MSE reaches $5.43\times10^{-5}$ and extrapolation MSE $4.31\times10^{-4}$
+($R^2=0.99985$), against $1.01$ and $4.32$ under the default settings at the
+same budget. Neither run needed gradient clipping or hit a single
+non-finite gradient step. The conclusion Table~\ref{tab:mlp-breakdown} drew
+does not survive this: changing only the learning rate and initialization
+scale, with the exact literal architecture and activation that table showed
+failing, is enough on its own. What that factorial actually measured was
+sensitivity to activation \emph{at our optimizer settings}, not an
+architecture-level incompatibility with the system.
+
+Against the other two architectures at $5\times10^4$ epochs, the corrected
+tanh MLP is still not competitive. Its extrapolation MSE
+($4.31\times10^{-4}$) is $10.7\times$ KAN-ODE's and $73\times$ the SiLU MLP's,
+and its learned equilibrium sits $1.72$ from the truth, the furthest of the
+three (Table~\ref{tab:equilibria}). Its one advantage is conservation: a
+first-integral drift of $0.06\%$ is the smallest of the three (KAN $0.08\%$,
+SiLU-MLP $0.21\%$), though its on-orbit field error ($2.7\%$) is the
+largest. It also falls short of the paper's own reported target. The paper
+states that its MLP reaches a training loss of $3.0\times10^{-5}$ within
+$10^5$ epochs; this run's training loss crosses $10^{-4}$ at epoch
+$39{,}695$ but had not reached $3.0\times10^{-5}$ by epoch $50{,}000$. That
+trend is consistent with, but does not confirm, the paper's own budget for
+this baseline.
+
+\paragraph{The KAN advantage over the MLP reverses.} At $10^4$ epochs, from
+training losses $7\%$ apart, the KAN-ODE extrapolates $5.35\times$ better
+than the SiLU MLP, the result that reproduces the paper's accuracy claim. At
+$5\times10^4$ epochs the MLP's extrapolation MSE is $5.90\times10^{-6}$ and
+the KAN's $4.02\times10^{-5}$: the MLP is $6.82\times$ better, far outside
+the single-seed noise that separates RBF from B-spline. The checkpoint
+analyses of Section~\ref{sec:numerics} agree on every measure. At 50k the MLP
+has the smaller on-orbit field error ($0.6\%$ against $1.1\%$), the smaller
+first-integral drift ($0.4\%$ against $0.9\%$), an equilibrium closer to the
+truth ($0.68$ against $1.65$ away), and a lower far-horizon error
+(maximum $2.4\times10^{-2}$ against $6.5\times10^{-2}$ on $(14,28]$). The
+crossover is late. Smoothing the logged full-horizon MSE of
+Figure~\ref{fig:phase4-curves} with a 500-epoch rolling geometric median,
+the two models are level at $2.5\times10^4$
+epochs ($1.7\times10^{-4}$ against $2.0\times10^{-4}$), and the MLP stays
+ahead for good only from about epoch $48{,}500$. The MLP is also the faster
+learner at every threshold: in the extended runs it reaches $10^{-4}$
+training MSE at epoch 5225 against the KAN's 5695, and $10^{-5}$ at 13{,}815
+against 31{,}412.
+
+The honest reading is that KAN-ODE has a strong \emph{early} inductive bias
+for this smooth periodic problem. Within a fixed, moderate budget it produces
+the better extrapolator, but it is not the better function class once both
+models are trained to convergence. Neither model learns the conservative
+structure of the system (Figure~\ref{fig:limit-cycle}); the MLP simply fits
+the training orbit's phase more precisely in the end.

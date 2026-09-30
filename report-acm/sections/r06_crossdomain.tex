@@ -1,0 +1,228 @@
+\subsection{Cross-domain failures and fixes}
+\label{sec:crossdomain}
+
+Applying the Lotka-Volterra recipe unchanged to the damped pendulum and to
+SIR failed on both systems, each for its own reason. Both diagnoses follow
+the same discipline: measure a quantity about the model's behavior
+\emph{before} training, rather than search the hyperparameter space after a
+failed run.
+
+\paragraph{Pendulum: extending the training window.} The pendulum recipe
+originally trained on $t\in[0,3]$ and diverged in extrapolation
+($R^2=-1.318$). Extending the training window to $t_{\text{train}}=5.0$, a
+single flag, resolves it:
+
+\begin{expectbox}
+\expectrow{Question}{Why does the Lotka-Volterra recipe, applied unchanged, diverge on the pendulum?}
+\expectrow{Expected (hypothesis)}{SiLU's residual branch cannot represent the sign-changing derivative $\dot\theta=\omega$ -- an architectural limit.}
+\expectrow{Observed}{Refuted. A longer training window fixes it under either activation; SiLU fits the sign change fine once the window is long enough.}
+\end{expectbox}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\caption{Pendulum fix: best configuration versus the original failure.}
+\label{tab:pendulum-fix}
+\begin{tabularx}{\columnwidth}{@{}Y C{1.9cm} C{1.5cm} C{1.3cm}@{}}
+\toprule
+\hdrrow \thh{Configuration} & \thh{Full-horizon MSE} & \thh{Extrapolation $R^2$} & \thh{Verdict}\\
+\midrule
+Original ($t_{\text{train}}=3.0$) & $8.99\times10^{-1}$ & $-1.318$ & diverges\\
+Extended window ($t_{\text{train}}=5.0$, SiLU) & $\mathbf{4.48\times10^{-2}}$ & $\mathbf{+0.647}$ & \textbf{adopted}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+An earlier hypothesis held that SiLU's residual branch $W\cdot\mathrm{silu}(x)$
+cannot represent a sign-changing derivative such as $\dot\theta=\omega$. A
+factorial control that crosses activation with training-window length
+refutes it directly. With the longer window, SiLU reaches an angular-velocity
+root-mean-square error of $0.0114$ radians and reproduces the true turning
+point ($\theta_{\min}=-1.380$ against a true value of $-1.385$). The training
+window is what fixes the pendulum. The activation choice affects only how
+quickly the fit is reached: the identity activation converges
+$\sim\!1000\times$ faster at the short window, but does not match the longer
+window's accuracy.
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/pendulum_fixed_trajectory.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/pendulum_fixed_loss_curves.png}
+\end{minipage}
+\caption{Fixed-pendulum trajectory reconstruction (left) and training/extrapolation
+loss curves (right), using the extended-window recipe.}
+\label{fig:pendulum-fixed}
+\end{figure*}
+
+\paragraph{SIR: a unit-scale mismatch.} SIR diverged to an invalid
+(not-a-number) value at epoch 8686.
+
+\begin{expectbox}
+\expectrow{Question}{What causes SIR's divergence, and is it a scale problem, an optimizer defect, or a modeling gap?}
+\expectrow{Expected}{Measuring the untrained network's own field magnitude against the true dynamics, before any training, should reveal whether the two are mismatched in scale.}
+\expectrow{Observed}{A $19\times$ speed mismatch at initialization. Rescaling time removes the divergence entirely; no optimizer or architecture change was needed.}
+\end{expectbox}
+
+Measuring the learned field magnitude \emph{before any training step}
+explained the divergence directly. A Glorot-initialised KAN starts with
+$|f_\theta|\approx0.203$, against SIR's true field magnitude of $0.011$: a
+$19\times$ speed mismatch. To see why this is catastrophic rather than merely
+inaccurate, note that backpropagation through an explicit solver
+differentiates roughly $T/\Delta t$ nested nonlinear steps, and the resulting
+gradient sensitivity grows exponentially as $e^{\Ltrunc \Ttrain}$, where
+$\Ltrunc$ is the Lipschitz constant of $\mathbf{f}_\theta$ and $\Ttrain$ is
+the integration horizon. Lotka-Volterra trains at $\Ttrain=3.5$ with
+$|f|\sim10^0$ and converges. The pendulum trains at $\Ttrain=5.0$ with
+$|f|\sim10^0$ and converges after the window fix. SIR sits at $\Ttrain=50$
+with $|f|\sim10^{-2}$. There the product $\Ltrunc\Ttrain$ is large enough
+that training actually fails at the gradient overflow recorded at epoch 11,
+not at the later epoch 8686.
+
+The optimizer was behaving rationally. With an epoch-0 loss of
+$3.16\times10^{2}$, collapsing the field to $\mathbf{f}_\theta\to\mathbf{0}$
+reduces the loss to $\approx10^{-1}$, a $3{,}000\times$ improvement
+reachable immediately. SIR's natural timescale is the recovery period
+$1/\gamma=10$~days. Substituting $\tau=t/10$ gives
+$\dd\mathbf{y}/\dd\tau = 10\,\mathbf{f}(\mathbf{y})$ over
+$\tau\in[0,5]$, which puts SIR in the same regime the other two systems
+already train in. A separate mass-drift symptom is fixed by projecting the
+learned field onto the zero-sum subspace,
+$f_{\text{proj}}(\mathbf{y}) = f(\mathbf{y})-\tfrac{1}{n}\sum_i f_i(\mathbf{y})$.
+This enforces the SIR invariant (Equation~\ref{eq:sir}) as a property of the
+flow rather than as a penalty on the fit. A third fix, a
+\emph{vanishing-field gate}, multiplies the learned field by the infected
+fraction $I$, so that $I=0$ is a manifold of equilibria exactly as in
+Equation~\ref{eq:sir}, where every term carries a factor of $I$. Unlike the
+first two fixes, this one assumes something about the physics.
+Table~\ref{tab:sir-fix-summary} therefore reports the first two fixes on
+their own and then with the gate added. Rescaling and projection alone remove
+the divergence and cut extrapolation RMSE by $4.4\times$. The gate gives a
+further $25\times$, and only the full recipe reaches a high extrapolation
+$R^2$. Over this window the true signal varies very little (standard
+deviation $0.002$--$0.017$), so $R^2$ is harsh and RMSE is the more
+informative number.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.15}
+\caption{SIR before and after the fixes, at the full 10{,}000-epoch budget.
+``Rescale + project'' applies time rescaling and the conservation
+projection, which assume nothing beyond Equation~\ref{eq:sir}; ``+ gate''
+adds the vanishing-field gate. Mass error is $\max_t|S+I+R-1|$.}
+\label{tab:sir-fix-summary}
+\begin{tabular}{@{}L{2.5cm} C{1.65cm} C{1.75cm} C{1.65cm}@{}}
+\toprule
+\hdrrow \thh{Metric} & \thh{Before fix} & \thh{Rescale + project} & \thh{+ gate}\\
+\midrule
+Training MSE & $4.39\times10^{-4}$ & $1.08\times10^{-5}$ & $\mathbf{2.28\times10^{-8}}$\\
+Extrapolation RMSE & $0.0614$ & $0.0140$ & $\mathbf{5.7\times10^{-4}}$\\
+Mass error & $0.0045$ & $\mathbf{0.0000}$ & $\mathbf{0.0000}$\\
+Extrapolation $R^2$ & $-20.97$ & $-0.145$ & $\mathbf{+0.9981}$\\
+Max.\ gradient norm & $5.82\times10^{18}$ & $92.3$ & $\mathbf{1.19}$\\
+Final model & NaN (epoch 8686) & finite & finite\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/sir_fixed_trajectory.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/phase2/sir_fixed_loss_curves.png}
+\end{minipage}
+\caption{SIR with all three fixes: reconstruction of $S$ and $I$ over the
+full horizon (left; the plot's generic legend labels them prey and predator)
+tracks the true dynamics closely;
+training and extrapolation loss curves (right) decrease together without
+the gradient overflow that terminated the original run.}
+\label{fig:sir-fixed}
+\end{figure*}
+
+\paragraph{Other fixes considered.} We tested several more interventions.
+Table~\ref{tab:fix-scorecard} records them for completeness, including those
+we did not adopt.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Every stability intervention tested, including the rejected ones.}
+\label{tab:fix-scorecard}
+\begin{tabularx}{\textwidth}{@{}L{5.0cm} C{2.4cm} Y@{}}
+\toprule
+\hdrrow \thh{Intervention} & \thh{Verdict} & \thh{Evidence}\\
+\midrule
+Longer training window (pendulum) & Adopted & $R^2$ improves from $-1.318$ to $+0.647$; works for both activations tested\\
+Non-finite gradient guard with automatic abort & Adopted & Caught the divergence of an intermediate SIR recipe (conservation penalty plus loss weighting) at epoch 3055 and preserved a valid checkpoint instead of overwriting it with an invalid one\\
+Time rescaling (SIR) & Adopted & Removes both the divergence and the frozen-field behavior\\
+Conservation via subspace projection (SIR) & Adopted & Mass error reduced from $4.5\times10^{-3}$ to $0.0000$ (exact by construction)\\
+Vanishing-field gate (SIR) & Adopted & Extrapolation RMSE reduced a further $25\times$ ($0.0140\to5.7\times10^{-4}$); the only fix that assumes a physical property\\
+Identity activation (pendulum) & Speed only & Roughly $1000\times$ faster to fit at the short window, but worse extrapolation and stability at the long window\\
+Standard-deviation loss weighting & System-dependent & Worst-performing pendulum option; superseded for SIR by time rescaling\\
+Conservation via penalty term & Rejected & Wrong mechanism: the training window's mass was already close to conserved, so the penalty had nothing to correct (mass error still $0.0086$)\\
+Widened basis-function grid limits & Rejected & Performed worse than the untouched baseline configuration\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{keypoint}[Methodological lesson carried into every later study]
+Both diagnoses came from measuring the learned field's own magnitude at
+initialization, before training ever ran. The same init-time measurement
+reappears verbatim in the epidemic-curve test of
+Section~\ref{sec:track-e}.
+\end{keypoint}
+
+\subsubsection{Extended extrapolation: the KAN advantage widens with horizon}
+
+With the fixes in place, we extended the Lotka-Volterra extrapolation
+horizon from four periods ($t\in(3.5,14]$) to eight periods
+($t\in(3.5,28]$), using the same trained model with no retraining.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Extrapolation MSE as the horizon doubles, same trained models.}
+\label{tab:extrap-horizon}
+\begin{tabular}{@{}L{4.6cm} C{2.6cm} C{3.3cm} C{3.3cm} C{2.2cm}@{}}
+\toprule
+\hdrrow \thh{Model} & \thh{Training $[0,3.5]$} & \thh{Near extrapolation $(3.5,14]$} & \thh{Far extrapolation $(14,28]$} & \thh{Degradation}\\
+\midrule
+\textbf{KAN-ODE} (RBF, 240 parameters) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $\mathbf{9.72\times10^{-5}}$ & $\mathbf{1.1\times}$\\
+MLP-ODE (SiLU, 252 parameters) & $9.50\times10^{-5}$ & $4.78\times10^{-4}$ & $3.95\times10^{-3}$ & $8.3\times$\\
+MLP-ODE (tanh, paper specification) & $1.08\times10^{0}$ & $1.69\times10^{0}$ & $4.03\times10^{0}$ & $2.4\times$\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+The KAN-ODE's error is essentially flat across eight periods
+($8.83\to8.92\to9.72\times10^{-5}$, a $10\%$ rise from the training window
+to double the original horizon), while the parameter-matched MLP degrades
+$8.3\times$ over the same extension. The KAN-ODE advantage therefore widens
+with horizon, from $5.4\times$ at four periods to $\mathbf{40.6\times}$ at
+eight. This is a materially stronger claim than the near-horizon comparison
+presented earlier: KAN-ODE error does not accumulate, so the gap grows with
+every additional period.
+
+\subsubsection{Pendulum energy dissipation: an independent physical check}
+
+The fixed pendulum recipe captures $94.2\%$ of the true energy dissipation
+and tracks $E(t)$ to $0.6\%$ inside the training window. However, the strict
+monotonic-decay invariant ($\dd E/\dd t\le0$, Equation~\ref{eq:pendulum})
+is violated on 40 of 200 predicted steps. The model is under-damped: the
+true angular displacement decays to $0.004$ by $t=9.1$, while the predicted
+trajectory keeps oscillating at $0.237$. This energy diagnostic independently
+confirms the under-damping, expressed as a violated conservation law rather
+than a trajectory RMSE.

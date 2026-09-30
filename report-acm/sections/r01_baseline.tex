@@ -1,0 +1,160 @@
+\subsection{Baseline reproduction: KAN-ODE vs.\ MLP-ODE}
+\label{sec:kan-vs-mlp}
+
+Two MLP vector fields with 252 parameters were trained under the identical
+recipe: the paper's literal baseline, one hidden layer of 50 tanh units, and
+a deeper $[2,14,8,8,2]$ SiLU network that trains reliably under our
+protocol. Table~\ref{tab:kan-vs-mlp} and Figures~\ref{fig:kan-vs-mlp}
+and~\ref{fig:kan-vs-mlp-t28} compare
+them with the KAN-ODE. A fourth column, added after auditing the paper's own
+code (Section~\ref{sec:audit}), retrains the identical literal baseline under
+the paper's own learning rate and initialization scale instead of our
+default. Figures~\ref{fig:kan-vs-mlp} and~\ref{fig:kan-vs-mlp-t28}
+predate that run and still show only the original three.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{KAN-ODE against parameter-matched MLP-ODEs at $10^4$ epochs.
+Epoch counts are the first epoch at which the training loss falls below the
+threshold. The last three rows are computed from the saved checkpoints:
+field error is $\|\mathbf{f}_\theta-\mathbf{f}\|_2$ averaged over the true
+orbit on $(3.5,14]$ and divided by the mean $\|\mathbf{f}\|_2=4.82$ there;
+the period is measured from zero-crossings of the predicted prey signal over
+$[0,28]$; $H$ drift is $\max_t|H(\hat{\mathbf{u}}(t))-H_0|/H_0$ on $[0,28]$.
+The fourth column is the identical literal baseline of the third, retrained
+under the paper's own learning rate and initialization scale
+(Section~\ref{sec:audit}); its $5\times10^4$-epoch continuation is in
+Table~\ref{tab:phase4}.}
+\label{tab:kan-vs-mlp}
+\begin{tabularx}{\textwidth}{@{}Y C{2.85cm} C{2.85cm} C{2.85cm} C{2.85cm}@{}}
+\toprule
+\hdrrow \thh{Metric} & \thh{KAN-ODE (RBF)} & \thh{MLP-ODE (SiLU)} & \thh{MLP-ODE (tanh, default lr/init)} & \thh{MLP-ODE (tanh, paper's lr/init)}\\
+\midrule
+Parameters & 240 & 252 & 252 & 252\\
+Training MSE & $8.83\times10^{-5}$ & $9.50\times10^{-5}$ & $1.08\times10^{0}$ & $1.11\times10^{-3}$\\
+Extrapolation MSE & $\mathbf{8.92\times10^{-5}}$ & $4.77\times10^{-4}$ & $1.69\times10^{0}$ & $9.65\times10^{-3}$\\
+Extrapolation $R^2$ & $\mathbf{0.99997}$ & $0.99984$ & $0.4215$ & $0.99669$\\
+Relative $L_2$ error & $\mathbf{0.33\%}$ & $0.76\%$ & $45.2\%$ & $3.42\%$\\
+Lipschitz estimate $\hat L$ & $6.91$ & $\mathbf{5.07}$ & $38.22$ & $9.23$\\
+Epochs to $10^{-2}$ / $10^{-3}$ / $10^{-4}$ & $3112$ / $5282$ / $9617$ & $\mathbf{741}$ / $\mathbf{1297}$ / $\mathbf{9145}$ & never & $3461$ / never / never\\
+Wall-clock, $10^4$ epochs & $1705$ s & $2856$ s & $736$ s & $1052$ s\\
+\midrule
+Field error on the orbit, $(3.5,14]$ & $2.84\%$ & $2.82\%$ & -- & $7.03\%$\\
+Relative period error & $\mathbf{1.7\times10^{-5}}$ & $8.0\times10^{-4}$ & -- & $3.1\times10^{-3}$\\
+Max.\ first-integral drift & $3.1\%$ & $\mathbf{2.8\%}$ & -- & $22.7\%$\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/ablation/03_kan_vs_mlp_convergence.png}
+\caption{Test MSE on the full horizon $[0,14]$, logged every ten epochs, for
+KAN-ODE and the two parameter-matched MLP-ODEs. The SiLU MLP drops faster
+early; KAN-ODE descends more slowly with smaller spikes and ends lower.
+The paper-spec tanh MLP plateaus near $1$.}
+\label{fig:kan-vs-mlp}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/ablation/07_extrapolation_t28.png}
+\caption{Predicted against true populations out to $t=28$ for the three
+models, with no retraining. KAN-ODE and SiLU-MLP are visually
+indistinguishable from the truth; the paper-spec tanh MLP runs slow, falls
+behind by more than a quarter period, and never reproduces the predator
+peak.}
+\label{fig:kan-vs-mlp-t28}
+\end{figure}
+
+The fourth column shows that the paper's literal architecture was never the
+problem. Given the paper's own learning rate and initialization scale, the
+identical tanh network reaches $R^2=0.997$. We return to this in
+Section~\ref{sec:phase4}, which also reports its $5\times10^4$-epoch
+continuation. The next two paragraphs compare KAN-ODE against the working
+SiLU baseline, columns one and two.
+
+We find one result that confirms the paper and one that contradicts it.
+\textbf{KAN-ODE extrapolates $5.4\times$ better} from a training loss only
+$7\%$ lower, reproducing the paper's accuracy claim. The checkpoints show
+where that gap comes from. Both fields are equally accurate on the orbit
+($2.84\%$ against $2.82\%$ mean field error), and both hold the invariant
+to about $3\%$, but the MLP's orbit period is off by $8.0\times10^{-4}$
+against the KAN's $1.7\times10^{-5}$, a $48\times$ larger period error. On a
+periodic orbit a period error $\epsilon_T$ becomes a phase lag that grows
+linearly, $\approx 2\pi\epsilon_T\, t/T$, so the trajectory error of the MLP
+keeps accumulating while the KAN's stays near its training-window level.
+The extrapolation gap is a phase-accuracy gap rather than a field-accuracy
+gap. \textbf{The MLP converges faster, not slower}: it reaches $10^{-3}$
+training MSE at epoch 1297 against the KAN's 5282, $4.1\times$ sooner. This
+contradicts the paper's headline efficiency claim on this same system (a
+$10^4$-epoch KAN-ODE against a $10^5$-epoch MLP-ODE). Under our protocol, at
+matched parameter count and optimizer settings, the MLP was the faster model
+to train; KAN-ODE won on extrapolation, the paper's other headline claim.
+
+\paragraph{Why the paper's literal MLP fails to train under our default
+optimizer settings.} The $[2,50,2]$ tanh network never gets below a
+training MSE of $1.08$ at our default learning rate
+($2\times10^{-3}$) and initialization (Glorot, gain $1.0$). A controlled
+2000-epoch factorial run, holding those optimizer settings fixed, separates
+the two things that differ between it and the working baseline
+(Table~\ref{tab:mlp-breakdown}).
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Controlled breakdown of why the paper's literal MLP baseline
+architecture, $[2,50,2]$ with hyperbolic tangent (tanh) activation, fails to
+train at our default learning rate and initialization scale. All
+four runs use 2000 epochs and Glorot initialization at gain $1.0$; none
+varies the initialization scale (see the paragraph following this table).}
+\label{tab:mlp-breakdown}
+\begin{tabularx}{\textwidth}{@{}C{0.9cm} Y C{1.8cm} C{2.0cm} C{2.6cm} C{2.6cm} C{2.0cm}@{}}
+\toprule
+\hdrrow \thh{Run} & \thh{Architecture} & \thh{Activation} & \thh{Learning rate} & \thh{Training MSE} & \thh{Extrapolation MSE} & \thh{$R^2$}\\
+\midrule
+A & $[2,50,2]$ & tanh & $2\times10^{-3}$ & $1.21\times10^{0}$ & $1.98\times10^{0}$ & $0.319$\\
+B & $[2,50,2]$ & tanh & $5\times10^{-4}$ & $1.85\times10^{0}$ & $9.23\times10^{0}$ & $-2.169$\\
+C & $[2,14,8,8,2]$ & SiLU & $2\times10^{-3}$ & $\mathbf{4.28\times10^{-4}}$ & $\mathbf{6.97\times10^{-4}}$ & $\mathbf{0.99976}$\\
+D & $[2,50,2]$ & SiLU & $2\times10^{-3}$ & $3.62\times10^{-3}$ & $2.68\times10^{2}$ & $-91.06$\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Runs A and D share the architecture and differ only in activation. The
+training MSE falls from $1.21$ to $3.62\times10^{-3}$, a $335\times$
+improvement, so at these optimizer settings, activation decides whether this
+architecture fits the data at all. Runs C and D share the SiLU activation and
+differ only in depth. The shallow network fits the window but its
+extrapolation error explodes to $2.68\times10^{2}$, against
+$6.97\times10^{-4}$ for the deep one, so depth decides whether a model that
+trains also extrapolates. Lowering the learning rate alone (run B) makes the
+tanh network worse, not better. Five times the epoch budget under these
+same settings does not rescue it either: at $5\times10^4$ epochs, training
+MSE moves only from $1.08$ to $1.01$ and extrapolation gets \emph{worse}
+(Table~\ref{tab:phase4}).
+
+\paragraph{The actual cause: learning rate and initialization scale, not
+architecture.} None of runs A--D varies the initialization scale, and the
+base paper's own published code turned out to use a combination this
+factorial never tested: a learning rate of $10^{-2}$ (five times our
+default) together with weights initialized near zero (Glorot
+divided by $10^5$), for the identical $[2,50,2]$ tanh architecture. Retrained
+with only those two settings changed, the literal architecture trains
+(Table~\ref{tab:kan-vs-mlp}, fourth column). At $10^4$ epochs it reaches a
+training MSE of $1.11\times10^{-3}$ (against $1.08$ before) and an
+extrapolation MSE of $9.65\times10^{-3}$, $R^2=0.997$ (against $R^2=0.42$
+before), with a Lipschitz estimate of $9.23$ against $38.2$. At $5\times10^4$
+epochs it reaches $5.43\times10^{-5}$ training MSE
+and $R^2=0.9998$ on extrapolation, with zero non-finite gradient steps and no
+clipping in either run. Section~\ref{sec:phase4} reports the full comparison
+against KAN-ODE and the SiLU MLP at both budgets, and updates the
+implementation audit accordingly. The paper's literal recipe was never
+architecturally incompatible with this system. Our default
+optimizer settings, tuned around the KAN-ODE side of the comparison, were the
+wrong settings for a wide, near-linear-at-initialization tanh network, and
+Table~\ref{tab:mlp-breakdown}'s factorial measured sensitivity to activation
+\emph{at those settings} rather than an architecture-level limit.

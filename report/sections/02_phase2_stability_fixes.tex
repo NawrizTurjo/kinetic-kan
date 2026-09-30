@@ -813,7 +813,7 @@ the same discipline: measure a quantity about the model's behavior
 failed run.
 
 \paragraph{Pendulum: extending the training window.} The pendulum recipe
-originally trained on $t\in[0,3.5]$ and diverged in extrapolation
+originally trained on $t\in[0,3]$ and diverged in extrapolation
 ($R^2=-1.318$). Extending the training window to $t_{\text{train}}=5.0$ --
 a single flag -- resolves it:
 
@@ -900,27 +900,36 @@ train in. Projecting the learned field onto the zero-sum subspace
 $f_{\text{proj}}(\mathbf{y}) = f(\mathbf{y})-\tfrac{1}{n}\sum_i f_i(\mathbf{y})$
 fixes a separate mass-drift symptom by enforcing the SIR invariant
 (Equation~\ref{eq:sir}) as a property of the flow rather than a penalty on
-the fit.
+the fit. A third fix, a \emph{vanishing-field gate}, multiplies the learned
+field by the infected fraction $I$, so that $I=0$ is a manifold of equilibria
+exactly as in Equation~\ref{eq:sir}, where every term carries a factor of
+$I$. Unlike the first two, this fix assumes something about the physics, so
+Table~\ref{tab:sir-fix-summary} reports the first two on their own and then
+with the gate added. Rescaling and projection alone remove the divergence
+and cut extrapolation RMSE by $4.4\times$; the gate gives a further
+$25\times$, and only the full recipe reaches a high extrapolation $R^2$. Over
+this window the true signal varies very little (standard deviation
+$0.002$--$0.017$), so $R^2$ is harsh and RMSE is the more informative number.
 
 \begin{table}[!ht]
 \centering
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\caption{SIR before and after the two assumption-free fixes (time rescaling
-and conservation projection), measured at the full 10{,}000-epoch budget.
-Both fixes assume nothing about SIR beyond what its own equations
-(Equation~\ref{eq:sir}) already state.}
+\caption{SIR before and after the fixes, at the full 10{,}000-epoch budget.
+``Rescale + project'' applies time rescaling and the conservation
+projection, which assume nothing beyond Equation~\ref{eq:sir}; ``+ gate''
+adds the vanishing-field gate. Mass error is $\max_t|S+I+R-1|$.}
 \label{tab:sir-fix-summary}
-\begin{tabular}{@{}L{3.8cm} C{2.8cm} C{2.8cm}@{}}
+\begin{tabular}{@{}L{3.8cm} C{2.8cm} C{2.8cm} C{2.8cm}@{}}
 \toprule
-\hdrrow \thh{Metric} & \thh{Before fix} & \thh{After fix}\\
+\hdrrow \thh{Metric} & \thh{Before fix} & \thh{Rescale + project} & \thh{+ gate}\\
 \midrule
-Training MSE & $4.39\times10^{-4}$ & $\mathbf{1.08\times10^{-5}}$\\
-Extrapolation RMSE & $0.0614$ & $\mathbf{0.0140}$\\
-Mass error & $0.0045$ & $\mathbf{0.0000}$\\
-Extrapolation $R^2$ & $-20.97$ & $\mathbf{+0.9981}$\\
-Maximum gradient norm & $5.82\times10^{18}$ & $\mathbf{92.3}$\\
-Final model & invalid (NaN) & finite\\
+Training MSE & $4.39\times10^{-4}$ & $1.08\times10^{-5}$ & $\mathbf{2.28\times10^{-8}}$\\
+Extrapolation RMSE & $0.0614$ & $0.0140$ & $\mathbf{5.7\times10^{-4}}$\\
+Mass error & $0.0045$ & $\mathbf{0.0000}$ & $\mathbf{0.0000}$\\
+Extrapolation $R^2$ & $-20.97$ & $-0.145$ & $\mathbf{+0.9981}$\\
+Maximum gradient norm & $5.82\times10^{18}$ & $92.3$ & $\mathbf{1.19}$\\
+Final model & invalid (NaN at epoch 8686) & finite & finite\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -935,8 +944,9 @@ Final model & invalid (NaN) & finite\\
 \centering
 \includegraphics[width=\linewidth]{figures/phase2/sir_fixed_loss_curves.png}
 \end{minipage}
-\caption{SIR after both fixes: trajectory reconstruction over the full
-horizon (left) shows $S$, $I$, $R$ tracking the true dynamics closely;
+\caption{SIR with all three fixes: reconstruction of $S$ and $I$ over the
+full horizon (left; the plot's generic legend labels them prey and predator)
+tracks the true dynamics closely;
 training and extrapolation loss curves (right) decrease together without
 the gradient overflow that terminated the original run.}
 \label{fig:sir-fixed}
@@ -956,12 +966,13 @@ tested and are recorded for completeness rather than adopted:
 \hdrrow \thh{Intervention} & \thh{Verdict} & \thh{Evidence}\\
 \midrule
 Longer training window (pendulum) & Adopted & $R^2$ improves from $-1.318$ to $+0.647$; works for both activations tested\\
-Non-finite gradient guard with automatic abort & Adopted & Caught SIR's divergence at epoch 3055, preserved a valid checkpoint instead of overwriting it with an invalid one\\
+Non-finite gradient guard with automatic abort & Adopted & Caught the divergence of an intermediate SIR recipe (conservation penalty plus loss weighting) at epoch 3055 and preserved a valid checkpoint instead of overwriting it with an invalid one\\
 Time rescaling (SIR) & Adopted & Removes both the divergence and the frozen-field behavior\\
-Conservation via subspace projection (SIR) & Adopted & Mass error reduced from $5.9\times10^{-2}$ to $7\times10^{-7}$\\
+Conservation via subspace projection (SIR) & Adopted & Mass error reduced from $4.5\times10^{-3}$ to $0.0000$ (exact by construction)\\
+Vanishing-field gate (SIR) & Adopted & Extrapolation RMSE reduced a further $25\times$ ($0.0140\to5.7\times10^{-4}$); the only fix that assumes a physical property\\
 Identity activation (pendulum) & Speed only & Roughly $1000\times$ faster to fit at the short window, but worse extrapolation and stability at the long window\\
 Standard-deviation loss weighting & System-dependent & Worst-performing pendulum option; superseded for SIR by time rescaling\\
-Conservation via penalty term & Rejected & Wrong mechanism -- the training window's mass was already close to conserved, so the penalty had nothing to correct\\
+Conservation via penalty term & Rejected & Wrong mechanism -- the training window's mass was already close to conserved, so the penalty had nothing to correct (mass error still $0.0086$)\\
 Widened basis-function grid limits & Rejected & Performed worse than the untouched baseline configuration\\
 \bottomrule
 \end{tabularx}
@@ -970,7 +981,7 @@ Widened basis-function grid limits & Rejected & Performed worse than the untouch
 \begin{keypoint}[Methodological lesson carried into every later study]
 Both diagnoses came from measuring the learned field's own magnitude at
 initialization, before training ever ran. This init-time-measurement
-discipline reappears verbatim in the real-epidemic-data test of
+discipline reappears verbatim in the epidemic-curve test of
 Section~\ref{sec:track-e}.
 \end{keypoint}
 

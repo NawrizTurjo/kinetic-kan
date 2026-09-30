@@ -1,0 +1,376 @@
+\subsection{The KAN-ODE model}
+\label{sec:architecture}
+
+Every KAN-ODE we train has the same architecture: a two-layer network with
+widths $[2,10,2]$, each edge carrying the expansion of
+Equation~\ref{eq:kan-edge} over a grid of $G=5$ basis functions. It is
+wrapped inside an explicit Runge-Kutta integrator that advances the state
+and hands the resulting trajectory to the loss.
+Figure~\ref{fig:kan-ode-architecture} shows the full training loop and marks
+the three components we vary.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/tikz/kan_ode_system.pdf}
+\caption{The KAN-ODE training loop as implemented. The integrator calls the
+network once per Runge-Kutta stage, so one training epoch on $[0,3.5]$
+evaluates $\mathbf{f}_\theta$ $70s$ times ($35$ sampling intervals, two
+sub-steps each, $s$ stages per step). The loss gradient comes from
+differentiating through every one of those evaluations. Numbered badges mark
+the three components we vary: the edge basis
+(Sections~\ref{sec:basis-results} and~\ref{sec:track-c}), the integrator
+(Sections~\ref{sec:solver-results}, \ref{sec:track-b} and~\ref{sec:track-d})
+and the gradient method (Section~\ref{sec:track-a}).}
+\label{fig:kan-ode-architecture}
+\end{figure*}
+
+\subsubsection{One KAN layer as two matrix products}
+
+The network is two KDense layers. For a batch
+$\mathbf{X}\in\mathbb{R}^{B\times d_{\text{in}}}$, a layer evaluates every
+edge function of Equation~\ref{eq:kan-edge} at once:
+\begin{equation}
+\Psi_{b,i,g} = B_g\big(\tanh X_{b,i}\big), \qquad
+\mathbf{Y} = \underbrace{\Psi_{\text{flat}}\,\mathbf{C}^{\top}}_{\text{spline branch}}
+           + \underbrace{\mathrm{silu}(\mathbf{X})\,\mathbf{W}^{\top}}_{\text{base branch}},
+\label{eq:kdense}
+\end{equation}
+with $\mathbf{C}\in\mathbb{R}^{d_{\text{out}}\times d_{\text{in}}G}$ and
+$\mathbf{W}\in\mathbb{R}^{d_{\text{out}}\times d_{\text{in}}}$. Here
+$\Psi_{\text{flat}}\in\mathbb{R}^{B\times d_{\text{in}}G}$ is $\Psi$ with
+its last two axes merged. Entry $C_{j,(i,g)}$ is the coefficient $c_g$ of
+edge $i\to j$ and $W_{j,i}$ is that edge's residual weight $w_b$, so
+$Y_{b,j}=\sum_i\phi_{i,j}(X_{b,i})$ exactly. Figure~\ref{fig:kdense} traces
+the tensor shapes. The forward pass is short enough to show in full:
+
+\begin{pycode}[Forward pass of one KDense layer]
+x_flat = x.view(-1, self.in_features)          # [B, d_in]
+x_norm = self.normalizer(x_flat)               # tanh -> [-1, 1]
+basis_vals = self.basis_func(x_norm, self.grid, self.denominator)
+basis_flat = basis_vals.reshape(basis_vals.size(0),
+                                self.in_features * self.grid_len)
+spline_out = F.linear(basis_flat, self.C)      # Psi_flat @ C^T
+if self.use_base_act and self.W is not None:
+    base_val = self.base_act(x_flat)           # silu(x)
+    base_out = F.linear(base_val, self.W)      # silu(x) @ W^T
+    out = spline_out + base_out
+else:
+    out = spline_out
+return out.view(*orig_shape[:-1], self.out_features)
+\end{pycode}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/tikz/kdense_layer.pdf}
+\caption{Tensor flow through one KDense layer
+(Equation~\ref{eq:kdense}). Only the basis-expansion step differs between
+the seven basis families of Section~\ref{sec:bases}; every basis function
+has the same signature,
+$(\mathbf{U},\mathbf{z},h)\mapsto\Psi\in\mathbb{R}^{B\times d_{\text{in}}\times G}$,
+so swapping the basis changes one tensor and nothing else.}
+\label{fig:kdense}
+\end{figure*}
+
+\paragraph{Parameter count.} Each layer holds
+$d_{\text{out}}d_{\text{in}}G$ spline coefficients,
+$d_{\text{out}}d_{\text{in}}$ residual weights and no bias. For $[2,10,2]$
+with $G=5$, layer one ($2\to10$) has $10\cdot2\cdot5+10\cdot2=120$
+parameters and layer two ($10\to2$) has $2\cdot10\cdot5+2\cdot10=120$, for
+the $240$ total the base paper reports. The comparison MLPs of
+Section~\ref{sec:kan-vs-mlp} are sized to match: the paper's $[2,50,2]$
+network has $2\cdot50+50+50\cdot2+2=252$ parameters, and the deeper
+$[2,14,8,8,2]$ network we use as the working baseline also has
+$(28+14)+(112+8)+(64+8)+(16+2)=252$.
+
+\paragraph{Why the \texttt{efficient-kan} formulation.} The reference
+implementation, \texttt{pykan} \cite{liu2024kan}, represents every edge with
+its own spline object and recomputes the grid during training. Inside a
+Neural ODE that cost is multiplied by the integrator: one epoch of Tsit5 on
+the training window calls $\mathbf{f}_\theta$ $420$ times, and reverse-mode
+differentiation keeps every one of those calls in the autograd graph. Our
+layer follows the \texttt{efficient-kan} reformulation
+\cite{blealtan2024efficientkan} instead: the knots are a fixed buffer, the
+basis is evaluated for all edges with one broadcast, and the contraction is
+one dense matrix product per branch (Equation~\ref{eq:kdense}). Each stage
+therefore adds two matrix multiplications and a handful of elementwise
+operations to the graph, however many edges there are. The same structure
+makes every basis we substitute into Equation~\ref{eq:kan-edge} (RBF,
+B-spline, Chebyshev, Lagrange, Newton, IQF, RSWAF) a swappable tensor rather
+than a different object type.
+
+\paragraph{What we implemented ourselves.} We wrote the KAN layer, the seven
+basis functions, the six fixed-step Runge-Kutta integrators, the
+invariant-enforcing field wrappers used for SIR and the training loop
+directly in PyTorch \cite{paszke2019pytorch}, rather than importing them, so
+that every basis and solver could be instrumented in the same way. The
+integrators apply the tableaux of Section~\ref{sec:integrators} verbatim.
+Tsit5 and DOPRI5 run at a fixed step with their fifth-order weights only,
+whereas the base paper uses Tsit5's embedded error estimate for adaptive
+step control. The base paper compiles its integration loop in Julia's SciML
+ecosystem; we run the same loop uncompiled in PyTorch because it was simpler
+for us to work with. Our wall-clock figures are therefore comparable across
+our own runs but not against the paper's reported times
+(Section~\ref{sec:budget} quantifies what this costs).
+
+\subsection{Runge-Kutta integrators}
+\label{sec:integrators}
+
+Every integrator we use is an explicit Runge-Kutta method: one step of size
+$h$ evaluates $s$ stage slopes and combines them,
+\begin{equation}
+\mathbf{k}_i=\mathbf{f}_\theta\Big(\mathbf{u}_n+h\sum_{j=1}^{i-1}a_{ij}\mathbf{k}_j\Big),
+\qquad
+\mathbf{u}_{n+1}=\mathbf{u}_n+h\sum_{i=1}^{s}b_i\mathbf{k}_i,
+\label{eq:rk-general}
+\end{equation}
+for $i=1,\dots,s$, so a method is fully specified by its Butcher tableau
+$(A,\mathbf{b},\mathbf{c})$ with $c_i=\sum_j a_{ij}$. Writing
+$\mathbf{u}_n$ for the state at step $n$, the four low-order methods are
+\begin{align}
+\text{Euler ($p=1$):}\ & \mathbf{u}_{n+1} = \mathbf{u}_n + h\, \mathbf{f}_\theta(\mathbf{u}_n) \label{eq:euler}\\
+\text{Midpoint ($p=2$):}\ & \mathbf{u}_{n+1} = \mathbf{u}_n + h\,\mathbf{f}_\theta\!\left(\mathbf{u}_n + \tfrac{h}{2}\mathbf{k}_1\right) \label{eq:midpoint}\\
+\text{Heun ($p=2$):}\ & \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{h}{2}(\mathbf{k}_1+\mathbf{k}_2),\ \ \mathbf{k}_2 = \mathbf{f}_\theta(\mathbf{u}_n+h\,\mathbf{k}_1) \label{eq:heun}\\
+\text{RK4 ($p=4$):}\ & \mathbf{u}_{n+1} = \mathbf{u}_n + \tfrac{h}{6}\left(\mathbf{k}_1+2\mathbf{k}_2+2\mathbf{k}_3+\mathbf{k}_4\right) \label{eq:rk4}
+\end{align}
+with $\mathbf{k}_1=\mathbf{f}_\theta(\mathbf{u}_n)$ throughout and the
+classical RK4 stages
+$\mathbf{k}_2=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{h}{2}\mathbf{k}_1)$,
+$\mathbf{k}_3=\mathbf{f}_\theta(\mathbf{u}_n+\tfrac{h}{2}\mathbf{k}_2)$,
+$\mathbf{k}_4=\mathbf{f}_\theta(\mathbf{u}_n+h\,\mathbf{k}_3)$. DOPRI5 and
+Tsit5 are both seven-stage 5(4) embedded pairs whose seventh stage exists
+only to supply the fourth-order error estimate (the ``first same as last''
+stage); its fifth-order weight is $b_7=0$. At a fixed step, as here, the
+seventh evaluation contributes nothing to the update, so our implementation
+skips it and both methods cost \emph{six} evaluations per step. Their
+coefficients satisfy all $17$ order conditions up to order five, and
+Tsitouras \cite{tsitouras2011tsit5} additionally minimised the size of the
+sixth-order error terms. Table~\ref{tab:tsit5} lists the Tsit5 coefficients
+exactly as implemented, and Figure~\ref{fig:rk-stages} shows where each
+method samples the field within one step. Every extra stage costs one more
+evaluation of $\mathbf{f}_\theta$, which is why we measure cost in function
+evaluations per epoch rather than by solver order alone.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.6pt}
+\renewcommand{\arraystretch}{1.15}
+\caption{Fixed-step Tsit5 tableau as implemented (first six stages, rounded
+to six significant figures; the code carries 16). Row $i$ lists $c_i$ and
+$a_{i1},\dots,a_{i,i-1}$; the last two rows list the solution weights $b_i$.}
+\label{tab:tsit5}
+\begin{tabular}{@{}r|rrrrr@{}}
+$0$ & & & & & \\
+$0.161$ & $0.161$ & & & & \\
+$0.327$ & $-0.00848066$ & $0.335481$ & & & \\
+$0.9$ & $2.89715$ & $-6.35945$ & $4.36230$ & & \\
+$0.980026$ & $5.32586$ & $-11.7489$ & $7.49554$ & $-0.0924951$ & \\
+$1$ & $5.86146$ & $-12.9210$ & $8.15937$ & $-0.0715850$ & $-0.0282691$\\
+\hline
+$\mathbf{b}^\top$ & $0.0964608$ & $0.01$ & $0.479890$ & $1.37901$ & $-3.29007$\\
+ & $2.32471$ & & & & \\
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/tikz/rk_stages.pdf}
+\caption{Stage nodes $t_n+c_ih$ and solution weights $b_i$ of the six
+implemented methods, drawn from the coefficients in the code. Heun and
+Midpoint use the same number of evaluations but sample at opposite places:
+Heun averages the two ends of the step, Midpoint uses only a slope at its
+centre. Tsit5 reaches order five with large weights of both signs
+($b_5=-3.29$), a cancellation that is harmless in exact arithmetic and buys
+its small error constant.}
+\label{fig:rk-stages}
+\end{figure}
+
+\subsection{Basis functions}
+\label{sec:bases}
+
+Writing $z_g$ for the $g$-th of $G$ evenly spaced grid centres with spacing
+$h=2/(G-1)$, and $u=\tanh(x)\in[-1,1]$ for the normalized edge input, the
+seven bases we compare are, exactly as implemented,
+\begin{gather}
+B_g^{\text{RBF}}(u)=\exp\!\left(-\tfrac12\left(\tfrac{u-z_g}{h}\right)^2\right),\quad
+B_g^{\text{IQF}}(u)=\frac{1}{1+\left(\frac{u-z_g}{h}\right)^2}, \nonumber\\
+B_g^{\text{RSWAF}}(u)=1-\tanh^2\!\left(\tfrac{u-z_g}{h}\right),
+\label{eq:basis-rbf-spline}
+\end{gather}
+\begin{gather}
+B_g^{\text{Cheb}}(u)=T_{g-1}(u)=\cos\big((g-1)\arccos u\big), \nonumber\\
+B_g^{\text{Lag}}(u)=\prod_{j\neq g}\frac{u-z_j}{z_g-z_j}, \qquad
+B_g^{\text{Newt}}(u)=\prod_{j<g}(u-z_j),
+\label{eq:basis-poly}
+\end{gather}
+plus the cubic B-spline $B_g^{\text{spline}}$, built by the Cox--de Boor
+recursion from degree-0 indicator functions by repeated linear blending,
+\begin{gather}
+B_{g,0}(u)=\mathbf{1}[t_g\le u<t_{g+1}], \nonumber\\
+B_{g,p}(u)=\frac{u-t_g}{t_{g+p}-t_g}B_{g,p-1}(u)+\frac{t_{g+p+1}-u}{t_{g+p+1}-t_{g+1}}B_{g+1,p-1}(u),
+\label{eq:cox-de-boor}
+\end{gather}
+on the clamped knot vector $\mathbf{t}=(-1,-1,-1,-1,0,1,1,1,1)$ for $G=5$,
+$k=3$. The clamping makes the five splines a partition of unity with
+$B_1(-1)=B_5(1)=1$, and it is what gives the spline compact support:
+$B_{g,k}(u)=0$ outside the $k+2$ knots the recursion references. Gaussian
+RBF, IQF and RSWAF are local but never exactly zero. Chebyshev, Lagrange and
+Newton have no locality at all: every coefficient $c_g$ influences $\phi(x)$
+at every $x$. The residual term $w_b\,\mathrm{silu}(x)$ in
+Equation~\ref{eq:kan-edge} is the same for every basis, since it is a fixed
+part of the edge parameterization rather than one of the substituted terms.
+
+\subsection{Computing gradients: direct autograd and the adjoint method}
+\label{sec:gradients}
+
+There are two ways to compute gradients through a Neural ODE. \textbf{Direct
+autograd} treats the numerical integrator as an ordinary computational
+graph: each of the solver's $N_t$ forward steps is recorded, and the reverse
+pass walks back through every recorded step, so peak memory grows linearly
+with the number of steps. \textbf{Adjoint sensitivity}
+\cite{chen2018neuralode} instead treats the forward solve as a black box and
+derives a second, augmented ODE that produces the same gradient without
+storing the intermediate states. Writing $\mathbf{a}(t) = \partial
+L/\partial\mathbf{u}(t)$ for the adjoint state, it satisfies its own
+backward-time differential equation,
+\begin{equation}
+\frac{d\mathbf{a}}{dt} = -\mathbf{a}^\top\frac{\partial \mathbf{f}_\theta}{\partial\mathbf{u}},
+\qquad
+\frac{dL}{d\theta} = \int_{t_1}^{t_0}\mathbf{a}^\top\frac{\partial\mathbf{f}_\theta}{\partial\theta}\,dt,
+\label{eq:adjoint}
+\end{equation}
+solved backward from $t_1$ to $t_0$ alongside the original state
+$\mathbf{u}(t)$, which is recomputed rather than stored. Memory then depends
+only on the size of the state and parameter vectors, not on how many steps
+the forward solve took: $O(1)$ in trajectory length, against direct
+autograd's $O(N_t)$ (Figure~\ref{fig:adjoint-schematic}). All our training
+runs use direct autograd; Section~\ref{sec:track-a} measures whether that
+choice is justified.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  statend/.style={draw=ink, fill=accentsoft, minimum width=9mm, minimum height=7mm, rounded corners=2pt},
+  adjnd/.style={draw=ink!60, fill=codebg, minimum width=11mm, minimum height=7mm, rounded corners=2pt},
+  arr/.style={-{Stealth[length=2.2mm]}, draw=ink!70, thick},
+  panellbl/.style={font=\small\sffamily\bfseries\color{ink}}
+]
+  \node[statend] (u0) at (0,0) {$u_0$};
+  \foreach \i/\x in {1/1.5,2/3.0,3/4.5,4/6.0} {
+    \node[statend] (u\i) at (\x,0) {$u_\i$};
+  }
+  \draw[arr] (u0) -- (u1); \draw[arr] (u1) -- (u2);
+  \draw[arr] (u2) -- (u3); \draw[arr] (u3) -- (u4);
+  \draw[{Stealth[length=2.2mm]}-, dashed, accent, thick]
+    (u0.south) .. controls +(0,-0.9) and +(0,-0.9) .. (u4.south)
+    node[midway, below, font=\scriptsize\sffamily\color{accent}] {backward pass walks every stored $u_i$};
+  \node[panellbl] at (3.0,0.75) {Direct autograd: every $u_i$ stored, $O(N_t)$ memory};
+  \begin{scope}[yshift=-2.6cm]
+    \node[adjnd] (a0) at (0,0) {$\mathbf{a}(t_0)$};
+    \node[adjnd] (a1) at (6.0,0) {$\mathbf{a}(t_1)$};
+    \draw[arr, ink!65] (a1) -- (a0);
+    \node[font=\scriptsize\sffamily\color{ink!70}] at (3.0,0.3) {adjoint ODE (Eq.~\ref{eq:adjoint}) integrated backward};
+    \node[font=\scriptsize\sffamily\color{ink!70}] at (3.0,-0.3) {$u(t)$ recomputed as needed, nothing stored};
+    \node[panellbl] at (3.0,0.75) {Adjoint sensitivity: $O(1)$ memory, independent of $N_t$};
+  \end{scope}
+\end{tikzpicture}}
+\caption{Direct autograd (top) keeps every intermediate state $u_i$ in memory
+so the backward pass can reuse it, giving $O(N_t)$ memory. Adjoint
+sensitivity (bottom) instead solves the backward-time equation of
+Equation~\ref{eq:adjoint}, recomputing $u(t)$ as needed, giving $O(1)$
+memory regardless of $N_t$.}
+\label{fig:adjoint-schematic}
+\end{figure}
+
+\subsection{A learnable hybrid basis}
+\label{sec:hybrid-method}
+
+Rather than choosing one basis function $B_i(x)$ in
+Equation~\ref{eq:kan-edge} in advance, we can make the choice itself a
+trained quantity: a learnable convex blend of two candidate bases inside
+every edge,
+\begin{equation}
+\phi(x) = \alpha\cdot\mathrm{Spline}(x) + \beta\cdot\mathrm{RBF}(x),
+\qquad (\alpha,\beta) = \operatorname{softmax}(\text{logits}),
+\label{eq:hybrid-basis}
+\end{equation}
+trained end-to-end from a neutral start ($\alpha=\beta=0.5$) with no
+hand-set schedule (Figure~\ref{fig:hybrid-schematic}). We produce the blend
+weights with a softmax over two learnable logits rather than, say, a single
+sigmoid-gated weight, because a softmax guarantees $\alpha+\beta=1$ by
+construction. The two bases then always form a genuine convex combination,
+so the gate can only trade one basis off against the other instead of
+scaling the whole edge output up or down as a side effect. One pair of
+logits is shared across every edge, so the model learns a single global
+blend. This keeps the number of new parameters at two; it is a
+simplification, not a claim that per-edge blending would fail.
+
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[node distance=10mm, font=\small,
+  boxnd/.style={draw=ink, fill=accentsoft, minimum size=7mm, rounded corners=2pt},
+  fnbox/.style={draw=ink!60, fill=codebg, minimum width=20mm, minimum height=7mm, rounded corners=2pt},
+  gatend/.style={draw=accent, fill=white, circle, minimum size=6mm, inner sep=0pt, font=\bfseries\small\color{accent}},
+  sumnd/.style={draw=accent, fill=accentsoft, circle, minimum size=7mm, inner sep=0pt, font=\bfseries\color{accent}},
+  arr/.style={-{Stealth[length=2mm]}, draw=ink!65, thick}
+]
+  \node[boxnd] (x) at (0,0) {$x$};
+  \node[fnbox] (sp) at (2.6,1.1) {$\mathrm{Spline}(x)$};
+  \node[fnbox] (rbf) at (2.6,-1.1) {$\mathrm{RBF}(x)$};
+  \node[gatend] (gA) at (5.0,1.1) {$\times$};
+  \node[gatend] (gB) at (5.0,-1.1) {$\times$};
+  \node[sumnd] (sum) at (7.2,0) {$+$};
+  \node[boxnd] (phi) at (9.2,0) {$\phi(x)$};
+  \node[fnbox, minimum width=19mm, minimum height=6mm, font=\scriptsize] (softmax) at (2.6,0) {$\operatorname{softmax}(\text{logits})$};
+  \draw[arr] (x) -- (sp);
+  \draw[arr] (x) -- (rbf);
+  \draw[arr] (sp) -- (gA);
+  \draw[arr] (rbf) -- (gB);
+  \draw[arr] (gA) -- (sum);
+  \draw[arr] (gB) -- (sum);
+  \draw[arr] (sum) -- (phi);
+  \draw[arr, accent!85] (softmax.north) -- node[right, font=\scriptsize\sffamily\color{accent!85}, pos=0.7]{$\alpha$} (gA.south);
+  \draw[arr, accent!85] (softmax.south) -- node[right, font=\scriptsize\sffamily\color{accent!85}, pos=0.7]{$\beta$} (gB.north);
+\end{tikzpicture}}
+\caption{The hybrid-basis edge of Equation~\ref{eq:hybrid-basis}: every edge
+evaluates both bases in parallel, and a shared softmax gate produces the
+scalar weights $\alpha,\beta$ that multiply each basis's output before they
+are summed into $\phi(x)$.}
+\label{fig:hybrid-schematic}
+\end{figure}
+
+\subsection{Sparse regression and edge pruning}
+\label{sec:sparse-method}
+
+As a baseline from a completely different modelling approach, we use Sparse
+Identification of Nonlinear Dynamics (SINDy) \cite{brunton2016sindy},
+through the PySINDy library \cite{kaptanoglu2022pysindy}. SINDy fits a
+governing equation as a sparse linear combination of candidate terms from a
+fixed library; ours is every polynomial in $x$ and $y$ up to degree two,
+$\{1,x,y,x^2,xy,y^2\}$. The coefficients are estimated by sequentially
+thresholded least squares: fit by ordinary least squares against
+numerically estimated derivatives, zero out every coefficient below a fixed
+threshold, and refit on the surviving terms until the active set stops
+changing. This is what makes the recovered model sparse and, in principle,
+readable: unlike the KAN's 240 free parameters, SINDy returns a short list
+of surviving terms with numeric coefficients that can be compared directly
+with the true equation's. We hold the threshold fixed across the whole noise
+sweep so that the comparison measures noise sensitivity rather than
+per-level tuning.
+
+The closest KAN-ODE analogue is to encourage sparsity during training and
+prune weak edges afterwards. The base paper does this by adding an $L_1$
+penalty on the spline coefficients to the loss,
+\begin{equation}
+\mathcal{L} = \mathrm{MSE}(\mathbf{u}_{\text{true}}, \mathbf{u}_{\text{pred}}) + \lambda\sum_{i} |c_i|,
+\label{eq:l1-sparsity}
+\end{equation}
+where $c_i$ ranges over every spline coefficient in
+Equation~\ref{eq:kan-edge} and $\lambda$ trades trajectory accuracy against
+how many edges the penalty drives toward zero. Every checkpoint we trained
+used $\lambda=0$, the plain mean-squared-error term alone. To prune, we rank
+each edge by its mean spline-coefficient magnitude and mask the weakest
+(Section~\ref{sec:track-e}).

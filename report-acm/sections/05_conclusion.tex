@@ -1,0 +1,82 @@
+We reproduced the KAN-ODE recipe of the base paper on the Lotka-Volterra
+system with every integrator and basis implemented from its defining formula
+and verified numerically. We then extended the recipe to a damped pendulum
+and an SIR epidemic model, diagnosed and fixed two genuine cross-domain
+training failures, ran five follow-on studies that each isolate one
+question, and re-tested the budget-sensitive conclusions at five times the
+training budget. Every quantitative claim traces to a saved training record, a
+re-scored checkpoint or a regenerable figure (Appendix~\ref{app:repro}).
+
+\subsection{Key takeaways}
+
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Solver order matters only up to two.} All six integrators
+  satisfy their order conditions to round-off (37 rooted trees checked).
+  Above order two the solver does not change accuracy at the training step,
+  and Midpoint matches Tsit5 within $0.3\%$ at $29\%$ of the wall-clock.
+\item \textbf{The network learns the field its solver needs.} The Euler
+  model matches the inverse modified equation
+  $\mathbf{f}+\tfrac{h}{2}J\mathbf{f}$ (cosine $0.92$, magnitude ratio
+  $1.04$), and models lose one to four orders of magnitude when integrated
+  with a solver from another family.
+\item \textbf{Trained models learn an orbit, not the vector field.} Every
+  trained model, KAN or MLP, is an attracting limit cycle around a spurious
+  unstable equilibrium, where Lotka-Volterra has a neutral centre; the field
+  is accurate only in a thin tube around the training orbit.
+\item \textbf{Locality, not conditioning, separates the bases.} B-spline and
+  RBF are tied at both budgets, and the global polynomials extrapolate
+  $4$--$5\times$ worse. Extrapolation MSE scales as $12.9\,\sigma^{2.02}$
+  with observation noise.
+\item \textbf{KAN-ODE's advantage over the MLP is budget-dependent.} At
+  $10^4$ epochs KAN-ODE extrapolates $5.4\times$ better than a
+  parameter-matched MLP (widening to $40.6\times$ at twice the horizon); at
+  $5\times10^4$ epochs the MLP is $6.8\times$ better. The paper's literal
+  tanh MLP trains once given the paper's own learning rate and
+  initialization.
+\item \textbf{Measure before you tune.} SIR's failure traced to a $19\times$
+  unit-scale mismatch at initialization. A change of time units and a
+  conservation projection remove the divergence, and a vanishing-field gate
+  brings extrapolation $R^2$ from $-20.97$ to $+0.9981$.
+\item \textbf{Follow-on studies.} Direct autograd is the right default at
+  our scale (the adjoint saves memory but costs $1.9$--$2.1\times$ in time);
+  gradient roughness does not explain Euler's floor ($\rho=-0.088$); a
+  learnable spline/RBF blend never beats the better pure basis;
+  stiffness-map failures trace to the random seed; and sparse regression is
+  far more noise-robust than KAN-ODE ($9\times$ vs.\ $1540\times$
+  degradation) but less accurate at every noise level.
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Single seed.} Every configuration was trained with one random
+  seed. The stiffness study, where going from one seed to three dissolved a
+  headline finding, shows how much this can matter.
+\item \textbf{Single train/test split.} Most results use one split per
+  system; on the epidemic curve, moving the split by fifteen days changed
+  the conclusion.
+\item \textbf{Timing comparability.} Our loop runs uncompiled in PyTorch, so
+  our wall-clock numbers compare our own configurations with each other but
+  not with the base paper's Julia implementation.
+\item \textbf{Explicit solvers, fixed steps.} We implemented only explicit
+  Runge-Kutta methods at a fixed step; we cannot say how an implicit or
+  adaptive solver would behave on a genuinely stiff system.
+\item \textbf{No sparsity pressure.} All models were trained with
+  $\lambda=0$ in Equation~\ref{eq:l1-sparsity}, so our pruning results say
+  nothing about how interpretable a sparsity-regularised KAN-ODE would be.
+\item \textbf{Synthetic epidemic curve.} The outbreak curve is synthetic
+  rather than observed case data.
+\end{itemize}
+
+\subsection{Future work}
+
+The most valuable next experiment is multi-seed replication of the
+KAN-versus-MLP crossover, since it is the one conclusion that reversed with
+budget. Two cheaper follow-ups come straight out of the numerical analysis:
+an affine input normalisation that uses the whole first-layer grid on
+positive-valued systems, and training from several initial conditions, the
+most direct way to ask a Neural ODE for the vector field rather than a
+single orbit. Retraining with the $L_1$ penalty of
+Equation~\ref{eq:l1-sparsity} would test whether readable edge functions
+emerge when the loss asks for them, and fitting observed outbreak data would
+complete the epidemic transfer test.
