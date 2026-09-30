@@ -1,0 +1,101 @@
+% kk-acm.sty -- helpers so the Kinetic-KAN report content compiles under acmart.
+% acmart already loads amsmath, xcolor, graphicx, booktabs, hyperref and natbib.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{kk-acm}[2026/09/30 Kinetic-KAN helpers for acmart]
+
+\RequirePackage{tabularx}
+\RequirePackage{array}
+\RequirePackage{ragged2e}
+\RequirePackage{colortbl}
+\RequirePackage{enumitem}
+\RequirePackage{subcaption}
+\RequirePackage{placeins}
+\RequirePackage{multirow}
+
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcommand{\thh}[1]{\textbf{#1}}
+\newcommand{\hdrrow}{}
+
+% Colours used by the inline TikZ diagrams (pre-rendered diagrams carry their own).
+\definecolor{ink}{RGB}{28,32,38}
+\definecolor{accent}{RGB}{155,26,32}
+\definecolor{accentstrong}{RGB}{200,16,24}
+\definecolor{accentsoft}{RGB}{247,228,229}
+\definecolor{rule}{RGB}{209,213,219}
+\definecolor{codebg}{RGB}{246,246,246}
+\definecolor{blueacc}{RGB}{37,99,160}
+
+\RequirePackage[most]{tcolorbox}
+\tcbuselibrary{listings}
+
+\newtcblisting{logbox}{
+  breakable, enhanced, sharp corners,
+  colback=codebg, colframe=black!25, boxrule=0.4pt,
+  left=5pt, right=5pt, top=4pt, bottom=4pt,
+  listing only,
+  listing options={
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true, columns=fullflexible, keepspaces=true,
+    aboveskip=0pt, belowskip=0pt}}
+
+\newtcblisting{pycode}[1][]{
+  breakable, enhanced, sharp corners,
+  colback=codebg, colframe=black!25, boxrule=0.4pt,
+  left=4pt, right=4pt, top=3pt, bottom=3pt,
+  listing only,
+  title={#1}, coltitle=black, colbacktitle=black!8,
+  fonttitle=\ttfamily\scriptsize, toptitle=1pt, bottomtitle=1pt,
+  listing options={
+    language=Python,
+    basicstyle=\ttfamily\scriptsize,
+    keywordstyle=\bfseries,
+    commentstyle=\color{black!55}\itshape,
+    stringstyle=\color{black!70},
+    breaklines=true, columns=fullflexible, keepspaces=true,
+    showstringspaces=false, aboveskip=0pt, belowskip=0pt,
+    morekeywords={self,None,True,False}}}
+
+% Verdict / finding box: neutral grey, left rule.
+\newtcolorbox{keypoint}[1][Key finding]{
+  breakable, enhanced, sharp corners,
+  colback=black!4, colframe=black!70, boxrule=0pt,
+  leftrule=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fontupper=\small,
+  fonttitle=\bfseries\small, coltitle=black,
+  attach title to upper={\ \ }, title={#1.}}
+
+% Question / Expected / Observed scaffold placed before each study's data.
+\newenvironment{expectbox}{%
+  \begin{tcolorbox}[enhanced, sharp corners,
+    colback=white, colframe=black!45, boxrule=0.4pt,
+    left=5pt, right=5pt, top=3pt, bottom=3pt]
+  \footnotesize
+  \begin{description}[style=nextline, leftmargin=0pt, labelsep=0pt,
+    itemindent=0pt, topsep=0pt, itemsep=2pt, parsep=0pt, font=\bfseries]
+}{%
+  \end{description}
+  \end{tcolorbox}
+}
+\newcommand{\expectrow}[2]{\item[#1] #2}
+
+\setlength{\emergencystretch}{2.5em}
+
+% Let float-heavy stretches become clean float pages instead of leaving
+% two-line slivers of text between full-width figures.
+\renewcommand{\dbltopfraction}{0.85}
+\renewcommand{\dblfloatpagefraction}{0.72}
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\floatpagefraction}{0.72}
+\setcounter{dbltopnumber}{3}
+\newcommand{\hl}[1]{\textbf{#1}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Ltrunc}{L}
+\newcommand{\Ttrain}{T}
+
+\RequirePackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, fit, backgrounds}
+\RequirePackage{url}
+
+\endinput

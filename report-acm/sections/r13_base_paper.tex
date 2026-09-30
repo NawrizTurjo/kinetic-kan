@@ -1,0 +1,91 @@
+\subsection{Comparison with the base paper}
+\label{sec:audit}
+
+This subsection gathers, in one place, how our results line up with the
+base paper \cite{koenig2024kanode}. We first compare our recipe with the
+paper's stated methodology field by field
+(Table~\ref{tab:audit}), so that no difference is silently absorbed into
+``the paper trained longer''. The table uses the settings recorded in our
+own planning notes and code, and marks as open every field those do not
+determine. One such
+field, the MLP baseline's optimizer settings, we later resolved by reading
+the paper's own published code, which is how the follow-up runs of
+Section~\ref{sec:phase4} came about.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\caption{Field-by-field comparison with the base paper \cite{koenig2024kanode}.}
+\label{tab:audit}
+\begin{tabularx}{\textwidth}{@{}L{2.7cm} L{4.2cm} L{4.2cm} Y@{}}
+\toprule
+\hdrrow \thh{Field} & \thh{Base paper} & \thh{Ours} & \thh{Verdict}\\
+\midrule
+KAN architecture & $[2,10,2]$, $G=5$, 240 parameters & identical & Matches.\\
+Edge basis & Gaussian RBF, $\exp(-r^2/2h^2)$ & identical, after fixing a missing factor $\tfrac12$ & Matches. The fix predates every reported run.\\
+MLP baseline & $[2,50,2]$, tanh, 252 parameters & identical, plus a working $[2,14,8,8,2]$ SiLU variant & Matches literally, and trains under the paper's own optimizer settings (below).\\
+Integrator & adaptive Tsit5 (Julia) & fixed-step Tsit5, $h=0.05$ & Explained: the fixed step's own error is $4.7\times10^{-14}$ in MSE (Table~\ref{tab:solver-ablation}).\\
+Gradients & continuous adjoint & direct autograd & Explained: they differ in memory and time, not in the loss minimised (Section~\ref{sec:track-a}).\\
+Framework & compiled Julia / SciML & interpreted PyTorch, CPU & Explained: wall-clock is not comparable across the two (Section~\ref{sec:budget}).\\
+Epoch budget & $10^4$ (KAN), $10^5$ (MLP) & $10^4$, and $5\times10^4$ in Section~\ref{sec:phase4} & Explained: Section~\ref{sec:phase4}.\\
+Optimizer, learning rate (MLP baseline) & Adam, $10^{-2}$, Glorot init $\div\,10^5$, found in the paper's own published code & Adam, $2\times10^{-3}$ by default, Glorot gain $1.0$, clip $1.0$ & \textbf{Resolved}: this mismatch, not the architecture, caused the earlier training failure. The paper's own KAN learning rate remains unconfirmed.\\
+Loss normalisation & not recorded & mean over points and components & \textbf{Open}; affects absolute loss values only.\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\paragraph{The efficiency claim.} The paper reports its KAN-ODE reaching a
+training loss of $2.6\times10^{-5}$ in $10^4$ epochs and its MLP needing
+$10^5$ epochs for $3.0\times10^{-5}$. Our extended runs locate both targets
+directly. Our KAN-ODE reaches $2.6\times10^{-5}$ at epoch $13{,}632$,
+within $1.4\times$ of the paper's KAN. Our SiLU MLP reaches
+$3.0\times10^{-5}$ at epoch $8{,}585$, nearly $12\times$ sooner than the
+paper's MLP. The literal $[2,50,2]$ tanh MLP never gets below $1.0$ under
+our default optimizer settings, but under the paper's own learning rate and
+initialization it crosses $10^{-4}$ at epoch $39{,}695$ and had not reached
+$3.0\times10^{-5}$ by epoch $50{,}000$: a trend consistent with, but short
+of confirming, the paper's own $10^5$-epoch target. Allowing for the open
+loss-normalisation row, the KAN side of the efficiency claim is reproduced.
+The tenfold advantage over the literal MLP baseline, however, depends on
+that baseline's optimizer settings as much as on its architecture, since the
+identical network trains once those settings are corrected.
+
+\paragraph{The accuracy claim.} At the paper's own $10^4$-epoch budget we
+reproduce the extrapolation advantage: KAN-ODE is $5.4\times$ better than a
+parameter-matched MLP (Section~\ref{sec:kan-vs-mlp}), and the gap widens to
+$40.6\times$ at twice the horizon (Section~\ref{sec:crossdomain}). At five
+times that budget the ranking reverses and the MLP is $6.8\times$ better
+(Section~\ref{sec:phase4}), so we read the paper's accuracy claim as a
+statement about moderate training budgets rather than about the two
+function classes at convergence.
+
+\paragraph{The three fixed design choices.} None of the paper's three fixed
+choices turns out to be load-bearing on this benchmark. Tsit5 is not needed
+for accuracy: above order two, every solver lands within $3.8\%$ of the
+others, and Midpoint matches Tsit5 at $29\%$ of the cost
+(Section~\ref{sec:solver-results}). The switch from B-spline to RBF is
+justified on cost rather than accuracy: the two are statistically tied at
+both budgets, with RBF $3.9\times$ cheaper per epoch
+(Section~\ref{sec:basis-results}). And the adjoint method's memory saving,
+while real at every trajectory length we tested, never matters at our
+scale, while it costs $1.9$--$2.1\times$ in wall-clock
+(Section~\ref{sec:track-a}).
+
+\paragraph{Wall-clock.} Our absolute training times are not comparable with
+the paper's. Our integration loop runs uncompiled in PyTorch on CPU,
+whereas the paper compiles its loop in Julia's SciML ecosystem
+(Table~\ref{tab:cost}). All our timing comparisons are therefore made only
+between our own runs, on the same hardware.
+
+\begin{keypoint}[Outcome of the comparison]
+The $10^4$-epoch budget gives trustworthy \emph{rankings} for the solver and
+basis ablations: the RBF/B-spline tie and Euler's last place both survive
+five times the budget. It does not for the KAN-versus-MLP comparison, which
+reverses: the paper's extrapolation advantage is an early-training effect
+under our protocol, and its speed advantage over the literal MLP baseline
+depended on that baseline's default optimizer settings, not on its
+architecture. Corrected, the identical network trains, though it still does
+not close the gap with either KAN-ODE or the SiLU MLP within our budget.
+Every result is single-seed.
+\end{keypoint}

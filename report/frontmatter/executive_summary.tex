@@ -37,8 +37,8 @@ conclusions at up to five times the training budget.
 \item \textbf{Cross-domain fixes.} The pendulum failure ($R^2=-1.318$) was
   fixed by extending the training window; SIR's divergence traced to a
   $19\times$ unit-scale mismatch at initialization, fixable by a change of
-  time units and a conservation projection. SIR extrapolation $R^2$ moved
-  from $-20.97$ to $+0.9981$.
+  time units and a conservation projection; adding a vanishing-field gate
+  moved SIR extrapolation $R^2$ from $-20.97$ to $+0.9981$.
 \item \textbf{Follow-on studies.} Adjoint sensitivity uses less memory than
   direct autograd ($17.1$ vs.\ $18.6$--$21.5$~MB) at a $1.9$--$2.1\times$
   wall-clock cost; gradient-norm roughness does not explain Euler's floor

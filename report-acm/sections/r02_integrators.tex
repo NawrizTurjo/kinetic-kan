@@ -1,0 +1,261 @@
+\subsection{Integrator ablation}
+\label{sec:solver-results}
+
+We first verify that each integrator of Section~\ref{sec:integrators} is the
+method it claims to be, then sweep all six at a fixed RBF basis.
+
+\subsubsection{Order verification and linear stability}
+
+\paragraph{Verifying the implementations.} Two independent checks confirm
+that each integrator is the method it claims to be. The first is the order
+conditions: a Runge-Kutta method has order $p$ exactly when
+$\mathbf{b}^\top\Phi(\tau)=1/\gamma(\tau)$ for every rooted tree $\tau$ with at most
+$p$ vertices, where $\Phi(\tau)$ is the tree's elementary weight built from
+$A$ and $\gamma(\tau)$ its density \cite{hairer1993solving}. We enumerate all
+37 rooted trees up to six vertices and evaluate each condition directly on
+the implemented coefficients. This gives the verified order and the principal
+error norm $A^{(p+1)}=\big(\sum_{|\tau|=p+1}\big[(\mathbf{b}^\top\Phi(\tau)-1/\gamma(\tau))/\sigma(\tau)\big]^2\big)^{1/2}$,
+the size of the leading local-error term. The second is a work-precision study on
+the \emph{true} Lotka-Volterra field: integrating from $(1,1)$ to $t=3.5$ at
+eight step sizes and comparing against the DOP853 reference gives the
+observed order $\hat p$ as the slope of $\log\|\text{error}\|$ against
+$\log h$ (Figure~\ref{fig:work-precision}). Table~\ref{tab:order-conditions}
+collects both.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\caption{Order verification of the implemented integrators. ``Max residual''
+is the largest $|\mathbf{b}^\top\Phi(\tau)-1/\gamma(\tau)|$ over all trees up
+to the design order ($1+1+2+4+9=17$ conditions at order five);
+$A^{(p+1)}$ is the principal error norm; $\hat p$ is the slope fitted to
+the work-precision data for $h\le0.1$ above the round-off floor.}
+\label{tab:order-conditions}
+\begin{tabularx}{\textwidth}{@{}Y C{1.4cm} C{1.8cm} C{2.0cm} C{3.0cm} C{2.3cm} C{2.0cm}@{}}
+\toprule
+\hdrrow \thh{Method} & \thh{Stages $s$} & \thh{Verified order $p$} & \thh{Conditions checked} & \thh{Max residual through order $p$} & \thh{$A^{(p+1)}$} & \thh{Observed $\hat p$}\\
+\midrule
+Forward Euler & 1 & 1 & 1 & $0$ & $5.00\times10^{-1}$ & $1.00$\\
+Heun & 2 & 2 & 2 & $0$ & $1.86\times10^{-1}$ & $2.10$\\
+Midpoint & 2 & 2 & 2 & $0$ & $1.72\times10^{-1}$ & $2.07$\\
+Classical RK4 & 4 & 4 & 8 & $1.1\times10^{-16}$ & $1.45\times10^{-2}$ & $3.93$\\
+DOPRI5 (6 of 7) & 6 & 5 & 17 & $2.8\times10^{-16}$ & $3.99\times10^{-4}$ & $5.66$\\
+Tsit5 (6 of 7) & 6 & 5 & 17 & $1.4\times10^{-14}$ & $\mathbf{1.39\times10^{-4}}$ & $5.95$\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/analysis/work_precision.pdf}
+\caption{Global error at $t=3.5$ of each implemented integrator applied to the
+true Lotka-Volterra field. (a) Against step size, with fitted slopes;
+the dashed line is the training step $h=0.05$. (b) Against the number of
+field evaluations, the quantity that sets training cost. At $h=0.4$ both
+second-order methods blow up,
+and the fifth-order methods reach the round-off floor near $10^{-13}$.}
+\label{fig:work-precision}
+\end{figure*}
+
+Every method satisfies its order conditions to round-off and shows its
+design order in practice. The fifth-order pair shows slightly super-nominal
+slopes over this range because its error is still pre-asymptotic before it
+hits round-off. The principal error norms confirm Tsitouras's design goal
+from the code's own coefficients: Tsit5's leading error term is
+$2.9\times$ smaller than DOPRI5's. The table also sets up a point used
+below. Heun and Midpoint differ only in their third-order error terms, and
+on those Midpoint's is marginally \emph{smaller} ($0.172$ against $0.186$).
+
+\paragraph{Linear stability.} Applied to $\dot u=\lambda u$, every explicit
+Runge-Kutta method multiplies the state by the stability polynomial
+$R(z)=1+z\,\mathbf{b}^\top(I-zA)^{-1}\mathbf{1}$, $z=h\lambda$, per step.
+Heun and Midpoint share $R(z)=1+z+z^2/2$, so they are indistinguishable on
+any linear problem. Figure~\ref{fig:stability}a draws the boundaries
+$|R(z)|=1$ and overlays $h\lambda$ for the eigenvalues of the true Jacobian
+and of the trained Tsit5 KAN's Jacobian $J_\theta=\partial\mathbf{f}_\theta/\partial\mathbf{u}$,
+evaluated at all 141 states of the orbit. The learned eigenvalues track the
+true ones closely ($\max|\lambda|=3.61$ against $3.83$), and at $h=0.05$
+every $h\lambda$ lies within $0.19$ of the origin, far inside every region.
+Stability in the classical sense is therefore never at issue at the training
+step. What differs between methods is how accurately $R$ reproduces
+$e^{z}$ near the origin. For a purely oscillatory mode $z=i\omega h$,
+Figure~\ref{fig:stability}b plots the per-step amplitude error
+$|R(i\omega h)|-1$. At Lotka-Volterra's linear frequency
+$\omega_0=\sqrt{\alpha\gamma}$, a linear oscillation integrated over one
+period gains $39\%$ amplitude under Euler and $0.094\%$ under either
+second-order method, and loses $5.8\times10^{-7}$, $2.3\times10^{-8}$ and
+$3.5\times10^{-9}$ under RK4, DOPRI5 and Tsit5.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/analysis/stability_regions.pdf}
+\caption{(a) Stability boundaries $|R(z)|=1$ computed from each implemented
+tableau, with $h\lambda$ for the true Jacobian (dots) and the learned
+Jacobian of the Tsit5-trained KAN (crosses) at every state on the orbit,
+$h=0.05$; the inset enlarges the neighbourhood of the origin. (b) Per-step
+amplitude error for an undamped oscillation; the dotted line marks
+$h\omega_0$ at the training step.}
+\label{fig:stability}
+\end{figure*}
+
+The linear picture is borne out on the true nonlinear field. Integrating the
+exact Lotka-Volterra field at the training discretisation and scoring it with
+the same extrapolation metric as the trained models isolates each solver's
+own truncation error (last column of Table~\ref{tab:solver-ablation}). It is
+$17.6$ for Euler, whose trajectory leaves the positive quadrant at
+$t=19.4$, $1.3$--$3.0\times10^{-4}$ for the second-order pair, and below
+$5\times10^{-9}$ for the rest. The first integral of
+Equation~\ref{eq:lv-invariant} tells the same story
+(Figure~\ref{fig:first-integral}a): by $t=28$ it has drifted by
+$7.5\times10^{-4}$ and $4.5\times10^{-4}$ (relative) under Heun and
+Midpoint, $3.0\times10^{-5}$ under RK4, and about $10^{-7}$ under the
+fifth-order pair.
+
+\subsubsection{Solver ablation}
+
+Table~\ref{tab:solver-ablation} sweeps the six integrators at fixed RBF
+basis; Table~\ref{tab:basis-ablation} in Section~\ref{sec:basis-results}
+sweeps seven basis representations at fixed Tsit5 solver. Both use the
+protocol of Section~\ref{sec:protocol}. We report the Lipschitz estimate of
+the trained field (Equation~\ref{eq:lipschitz}) alongside accuracy because it
+measures how smooth or jagged the basis expansion in
+Equation~\ref{eq:kan-edge} ended up, independent of the trajectory error.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{Solver ablation (fixed RBF basis, $h=0.05$, 240 parameters,
+$10^4$ epochs). The last column integrates the \emph{true} field with the
+same solver and step and scores it identically: the solver's own
+truncation error, with no learning involved.}
+\label{tab:solver-ablation}
+\begin{tabularx}{\textwidth}{@{}Y C{1.0cm} C{1.2cm} C{1.9cm} C{1.9cm} C{1.5cm} C{0.9cm} C{1.4cm} C{2.4cm}@{}}
+\toprule
+\hdrrow \thh{Solver} & \thh{Order} & \thh{NFE / epoch} & \thh{Training MSE} & \thh{Extrap.\ MSE} & \thh{Extrap.\ $R^2$} & \thh{$\hat L$} & \thh{Wall-clock} & \thh{True-field truncation MSE}\\
+\midrule
+Forward Euler & 1 & 70 & $1.38\times10^{-4}$ & $2.51\times10^{-3}$ & $0.99914$ & $8.55$ & 254 s & $1.8\times10^{1}$\\
+Heun RK2 & 2 & 140 & $8.32\times10^{-5}$ & $3.10\times10^{-4}$ & $0.99989$ & $7.07$ & 499 s & $1.3\times10^{-4}$\\
+Midpoint & 2 & 140 & $8.86\times10^{-5}$ & $8.95\times10^{-5}$ & $0.99997$ & $6.96$ & \textbf{498 s} & $3.0\times10^{-4}$\\
+Classical RK4 & 4 & 280 & $9.41\times10^{-5}$ & $9.29\times10^{-5}$ & $0.99997$ & $6.88$ & 1019 s & $4.7\times10^{-9}$\\
+DOPRI5 & 5 & 420 & $9.28\times10^{-5}$ & $9.21\times10^{-5}$ & $0.99997$ & $6.89$ & 1699 s & $6.7\times10^{-14}$\\
+\textbf{Tsit5} & 5 & 420 & $\mathbf{8.83\times10^{-5}}$ & $\mathbf{8.92\times10^{-5}}$ & $\mathbf{0.99997}$ & $6.91$ & 1712 s & $4.7\times10^{-14}$\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Truncation error dominates only at order $p=1$. Euler's extrapolation MSE is
+$28\times$ Tsit5's, and it is the only solver that fails to reach $10^{-4}$
+training loss within budget. Its trained field is also the least smooth of
+the six ($\hat L=8.55$, the highest in the table), consistent with a
+systematic bias forcing the network to fit a sharper correction than the
+smoother integrators require. Above order 2 the ranking collapses into a
+$3.8\%$ spread with no monotonic order dependence: at $h=0.05$,
+integrator truncation error has fallen below the optimization noise floor.
+Midpoint matches Tsit5's accuracy within $0.3\%$ at one third of the
+function evaluations and $29\%$ of the wall-clock, making it the
+cost-normalized optimum on this problem.
+
+The last column is the striking one. Integrated with the \emph{true} field,
+Euler's own error on the extrapolation window is $17.6$. The Euler-trained
+network, integrated with Euler, scores $2.5\times10^{-3}$, nearly four orders
+of magnitude better than the exact field under the same solver. The same
+holds, more mildly, for Midpoint, whose trained model ($8.95\times10^{-5}$)
+beats the exact field under Midpoint ($3.0\times10^{-4}$). The network is
+not learning $\mathbf{f}$; it is learning whatever field makes
+\emph{this solver's} output match the data. Two experiments make that
+precise.
+
+\paragraph{The Euler model learns the inverse modified equation.} Backward
+error analysis states that Forward Euler applied to a field $\mathbf{g}$
+follows, to second order, the modified field
+$\mathbf{g}-\tfrac{h}{2}J_{\mathbf{g}}\mathbf{g}+O(h^2)$. For Euler's output
+to reproduce the exact flow, the network must therefore learn
+\begin{equation}
+\mathbf{g}_h=\mathbf{f}+\tfrac{h}{2}\,J_{\mathbf{f}}\,\mathbf{f}+O(h^2).
+\label{eq:inverse-modified}
+\end{equation}
+On the 36 training states, the Euler-trained field differs from the true
+field by $9.6\%$ (relative $L_2$), almost exactly the size of the predicted
+correction $\tfrac{h}{2}J_{\mathbf{f}}\mathbf{f}$ ($9.2\%$). The learned
+correction $\mathbf{f}_\theta-\mathbf{f}$ and the predicted one point the
+same way (cosine similarity $0.92$) with a magnitude ratio of $1.04$. Measured
+against $\mathbf{g}_h$ instead of $\mathbf{f}$, the Euler model's error falls
+to $3.8\%$, comparable to the $3.0\%$ field error of the Tsit5-trained
+model. The Euler model is an accurate model of Equation~\ref{eq:inverse-modified}.
+
+\paragraph{Cross-solver transfer.} If each model has absorbed its solver's
+error, it should degrade when integrated with a different solver.
+Figure~\ref{fig:cross-solver} evaluates every trained model under every
+integrator. The Euler model is $70\times$ worse under any other solver
+($0.17$--$0.18$), and every other model is $1000$--$7200\times$ worse under
+Euler. The second-order models lose $9$--$17\times$ when integrated with a
+fourth- or fifth-order method, and the fourth- and fifth-order models lose
+$14$--$17\times$ under a second-order one. Within each family the models are
+interchangeable: RK4, DOPRI5 and Tsit5 models agree to three significant
+figures under all three high-order solvers, so these three have learned
+fields that coincide up to their $O(h^4)$ differences. The practical rule is
+that a KAN-ODE trained with a low-order solver must be deployed with that
+same solver. A trained field is a statement about the physics only
+once the training solver's truncation error is below the model error.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/analysis/cross_solver_transfer.pdf}
+\caption{Extrapolation MSE of each trained model (rows) integrated with
+each solver (columns), $h=0.05$. The diagonal (bold) is the configuration
+it was trained in.}
+\label{fig:cross-solver}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/analysis/pareto_cost_accuracy.pdf}
+\caption{Training wall-clock against extrapolation MSE for the solver and
+basis sweeps. The dashed step is the Pareto front: Euler, Midpoint, Tsit5
+and B-spline. Midpoint dominates RK4 and DOPRI5 outright.}
+\label{fig:pareto}
+\end{figure}
+
+\paragraph{Midpoint against Heun.} Midpoint extrapolates $3.5\times$ better
+than Heun at identical cost and order. A tempting explanation is that
+Heun's end-of-step sampling adds numerical damping. The numbers above rule
+that out. The two methods have the same stability polynomial, so they damp
+identically on linear modes; Heun is actually the \emph{more} accurate
+integrator of the true field ($1.3\times10^{-4}$ against
+$3.0\times10^{-4}$ truncation MSE); and the third-order error norms differ
+by only $8\%$. The gap belongs to the trained models, not to the
+integrators. It shows up as phase accuracy: the Heun model's orbit period is
+off by $4.7\times10^{-4}$ (relative), the Midpoint model's by
+$3.5\times10^{-6}$ (Table~\ref{tab:equilibria}), and its error envelope grows
+ten times faster over $(3.5,28]$ ($5.9\times10^{-3}$ against
+$5.7\times10^{-4}$ per unit time). With a single seed per configuration
+this ordering could still be an initialisation effect; the solver-level
+explanation is refuted either way.
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.3\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/solver_euler_phase.png}
+  \caption{Forward Euler ($p=1$)}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.3\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/solver_midpoint_phase.png}
+  \caption{Midpoint ($p=2$)}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.3\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/solver_tsit5_phase.png}
+  \caption{Tsit5 ($p=5$)}
+\end{subfigure}
+\caption{Phase portraits of the Euler-, Midpoint- and Tsit5-trained RBF
+models on $[0,14]$ (all three plots are titled ``KAN-ODE (RBF)'' because the
+basis is shared). Each model is integrated with its own training solver.
+All three stay on the true orbit to plotting accuracy, including Euler,
+whose $28\times$ larger extrapolation MSE is phase error along the orbit
+rather than a visible drift off it.}
+\label{fig:lv-phase-portraits}
+\end{figure*}

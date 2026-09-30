@@ -1,0 +1,121 @@
+\section{Reproducibility}
+\label{app:repro}
+
+\subsection{How the numbers and figures are regenerated}
+
+Every training run saves its final metrics, a per-epoch training history, and
+two checkpoints: the one with minimum training loss and the final one. A
+single command-line entry point trains any configuration (model type, basis,
+solver, sub-steps, learning rate, epoch budget and seed), and a separate
+script re-scores any saved checkpoint against the ground truth it was
+trained on. The extended runs of the budget validation were launched as
+independent cloud jobs with the same entry point.
+
+Everything reported after training is produced by an analysis pipeline that
+retrains nothing. Its first step re-integrates every noise-free
+$\Delta t=0.1$ checkpoint and checks that the rollout reproduces the run's
+stored extrapolation MSE (the worst relative deviation is
+$6.2\times10^{-3}$, from cloud-trained checkpoints re-scored on a different
+CPU). The remaining steps compute the order conditions, work-precision data,
+stability regions, Newton equilibria, first-integral drift, cross-solver
+matrix, field-error maps and training milestones reported in
+Sections~\ref{sec:solver-results}--\ref{sec:numerics} and~\ref{sec:phase4}.
+Table~\ref{tab:provenance} lists what each derived figure and table is
+computed from.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.08}
+\caption{What each figure and table produced after training is computed from.}
+\label{tab:provenance}
+\begin{tabularx}{\columnwidth}{@{}L{4.1cm} Y@{}}
+\toprule
+\hdrrow \thh{Figure or table} & \thh{Computed from}\\
+\midrule
+Tables~\ref{tab:solver-ablation}, \ref{tab:basis-ablation}, \ref{tab:noise-dt}, \ref{tab:kan-vs-mlp}, \ref{tab:cost}, \ref{tab:phase4} & saved final metrics of each run\\
+Table~\ref{tab:order-conditions} & the implemented solver tableaux\\
+Figure~\ref{fig:work-precision}, truncation column of Table~\ref{tab:solver-ablation} & the true Lotka-Volterra field\\
+Figure~\ref{fig:stability} & solver tableaux and the Tsit5 checkpoint\\
+Figure~\ref{fig:basis-catalog}, $\kappa_2$ in Table~\ref{tab:basis-ablation} & the implemented basis functions\\
+Table~\ref{tab:equilibria}, Figure~\ref{fig:first-integral} & trained checkpoints\\
+Figure~\ref{fig:limit-cycle} & trained checkpoints\\
+Figure~\ref{fig:cross-solver}, modified-equation analysis & checkpoints of the solver sweep\\
+Figure~\ref{fig:field-error} & trained checkpoints\\
+Figure~\ref{fig:edges} & RBF and B-spline checkpoints\\
+Table~\ref{tab:milestones}, budget-validation crossover & per-epoch training histories\\
+Figure~\ref{fig:pareto} & saved final metrics of each run\\
+Figure~\ref{fig:noise-dt} (right) & runs of the noise sweep\\
+Figure~\ref{fig:error-vs-time} & trained checkpoints\\
+Diagrams (Figures~\ref{fig:kan-ode-architecture}, \ref{fig:kdense}, \ref{fig:data-split}, \ref{fig:rk-stages}, \ref{fig:locality}) & drawn from the implemented coefficients and shapes\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The integrator implementation}
+
+The fixed-step Tsit5 step and the trajectory integrator, with docstrings
+shortened. Every other method follows the same pattern with its own
+tableau.
+
+\begin{pycode}[Fixed-step Tsit5 step]
+def step_tsit5(func, t, y, dt):
+    # 6 of 7 stages: the 7th (FSAL) stage has TSIT5_B[6] == 0.0
+    k = []
+    k.append(func(t, y))
+    for stage_idx in range(1, 6):
+        t_stage = t + TSIT5_C[stage_idx] * dt
+        y_stage = y
+        for j in range(stage_idx):
+            y_stage = y_stage + dt * TSIT5_A[stage_idx][j] * k[j]
+        k.append(func(t_stage, y_stage))
+    y_next = y
+    for j in range(len(k)):
+        if TSIT5_B[j] != 0.0:
+            y_next = y_next + dt * TSIT5_B[j] * k[j]
+    return y_next
+\end{pycode}
+
+\begin{pycode}[Trajectory integrator]
+def odeint(func, y0, t, method="tsit5", substeps=1):
+    step_fn = STEP_SOLVERS[method.lower()]
+    trajectory = [y0]
+    curr_y = y0
+    for i in range(len(t) - 1):
+        dt_sub = (t[i + 1] - t[i]) / substeps     # h = dt / substeps
+        for s in range(substeps):
+            curr_t = t[i] + s * dt_sub
+            curr_y = step_fn(func, curr_t, curr_y, dt_sub)
+        trajectory.append(curr_y)
+    return torch.stack(trajectory, dim=0)
+\end{pycode}
+
+Because the loop is ordinary PyTorch, reverse-mode differentiation of the loss
+records every stage evaluation; this is the ``direct autograd'' gradient
+method of Section~\ref{sec:track-a}, and the reason training cost is
+proportional to the number of function evaluations.
+
+\subsection{Order-condition check}
+
+The verification of Table~\ref{tab:order-conditions} needs only the
+tableau. Rooted trees are represented as sorted tuples of their subtrees;
+for a tree $\tau=[\tau_1,\dots,\tau_m]$ the elementary weight vector is
+$\mathbf{g}(\tau)=\prod_k A\,\mathbf{g}(\tau_k)$ (elementwise, with
+$\mathbf{g}(\bullet)=\mathbf{1}$), the density is
+$\gamma(\tau)=|\tau|\prod_k\gamma(\tau_k)$, and the condition is
+$\mathbf{b}^\top\mathbf{g}(\tau)=1/\gamma(\tau)$.
+
+\begin{pycode}[Order-condition check]
+def elem_weight(t, A):
+    g = np.ones(A.shape[0])
+    for child in t:
+        g = g * (A @ elem_weight(child, A))
+    return g
+
+def gamma_of(t):
+    return order_of(t) * math.prod(gamma_of(c) for c in t)
+
+for q in range(1, 7):                  # 1, 1, 2, 4, 9, 20 trees
+    devs = [b @ elem_weight(t, A) - 1.0 / gamma_of(t) for t in trees[q]]
+\end{pycode}

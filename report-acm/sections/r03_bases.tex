@@ -1,0 +1,129 @@
+\subsection{Basis-function ablation}
+\label{sec:basis-results}
+
+We now fix the Tsit5 solver and compare the seven basis families defined in
+Section~\ref{sec:bases}, starting with their conditioning and locality.
+
+Figure~\ref{fig:basis-catalog} draws the seven families from the code
+itself and reports the 2-norm condition number $\kappa_2(\Psi)$ of the
+$400\times G$ design matrix $\Psi_{ng}=B_g(u_n)$ on a uniform sample of
+$[-1,1]$. This is the quantity that governs how well-posed fitting the
+coefficients $c_g$ is. At $G=5$ Chebyshev ($2.5$), Lagrange ($3.7$) and
+B-spline ($5.5$) are well conditioned, the three kernels sit at $8$--$34$,
+and Newton is worst at $54$. The growth with $G$ separates them further: at
+$G=12$ Chebyshev and B-spline are still below $6$, RBF and Lagrange reach
+$69$ and $63$, and Newton reaches $2.4\times10^4$, growing exponentially,
+because the nested products $\prod_{j<g}(u-z_j)$ become nearly collinear
+columns.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/analysis/basis_catalog.pdf}
+\caption{The seven implemented basis families on the $G=5$ grid (vertical
+lines are the knots $z_g$), with the $g=4$ function highlighted and the
+2-norm condition number of the design matrix in each title. The blue band is
+the interval $u\in[0.25,1]$ that first-layer inputs actually reach on the
+Lotka-Volterra orbit. The last panel shows $\kappa_2$ against grid size;
+dashed and dotted grey lines are IQF and RSWAF.}
+\label{fig:basis-catalog}
+\end{figure*}
+
+\paragraph{How much of the grid the data uses.} Lotka-Volterra's states are
+positive, between $0.26$ and $6.9$ on the orbit, so after the $\tanh$
+normaliser the first layer sees only $u\in[0.25,1.0]$, the right
+$37.5\%$ of its grid. Measured on the trained RBF model, the two leftmost
+basis functions ($z_1=-1$, $z_2=-0.5$) carry $0.4\%$ and $3.6\%$ of the
+first layer's total basis activation; for the B-spline the leftmost carries
+exactly zero and the next $1.7\%$. The second layer, whose inputs are the
+signed hidden activations, uses its grid evenly (every basis function
+$18$--$26\%$). Roughly a third of the first layer's 100 spline coefficients
+are therefore nearly inert on this system. Figure~\ref{fig:locality} shows
+what locality means against that data interval: raising the coefficient of
+$z_2$ changes the spline edge by at most $0.021\delta$ on the data, the RBF
+edge by $0.32\delta$, and the Chebyshev edge by the full $\delta$.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/tikz/local_vs_global_basis.pdf}
+\caption{Locality of one coefficient update, $c_2\leftarrow c_2+\delta$,
+for three basis families (uniform-knot cubic spline shown for clarity). Since
+$\phi$ is linear in $\mathbf{c}$, the change is exactly $\delta\,\psi_2$
+(shaded). Compact support confines it to its knot span; the RBF's Gaussian
+tail still reaches the data interval (blue); a global polynomial changes the
+edge everywhere.}
+\label{fig:locality}
+\end{figure*}
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{Basis ablation (fixed Tsit5 solver, $G=5$ grid points, 240
+parameters, $10^4$ epochs). $\kappa_2$ is the design-matrix condition number
+of Figure~\ref{fig:basis-catalog}.}
+\label{tab:basis-ablation}
+\begin{tabularx}{\textwidth}{@{}Y C{2.3cm} C{2.3cm} C{1.7cm} C{1.6cm} C{1.2cm} C{1.2cm} C{1.6cm}@{}}
+\toprule
+\hdrrow \thh{Basis function} & \thh{Training MSE} & \thh{Extrap.\ MSE} & \thh{$R^2$} & \thh{Rel.\ $L_2$} & \thh{$\hat L$} & \thh{$\kappa_2$} & \thh{Wall-clock}\\
+\midrule
+Cubic B-spline & $\mathbf{7.20\times10^{-5}}$ & $\mathbf{8.38\times10^{-5}}$ & $\mathbf{0.99997}$ & $\mathbf{0.32\%}$ & $8.44$ & $5.5$ & 6680 s\\
+Gaussian RBF & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $0.99997$ & $0.33\%$ & $6.91$ & $34.0$ & \textbf{1712 s}\\
+Lagrange & $1.07\times10^{-4}$ & $3.93\times10^{-4}$ & $0.99987$ & $0.69\%$ & $6.70$ & $3.7$ & 6829 s\\
+Chebyshev & $9.80\times10^{-5}$ & $4.37\times10^{-4}$ & $0.99985$ & $0.73\%$ & $6.48$ & $2.5$ & 2317 s\\
+IQF & $2.08\times10^{-4}$ & $9.61\times10^{-4}$ & $0.99967$ & $1.08\%$ & $7.16$ & $10.1$ & 1824 s\\
+RSWAF & $1.00\times10^{-4}$ & $1.46\times10^{-3}$ & $0.99950$ & $1.33\%$ & $8.72$ & $7.9$ & 1715 s\\
+Newton & $1.47\times10^{-3}$ & $3.65\times10^{-2}$ & $0.98746$ & $6.66\%$ & $5.65$ & $54.2$ & 2187 s\\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+B-spline edges out RBF on accuracy after a boundary-knot fix, at $3.9\times$
+RBF's wall-clock time and a visibly higher Lipschitz estimate ($8.44$ vs.\
+$6.91$). Its compact local support lets it fit sharper local features than
+RBF's smooth, slowly decaying support without being penalized elsewhere in
+the domain. The two bases are statistically tied on error (6\% apart, inside
+single-seed noise), which makes RBF the better accuracy-per-second choice.
+Polynomial global-support bases (Chebyshev, Lagrange) fit the training
+window well and extrapolate $4$--$5\times$ worse. This is the expected
+signature of a basis whose every coefficient influences the whole domain
+rather than a local region of it. Conditioning alone does not predict the
+ranking: Chebyshev is the best-conditioned basis and extrapolates $5\times$
+worse than RBF, the worst-conditioned of the working kernels. Locality
+matters more than conditioning once $\kappa_2$ is moderate. The two
+heavy-tailed kernels, IQF (algebraic $O(r^{-2})$ tails) and RSWAF, train as
+well as the polynomials but extrapolate worst among the working bases
+($11$--$16\times$ RBF). Newton is the outlier in both directions: it is the
+worst-conditioned basis and the only one that never reaches $10^{-3}$
+training loss, and its lowest-in-table Lipschitz estimate ($5.65$) reflects
+underfitting, not desirable flatness. Figure~\ref{fig:basis-phase} shows the
+same ranking in the phase plane.
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.24\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/basis_bspline_phase.png}
+  \caption{Cubic B-spline}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.24\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/basis_rbf_phase.png}
+  \caption{Gaussian RBF}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.24\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/basis_chebyshev_phase.png}
+  \caption{Chebyshev}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.24\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/ablation/basis_newton_phase.png}
+  \caption{Newton}
+\end{subfigure}
+\caption{Phase portraits on $[0,14]$ for four of the seven bases (Tsit5).
+B-spline, RBF and Chebyshev all trace the true orbit closely at this scale;
+Chebyshev's $5\times$ larger extrapolation error is phase error rather than
+a visible departure. The Newton-basis model visibly misses the orbit near
+its upper and right-hand extremes.}
+\label{fig:basis-phase}
+\end{figure*}

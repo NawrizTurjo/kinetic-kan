@@ -1,0 +1,73 @@
+\subsection{Step-size and noise sensitivity}
+\label{sec:dt-noise}
+
+Two more one-factor sweeps vary the data rather than the model
+(Figure~\ref{fig:noise-dt}, Table~\ref{tab:noise-dt}). The \textbf{step-size
+sweep} changes the sampling interval $\Delta t$, and with it the number of
+training points and the solver step $h=\Delta t/2$. The trend is not
+monotone. $\Delta t=0.1$ extrapolates best; $\Delta t=0.05$ is $1.5\times$
+worse with twice the data and twice the cost; and $\Delta t=0.2$ reaches the
+\emph{lowest} training loss and the worst extrapolation ($5.1\times$). The
+work-precision data rule out truncation as the cause: Tsit5's own error on
+the true field at these three steps is $2.6\times10^{-18}$, $4.7\times10^{-14}$
+and $2.2\times10^{-10}$ in MSE, at least six orders of magnitude below any
+learned error. The coarse grid hurts extrapolation because 19 samples
+constrain the field less (it fits them more closely and generalises worse).
+The fine grid hurts it because the same 10{,}000 epochs buy a similar
+training loss on a harder, longer unrolled graph. Here, step size is a
+data-density choice, not a numerical-accuracy one.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\caption{Step-size and observation-noise sweeps (Tsit5, RBF, $10^4$ epochs).
+Noise is added only to the training window; all errors are measured against
+the clean truth.}
+\label{tab:noise-dt}
+\begin{tabular}{@{}L{3.4cm} C{1.8cm} C{2.3cm} C{2.3cm} C{1.9cm} C{1.4cm} C{2.0cm}@{}}
+\toprule
+\hdrrow \thh{Configuration} & \thh{Training points} & \thh{Training MSE} & \thh{Extrap.\ MSE} & \thh{Extrap.\ $R^2$} & \thh{$\hat L$} & \thh{Wall-clock}\\
+\midrule
+$\Delta t=0.05$ ($h=0.025$) & 71 & $9.37\times10^{-5}$ & $1.34\times10^{-4}$ & $0.99995$ & $7.46$ & 3425 s\\
+$\Delta t=0.1$ (reference) & 36 & $8.83\times10^{-5}$ & $\mathbf{8.92\times10^{-5}}$ & $0.99997$ & $6.91$ & 1713 s\\
+$\Delta t=0.2$ ($h=0.1$) & 19 & $7.83\times10^{-5}$ & $4.51\times10^{-4}$ & $0.99985$ & $6.64$ & 882 s\\
+\midrule
+$\sigma=0.01$ & 36 & $1.23\times10^{-4}$ & $1.22\times10^{-3}$ & $0.99958$ & $7.18$ & 1686 s\\
+$\sigma=0.05$ & 36 & $7.41\times10^{-4}$ & $2.54\times10^{-2}$ & $0.99129$ & $8.69$ & 1672 s\\
+$\sigma=0.1$ & 36 & $2.28\times10^{-3}$ & $1.37\times10^{-1}$ & $0.95282$ & $9.55$ & 1534 s\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.45\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/ablation/02_error_vs_stepsize_loglog.png}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.45\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/analysis/noise_sensitivity.pdf}
+\end{minipage}
+\caption{Left: error against sampling interval, with $O(\Delta t)$ and
+$O(\Delta t^2)$ reference slopes; changing $\Delta t$ also changes the
+number of training samples. Right: error against observation-noise level,
+with least-squares power-law fits; the dotted line is the noise variance
+$\sigma^2$.}
+\label{fig:noise-dt}
+\end{figure*}
+
+The \textbf{noise sweep} adds Gaussian noise of standard deviation $\sigma$
+to the 36 training observations. Across $\sigma\in\{0.01,0.05,0.1\}$ the
+extrapolation MSE follows a clean power law,
+$\mathrm{MSE}_{\text{extrap}}\approx12.9\,\sigma^{2.02}$. In other words,
+extrapolation error is proportional to the noise variance, with a gain of
+about $13$. The training-window error against the clean truth grows more
+slowly ($\propto\sigma^{1.24}$) and sits below $\sigma^2$ at every level
+($0.23\sigma^2$ at $\sigma=0.1$), so the ODE constraint does denoise the
+fit inside the window. What it cannot do is stop the remaining field error
+from compounding into phase error beyond the window. The field also
+roughens as it absorbs the noise ($\hat L$ rises from $6.91$ to $9.55$).
+Section~\ref{sec:track-e} compares this sensitivity against sparse symbolic
+regression.

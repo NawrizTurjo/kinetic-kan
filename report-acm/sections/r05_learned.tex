@@ -1,0 +1,234 @@
+\subsection{What the trained fields learned}
+\label{sec:numerics}
+
+Trajectory error measures one orbit. Because we saved the checkpoints, we
+can also examine the learned field $\mathbf{f}_\theta$ itself as a dynamical
+system, using the invariants of Section~\ref{sec:datasets} as ground truth.
+
+\paragraph{Equilibria by Newton's method.} We solve
+$\mathbf{f}_\theta(\mathbf{u}^\ast)=\mathbf{0}$ by Newton-Raphson,
+$\mathbf{u}\leftarrow\mathbf{u}-J_\theta(\mathbf{u})^{-1}\mathbf{f}_\theta(\mathbf{u})$,
+with the Jacobian from automatic differentiation in float64, starting at the
+true equilibrium $(3,1.5)$. The iteration converges quadratically for every
+working model. For the Tsit5 model the residual norms are
+$2.1,\ 1.6\times10^{-1},\ 1.1\times10^{-2},\ 9.5\times10^{-6},\ 3.4\times10^{-12}$,
+then exactly zero. The residual is roughly squared at every step, which is
+the signature of quadratic convergence ($\|\mathbf{F}_{k+1}\|/\|\mathbf{F}_k\|^2$
+stays between $0.04$ and $0.43$). The roots, however, are far from the truth
+(Table~\ref{tab:equilibria}). Every RBF solver model places its equilibrium
+near $(1.9,1.04)$, about $1.15$ from $(3,1.5)$, and it is an unstable focus
+with $\mathrm{Re}\,\lambda\approx+1.2$, where the true system has
+$\mathrm{Re}\,\lambda=0$. The imaginary parts are close to the true $2.12$.
+The Chebyshev and Lagrange models have \emph{stable} foci instead. Newton
+iteration on the Chebyshev model does not converge within 30 steps, and on
+the Newton-basis model it diverges.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.08}
+\caption{Numerical analysis of the trained fields. $\mathbf{u}^\ast$:
+learned equilibrium (Newton-Raphson from $(3,1.5)$); $\lambda$: eigenvalues
+of $J_\theta(\mathbf{u}^\ast)$; period error from zero-crossings of the
+predicted prey signal over $[0,28]$; $H$ drift is
+$\max_t|H(\hat{\mathbf{u}})-H_0|/H_0$ on $[0,28]$. True values:
+$\mathbf{u}^\ast=(3,1.5)$, $\lambda=\pm2.121i$, $T=3.3175$, drift $0$.}
+\label{tab:equilibria}
+\begin{tabular}{@{}L{4.0cm} C{2.6cm} C{2.0cm} C{1.6cm} C{1.6cm} C{2.0cm} C{1.4cm}@{}}
+\toprule
+\hdrrow \thh{Model} & \thh{$\mathbf{u}^\ast$} & \thh{$\|\mathbf{u}^\ast-\mathbf{u}^\ast_{\text{true}}\|$} & \thh{$\mathrm{Re}\,\lambda$} & \thh{$|\mathrm{Im}\,\lambda|$} & \thh{Period error} & \thh{$H$ drift}\\
+\midrule
+Euler & $(1.80,\,1.02)$ & $1.30$ & $+0.51$ & $2.05$ & $-1.7\times10^{-3}$ & $4.2\%$\\
+Heun & $(1.91,\,1.03)$ & $1.19$ & $+1.11$ & $2.03$ & $-4.7\times10^{-4}$ & $3.1\%$\\
+Midpoint & $(1.93,\,1.04)$ & $1.16$ & $+1.17$ & $2.01$ & $\mathbf{-3.5\times10^{-6}}$ & $3.1\%$\\
+RK4 & $(1.94,\,1.05)$ & $1.15$ & $+1.21$ & $1.99$ & $+7.8\times10^{-5}$ & $3.2\%$\\
+DOPRI5 & $(1.94,\,1.04)$ & $1.16$ & $+1.20$ & $2.00$ & $+3.5\times10^{-5}$ & $3.2\%$\\
+Tsit5 / RBF & $(1.94,\,1.04)$ & $1.15$ & $+1.20$ & $2.01$ & $+1.7\times10^{-5}$ & $3.1\%$\\
+\midrule
+B-spline & $(1.66,\,0.94)$ & $1.46$ & $+1.18$ & $2.99$ & $+1.3\times10^{-4}$ & $\mathbf{1.3\%}$\\
+Lagrange & $(2.67,\,2.15)$ & $0.73$ & $-0.44$ & $5.21$ & $-9.9\times10^{-4}$ & $3.9\%$\\
+Chebyshev & \multicolumn{4}{c}{Newton iteration does not converge} & $+6.0\times10^{-4}$ & $5.1\%$\\
+IQF & $(2.05,\,1.19)$ & $1.00$ & $+0.26$ & $1.70$ & $-2.2\times10^{-3}$ & $76\%$\\
+RSWAF & $(2.15,\,0.91)$ & $1.03$ & $+1.00$ & $1.69$ & $+6.3\times10^{-4}$ & $5.4\%$\\
+Newton & \multicolumn{4}{c}{Newton iteration diverges} & $-6.4\times10^{-3}$ & $12\%$\\
+\midrule
+MLP-ODE (SiLU), $10^4$ & $(2.35,\,1.12)$ & $0.76$ & $+0.30$ & $2.75$ & $+8.0\times10^{-4}$ & $2.8\%$\\
+KAN-ODE, $5\times10^4$ & $(1.51,\,0.80)$ & $1.65$ & $+0.67$ & $2.85$ & $-1.6\times10^{-4}$ & $0.9\%$\\
+MLP-ODE (SiLU), $5\times10^4$ & $(3.65,\,1.30)$ & $\mathbf{0.68}$ & $+0.95$ & $1.83$ & $+1.0\times10^{-4}$ & $\mathbf{0.4\%}$\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{The learned system is a limit-cycle oscillator.} An unstable
+focus surrounded by an orbit that trajectories stay on is the signature of an
+attracting limit cycle, not of a conservative centre. We confirm this by
+integrating each learned field from four initial conditions whose true orbits
+have $H\in\{0.85,\,0.86,\,2.0,\,3.5\}$ (Figure~\ref{fig:limit-cycle}). In the
+true system the four orbits are distinct nested curves. Under every learned
+field (KAN and MLP, at $10^4$ and at $5\times10^4$ epochs) all four
+trajectories converge onto the single training orbit, with late-time $H$
+between $2.000$ and $2.008$ for every starting point. Both architectures
+have replaced Lotka-Volterra's one-parameter family of neutral orbits with
+one isolated, attracting cycle through the training data. This explains two
+things at once. First, the flat extrapolation error of the KAN-ODE
+(Table~\ref{tab:extrap-horizon}) is partly a property of the attractor:
+amplitude errors are damped back onto the cycle, so only phase error can
+accumulate. That is why the period error in Table~\ref{tab:equilibria}
+predicts the extrapolation ranking better than any field metric. Second, the
+models say nothing reliable about any other initial condition. They have
+learned an orbit, not the vector field.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/analysis/limit_cycle_test.pdf}
+\caption{Trajectories of each learned field from four initial conditions
+(coloured dots) over $t\in[0,40]$, against the four corresponding true orbits
+(grey). Red crosses mark the learned equilibria, black plus signs the true
+one. Every learned field attracts all four onto the training orbit.}
+\label{fig:limit-cycle}
+\end{figure*}
+
+\paragraph{Where the field is right.} Figure~\ref{fig:field-error} maps the
+field error $\|\mathbf{f}_\theta-\mathbf{f}\|$ over the phase plane. It is
+small only in a thin tube around the training orbit. On the orbit the error
+is $2.7$--$2.8\%$ of the mean field magnitude for both 10k models and
+$0.6$--$1.1\%$ at 50k. Across the plotted box the median error is
+$20$--$34\%$, and for every model less than $3\%$ of the box is below $1\%$
+error. Longer training sharpens the tube without widening it: the 50k KAN's
+median off-orbit error ($34\%$) is higher than the 10k model's ($24\%$).
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/analysis/field_error_maps.pdf}
+\caption{Field error $\|\mathbf{f}_\theta(\mathbf{u})-\mathbf{f}(\mathbf{u})\|$,
+normalised by the mean true field magnitude on the orbit ($4.82$), clipped to
+$[10^{-3},1]$. Thick black: training segment; blue: rest of the orbit;
+plus sign: true equilibrium.}
+\label{fig:field-error}
+\end{figure*}
+
+\paragraph{Invariant and error growth.} Figure~\ref{fig:first-integral}b
+tracks the first integral along each solver model's own prediction. All of
+them hold $H$ to within $3$--$4\%$, and the drift is oscillatory rather than
+secular, as it must be on an attracting cycle. The learned models' invariant
+error is dominated by model error, orders of magnitude above the solver
+drift in panel (a), except for Euler. Figure~\ref{fig:error-vs-time} shows the
+pointwise error out to $t=28$. The error envelopes of the Midpoint and Tsit5
+models grow by $5.5$--$5.7\times10^{-4}$ per unit time, those of Heun and
+Chebyshev by $6$--$8\times10^{-3}$, and Euler's by $2.1\times10^{-2}$.
+Panel (b) previews Section~\ref{sec:phase4}. At $5\times10^4$ epochs the MLP
+error is lower than the KAN's throughout, while the 50k KAN has a
+\emph{larger} far-horizon error than the 10k KAN (maximum $6.5\times10^{-2}$
+against $3.4\times10^{-2}$ on $(14,28]$), despite its better scored-window
+MSE.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/analysis/first_integral_drift.pdf}
+\caption{Relative drift of the Lotka-Volterra first integral $H$
+(Equation~\ref{eq:lv-invariant}). (a) The exact field integrated by each
+solver at $h=0.05$: pure truncation drift (Euler's trajectory leaves the
+domain of $H$ at $t=19.4$). (b) Each trained model integrated by its
+training solver. Shaded: training window; dotted: end of the scored horizon.}
+\label{fig:first-integral}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/analysis/error_vs_time.pdf}
+\caption{Pointwise trajectory error on $[0,28]$. (a) Solver and basis
+choice at $10^4$ epochs (Midpoint and Tsit5 overlap). (b) KAN-ODE and
+MLP-ODE at $10^4$ and $5\times10^4$ epochs.}
+\label{fig:error-vs-time}
+\end{figure*}
+
+\paragraph{What the edges look like.} Figure~\ref{fig:edges} plots the
+twenty first-layer edge functions $\phi_{i,j}$ of the RBF and B-spline
+models over the range each input covers on the orbit. Over that range most
+edges are close to affine, with mild curvature concentrated at small
+populations, where $\tanh$ is least saturated. None of them resembles a term
+of Equation~\ref{eq:lv}. The bilinear products $u_1u_2$ are assembled by
+composition through the second layer rather than carried by any single
+edge, which is consistent with the pruning result of
+Section~\ref{sec:track-e}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/analysis/edge_functions.pdf}
+\caption{First-layer edge functions (spline plus residual branch) of the
+trained RBF and B-spline models, each input varied over its range on the
+orbit with the other held at its mean. The edge with the largest range is
+highlighted.}
+\label{fig:edges}
+\end{figure*}
+
+\subsubsection{Training dynamics across the sweeps}
+
+Figures~\ref{fig:ablation-curves} and~\ref{fig:basis-curves} show the test
+MSE of every configuration during training, and Table~\ref{tab:milestones}
+records when each one's training MSE crosses fixed thresholds. Five of the
+six solver curves lie on top of each other throughout. Euler separates from
+about epoch 2000 and stays above the others until the final approach, so
+solver choice changes where training ends rather than how it starts. From
+about epoch 6000 every solver shows periodic loss spikes of one to two
+orders of magnitude that recover within a few hundred epochs. The basis
+curves separate much earlier. B-spline is lowest almost throughout and Newton
+highest, and B-spline, Chebyshev and RSWAF reach $10^{-2}$ training MSE
+first ($1900$--$2050$ epochs, against RBF's $3112$). Only B-spline turns
+that head start into better extrapolation.
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.08}
+\caption{First epoch at which the training MSE falls below each threshold
+(``--'': not reached within $10^4$ epochs).}
+\label{tab:milestones}
+\begin{tabular}{@{}L{2.8cm} C{1.4cm} C{1.4cm} C{1.4cm} @{\hspace{1.2cm}} L{2.8cm} C{1.4cm} C{1.4cm} C{1.4cm}@{}}
+\toprule
+\hdrrow \thh{Solver} & \thh{$10^{-2}$} & \thh{$10^{-3}$} & \thh{$10^{-4}$} & \thh{Basis} & \thh{$10^{-2}$} & \thh{$10^{-3}$} & \thh{$10^{-4}$}\\
+\midrule
+Euler & 3533 & 6729 & -- & B-spline & \textbf{1894} & 4826 & \textbf{8458}\\
+Heun & 3144 & 5564 & 9512 & Gaussian RBF & 3112 & 5282 & 9617\\
+Midpoint & \textbf{3102} & 5285 & 9599 & Chebyshev & 1931 & \textbf{3892} & 9828\\
+RK4 & 3153 & 5318 & 9798 & Lagrange & 2924 & 5407 & --\\
+DOPRI5 & 3132 & 5305 & 9796 & IQF & 2561 & 5726 & --\\
+Tsit5 & 3112 & \textbf{5282} & 9617 & RSWAF & 2047 & 4177 & --\\
+MLP-ODE (SiLU) & 741 & 1297 & 9145 & Newton & 4577 & -- & --\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/ablation/05_solver_convergence.png}
+\caption{Test MSE during training for the six solvers (RBF basis),
+logged every ten epochs; the dotted line is $10^{-4}$.}
+\label{fig:ablation-curves}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/ablation/06_basis_convergence.png}
+\caption{Test MSE during training for the seven bases (Tsit5 solver),
+logged every ten epochs; the dotted line is $10^{-4}$.}
+\label{fig:basis-curves}
+\end{figure}
+
+\begin{keypoint}[What the ablation and the numerical analysis establish]
+\begin{itemize}
+\item All six integrators satisfy their order conditions to round-off and
+  show their design order; Tsit5's leading error constant is $2.9\times$
+  smaller than DOPRI5's.
+\item Above order two, solver choice does not change accuracy at $h=0.05$;
+  Midpoint is the cost optimum (Tsit5's accuracy at $29\%$ of the time).
+\item The network learns the field that its training solver needs, not the
+  physical field: the Euler model is an accurate model of the inverse
+  modified equation, and models do not transfer across solver families.
+\item Locality, not conditioning, separates the bases; on this system a third
+  of the first layer's grid is idle because states are positive.
+\item Every trained model, KAN or MLP, is an attracting limit-cycle
+  oscillator around a spurious unstable equilibrium. It extrapolates the
+  training orbit well and says nothing reliable about any other.
+\end{itemize}
+\end{keypoint}
