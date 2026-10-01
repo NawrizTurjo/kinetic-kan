@@ -173,7 +173,20 @@ cd report-acm
 ../report/tools/tectonic.exe -k A_08.tex
 ```
 
-See [`report/reproduce/README.md`](./report/reproduce/README.md) for what each step produces and which runs it reads.
+See [Reproducibility](#-reproducibility) below for the full guide.
+
+---
+
+## 🔁 Reproducibility
+
+Every figure, table and derived number in the reports can be regenerated from the committed runs without retraining. The full guide is [`report/reproduce/README.md`](./report/reproduce/README.md). It covers:
+
+* **How to run it:** the one command that reruns the whole pipeline, how to run single steps, and how to check that the copied result plots are unchanged.
+* **What each step produces:** a table mapping every script to the report figure or table it makes, what it reads and what it writes.
+* **Where each result came from:** the run folder under `implementation/results/` behind each result, and the script or command that trained it.
+* **Caveats:** which tanh MLP run the report uses, why some checkpoints have no stored `dt`, and how closely cloud-trained checkpoints reproduce on a different CPU (within 0.62%).
+
+The run settings (software versions, seeding, data generation and checkpoint selection) are summarized in Appendix A of [`A_08.pdf`](./report-acm/A_08.pdf).
 
 ---
 
