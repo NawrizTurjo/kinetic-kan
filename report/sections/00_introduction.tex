@@ -38,7 +38,7 @@ decision, not a mathematical necessity: a Gaussian radial basis function
 (RBF) grid, $B_i(u)=\exp(-(u-z_i)^2/2h^2)$, gives each edge smooth support
 that decays quickly but never reaches zero, while a degree-$k$ B-spline built
 by the Cox-de Boor recursion gives each edge compact local support, exactly
-zero outside its own knot span. KAN-ODEs \cite{koenig2024kanode} put this
+zero outside its own knot span. KAN-ODEs \cite{Koenig_2024} put this
 construction inside a Neural ODE's vector field:
 $\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with every edge of
 $\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and the resulting

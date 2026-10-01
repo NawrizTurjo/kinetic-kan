@@ -38,7 +38,7 @@ zero outside its own knot span.
 \subsection{The base paper: KAN-ODEs}
 \label{sec:base-paper}
 
-Koenig et al.\ \cite{koenig2024kanode} put this construction inside a Neural
+Koenig et al.\ \cite{Koenig_2024} put this construction inside a Neural
 ODE's vector field, $\dot{\mathbf{u}}=\mathbf{f}_\theta(\mathbf{u})$ with
 every edge of $\mathbf{f}_\theta$ built from Equation~\ref{eq:kan-edge}, and
 obtain the trajectory by numerically integrating that field forward in time.
@@ -91,7 +91,9 @@ like this means treating training itself as an object of study.
 Table~\ref{tab:work-summary} lists every study we ran, why we ran it, what we
 found, and where it is reported. In short, our objectives were to:
 (i)~reproduce the base paper's Lotka-Volterra benchmark with every
-integrator and basis implemented and verified from its defining formula;
+integrator and basis implemented and verified from its defining
+formula\footnote{Code, trained checkpoints and the analysis pipeline are
+available at \url{https://github.com/NawrizTurjo/kinetic-kan}.};
 (ii)~vary each of the paper's three fixed design choices and measure what
 it actually costs or buys; (iii)~check whether the recipe transfers to other
 dynamical systems, and fix it where it does not; and (iv)~test whether our

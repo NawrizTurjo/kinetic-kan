@@ -1,6 +1,31 @@
 \section{Reproducibility}
 \label{app:repro}
 
+\subsection{Environment and settings}
+
+\begin{itemize}[leftmargin=*,itemsep=1pt,topsep=2pt]
+\item \textbf{Code.} The integrators, bases, models, training loop and
+  analysis pipeline are in the repository linked in the abstract, together
+  with every checkpoint and training history the report uses.
+\item \textbf{Software and hardware.} Python and PyTorch, CPU only, float32
+  throughout. Runs were trained on two Windows~11 machines and on Linux cloud
+  (Kaggle) CPUs, under PyTorch 2.5 to 2.13; each run records its full
+  configuration, PyTorch version, platform and code commit with its metrics.
+\item \textbf{Data.} Every system's ground truth is solved with SciPy's
+  DOP853 at $\text{rtol}=\text{atol}=10^{-12}$. Lotka-Volterra is sampled
+  every $\Delta t=0.1$:
+  36 training points on $[0,3.5]$ and 141 points on $[0,14]$, the last
+  105 of which form the extrapolation test set.
+\item \textbf{Seeding.} Seed 42 for every run except the extra stiffness
+  seeds (1 and 7). The seed is set before the data are generated and again
+  before the model is built, so the initialization depends on the seed alone.
+\item \textbf{Model selection.} The reported checkpoint is the one with the
+  lowest training MSE; the extrapolation window is never used to choose it.
+\item \textbf{Cost.} The analysis pipeline takes a few minutes on a laptop
+  CPU and retrains nothing; retraining all 24 Lotka-Volterra configurations
+  takes about 14 CPU-hours (Table~\ref{tab:cost}).
+\end{itemize}
+
 \subsection{How the numbers and figures are regenerated}
 
 Every training run saves its final metrics, a per-epoch training history, and
