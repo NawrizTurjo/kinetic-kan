@@ -9,7 +9,9 @@ single command-line entry point trains any configuration (model type, basis,
 solver, sub-steps, learning rate, epoch budget and seed), and a separate
 script re-scores any saved checkpoint against the ground truth it was
 trained on. The extended runs of the budget validation were launched as
-independent cloud jobs with the same entry point.
+independent cloud jobs with the same entry point; the paper-settings tanh
+MLP used a separate script, as the entry point does not expose the
+initialization scale.
 
 Everything reported after training is produced by an analysis pipeline that
 retrains nothing. Its first step re-integrates every noise-free
@@ -45,6 +47,7 @@ Figure~\ref{fig:cross-solver}, modified-equation analysis & checkpoints of the s
 Figure~\ref{fig:field-error} & trained checkpoints\\
 Figure~\ref{fig:edges} & RBF and B-spline checkpoints\\
 Table~\ref{tab:milestones}, budget-validation crossover & per-epoch training histories\\
+Figures~\ref{fig:kan-vs-mlp}, \ref{fig:kan-vs-mlp-t28}, Table~\ref{tab:extrap-horizon} & training histories; KAN, SiLU and paper-tanh checkpoints\\
 Figure~\ref{fig:pareto} & saved final metrics of each run\\
 Figure~\ref{fig:noise-dt} (right) & runs of the noise sweep\\
 Figure~\ref{fig:error-vs-time} & trained checkpoints\\

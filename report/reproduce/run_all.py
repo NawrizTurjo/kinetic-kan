@@ -37,6 +37,7 @@ STEPS = [
     ("s13_noise_stepsize.py", "noise and step-size sweeps"),
     ("s14_error_vs_time.py", "error against time"),
     ("s15_kan_vs_mlp_convergence.py", "KAN vs. MLP loss-decay overlay"),
+    ("s16_extrapolation_t28.py", "extrapolation to t = 28"),
     ("collect_result_figures.py", "copy the team's original result plots"),
     ("build_tikz.py", "compile the TikZ diagrams"),
 ]

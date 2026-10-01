@@ -26,11 +26,14 @@ def main():
     ics = [(1.0, 1.0), (2.0, 1.2), (4.0, 2.2), (0.6, 0.6)]
     ic_col = [C["ink"], C["blue"], C["amber"], C["teal"]]
     t = torch.linspace(0, 40, 401, dtype=torch.float64)
-    panels = [("basis_rbf", "KAN-ODE, 10k"), ("kan_50k", "KAN-ODE, 50k"),
-              ("mlp_silu", "MLP-ODE (SiLU), 10k"), ("mlp_silu_50k", "MLP-ODE (SiLU), 50k")]
-    fig, axes = plt.subplots(1, 4, figsize=(TW, 1.85), sharex=True, sharey=True)
+    # rows: 10k / 50k epochs; columns: KAN-ODE, SiLU MLP, paper-settings tanh MLP
+    panels = [("basis_rbf", "KAN-ODE, 10k"), ("mlp_silu", "MLP-ODE (SiLU), 10k"),
+              ("mlp_tanh_exact", "MLP-ODE (tanh, paper), 10k"),
+              ("kan_50k", "KAN-ODE, 50k"), ("mlp_silu_50k", "MLP-ODE (SiLU), 50k"),
+              ("mlp_tanh_exact_50k", "MLP-ODE (tanh, paper), 50k")]
+    fig, axes = plt.subplots(2, 3, figsize=(TW, 3.9), sharex=True, sharey=True)
     out = {}
-    for ax, (key, title) in zip(axes, panels):
+    for ax, (key, title) in zip(axes.flat, panels):
         m, _ = load_model(key, double=True)
         node = NeuralODE(m, method="tsit5", substeps=2)
         Hs = []
@@ -51,12 +54,14 @@ def main():
         ax.plot(*u_star, marker="x", color=C["crimson"], ms=5, mew=1.2)
         ax.plot(*EQ_TRUE, marker="+", color=C["ink"], ms=6, mew=1.0)
         ax.set_title(title, pad=2, fontsize=7.5)
-        ax.set_xlabel("$u_1$")
+        if ax in axes[-1]:
+            ax.set_xlabel("$u_1$")
         ax.set_xlim(0, 9); ax.set_ylim(0, 6.5)
         out[key] = Hs
         print(f"  {key:14s} late-time H per initial condition:",
               [None if h["H_learned_late_mean"] is None else round(h["H_learned_late_mean"], 3) for h in Hs])
-    axes[0].set_ylabel("$u_2$")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("$u_2$")
     fig.tight_layout(w_pad=0.3)
     save(fig, "limit_cycle_test")
     save_numbers(dict(limit_cycle_test=out))

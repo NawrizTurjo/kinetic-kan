@@ -53,8 +53,10 @@ RSWAF & $(2.15,\,0.91)$ & $1.03$ & $+1.00$ & $1.69$ & $+6.3\times10^{-4}$ & $5.4
 Newton & \multicolumn{4}{c}{Newton iteration diverges} & $-6.4\times10^{-3}$ & $12\%$\\
 \midrule
 MLP-ODE (SiLU), $10^4$ & $(2.35,\,1.12)$ & $0.76$ & $+0.30$ & $2.75$ & $+8.0\times10^{-4}$ & $2.8\%$\\
+MLP-ODE (tanh, paper), $10^4$ & $(1.64,\,0.79)$ & $1.54$ & $+0.79$ & $2.43$ & $+3.1\times10^{-3}$ & $22.7\%$\\
 KAN-ODE, $5\times10^4$ & $(1.51,\,0.80)$ & $1.65$ & $+0.67$ & $2.85$ & $-1.6\times10^{-4}$ & $0.9\%$\\
 MLP-ODE (SiLU), $5\times10^4$ & $(3.65,\,1.30)$ & $\mathbf{0.68}$ & $+0.95$ & $1.83$ & $+1.0\times10^{-4}$ & $\mathbf{0.4\%}$\\
+MLP-ODE (tanh, paper), $5\times10^4$ & $(1.47,\,0.72)$ & $1.72$ & $+1.09$ & $3.16$ & $+6.8\times10^{-4}$ & $2.8\%$\\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -64,10 +66,13 @@ focus surrounded by an orbit that trajectories stay on is the signature of an
 attracting limit cycle, not of a conservative centre. We confirm this by
 integrating each learned field from four initial conditions whose true orbits
 have $H\in\{0.85,\,0.86,\,2.0,\,3.5\}$ (Figure~\ref{fig:limit-cycle}). In the
-true system the four orbits are distinct nested curves. Under every learned
-field (KAN and MLP, at $10^4$ and at $5\times10^4$ epochs) all four
+true system the four orbits are distinct nested curves. Under the KAN and
+SiLU fields, at $10^4$ and at $5\times10^4$ epochs, all four
 trajectories converge onto the single training orbit, with late-time $H$
-between $2.000$ and $2.008$ for every starting point. Both architectures
+between $2.000$ and $2.008$ for every starting point. The paper-settings tanh MLP behaves the same way at $5\times10^4$
+epochs (late-time $H=1.998$), but at $10^4$ epochs it captures only
+three of the four starting points ($H=2.032$); the trajectory from
+$(0.6,0.6)$ diverges. Both architectures
 have replaced Lotka-Volterra's one-parameter family of neutral orbits with
 one isolated, attracting cycle through the training data. This explains two
 things at once. First, the flat extrapolation error of the KAN-ODE
@@ -84,16 +89,22 @@ learned an orbit, not the vector field.
 \caption{Trajectories of each learned field from four initial conditions
 (coloured dots) over $t\in[0,40]$, against the four corresponding true orbits
 (grey). Red crosses mark the learned equilibria, black plus signs the true
-one. Every learned field attracts all four onto the training orbit.}
+one. Columns: KAN-ODE, SiLU MLP-ODE, and the paper's tanh MLP-ODE under
+the paper's own learning rate and initialization; rows: $10^4$ and
+$5\times10^4$ epochs. Every learned field attracts all four onto the
+training orbit except the $10^4$-epoch tanh MLP, under which the
+trajectory from $(0.6,0.6)$ diverges.}
 \label{fig:limit-cycle}
 \end{figure*}
 
 \paragraph{Where the field is right.} Figure~\ref{fig:field-error} maps the
 field error $\|\mathbf{f}_\theta-\mathbf{f}\|$ over the phase plane. It is
 small only in a thin tube around the training orbit. On the orbit the error
-is $2.7$--$2.8\%$ of the mean field magnitude for both 10k models and
-$0.6$--$1.1\%$ at 50k. Across the plotted box the median error is
-$20$--$34\%$, and for every model less than $3\%$ of the box is below $1\%$
+is $2.7$--$2.8\%$ of the mean field magnitude for the 10k KAN and SiLU
+models and $0.6$--$1.1\%$ at 50k; the paper-settings tanh MLP is less
+accurate, at $7.0\%$ (10k) and $2.7\%$ (50k). Across the plotted box the
+median error is $20$--$34\%$ for KAN and SiLU and $42$--$46\%$ for the
+tanh MLP, and for every model less than $3\%$ of the box is below $1\%$
 error. Longer training sharpens the tube without widening it: the 50k KAN's
 median off-orbit error ($34\%$) is higher than the 10k model's ($24\%$).
 
@@ -103,7 +114,8 @@ median off-orbit error ($34\%$) is higher than the 10k model's ($24\%$).
 \caption{Field error $\|\mathbf{f}_\theta(\mathbf{u})-\mathbf{f}(\mathbf{u})\|$,
 normalised by the mean true field magnitude on the orbit ($4.82$), clipped to
 $[10^{-3},1]$. Thick black: training segment; blue: rest of the orbit;
-plus sign: true equilibrium.}
+plus sign: true equilibrium. Columns and rows as in
+Figure~\ref{fig:limit-cycle}.}
 \label{fig:field-error}
 \end{figure*}
 
@@ -195,6 +207,7 @@ RK4 & 3153 & 5318 & 9798 & Lagrange & 2924 & 5407 & --\\
 DOPRI5 & 3132 & 5305 & 9796 & IQF & 2561 & 5726 & --\\
 Tsit5 & 3112 & \textbf{5282} & 9617 & RSWAF & 2047 & 4177 & --\\
 MLP-ODE (SiLU) & 741 & 1297 & 9145 & Newton & 4577 & -- & --\\
+MLP-ODE (tanh, paper) & 3461 & -- & -- & & & & \\
 \bottomrule
 \end{tabular}
 \end{table*}

@@ -23,6 +23,9 @@ powershell -ExecutionPolicy Bypass -File run_phase2.ps1 -Only all
 # the five extended runs of Section 9
 python experiments/epoch_budget_check/kaggle_50k_2_tsit5_rbf.py      # and _1 ... _5
 
+# the paper's tanh MLP under the paper's own lr and init (NUM_EPOCHS 10000, then 50000)
+python results/phase4/kaggle_mlp_paperspec_exact_recipe.py
+
 # re-score one checkpoint against the ground truth it was trained on
 python evaluate.py --checkpoint results/benchmarks/kanode_flagship/best_model.pt
 
@@ -75,6 +78,7 @@ Figure~\ref{fig:pareto} & \texttt{s12\_pareto.py} & \texttt{metrics.json}\\
 Figure~\ref{fig:noise-dt} (right) & \texttt{s13\_noise\_stepsize.py} & noise-sweep runs\\
 Figure~\ref{fig:error-vs-time} & \texttt{s14\_error\_vs\_time.py} & checkpoints\\
 Figure~\ref{fig:kan-vs-mlp} & \texttt{s15\_kan\_vs\_mlp\_convergence.py} & \path{training_history.json}\\
+Figure~\ref{fig:kan-vs-mlp-t28}, Table~\ref{tab:extrap-horizon} & \texttt{s16\_extrapolation\_t28.py} & KAN, SiLU, paper-tanh checkpoints\\
 Original result plots (baseline, ablations, pendulum, hybrid basis, extended budget) & \texttt{collect\_result\_figures.py} & unchanged copies of \path{implementation/results/} plots\\
 Diagrams (Figures~\ref{fig:kan-ode-architecture}, \ref{fig:kdense}, \ref{fig:data-split}, \ref{fig:rk-stages}, \ref{fig:locality}) & \texttt{build\_tikz.py} & \path{report/figures/tikz/*.tex}\\
 \bottomrule
@@ -95,6 +99,7 @@ Solver ablation (Table~\ref{tab:solver-ablation}) & \texttt{benchmarks/ablation\
 Basis ablation (Table~\ref{tab:basis-ablation}) & \texttt{benchmarks/ablation\_activations/basis\_*/}\\
 Step-size and noise sweeps (Table~\ref{tab:noise-dt}) & \texttt{benchmarks/stepsize/dt*/}, \texttt{benchmarks/noise/sigma*/}\\
 KAN versus MLP (Table~\ref{tab:kan-vs-mlp}) & \texttt{benchmarks/kanode\_flagship/}, \texttt{benchmarks/mlpode\_baseline*/}\\
+Paper-settings tanh MLP (Figures~\ref{fig:kan-vs-mlp}, \ref{fig:kan-vs-mlp-t28}) & \texttt{mlp\_paperspec\_exact\_10k\_result/}, \texttt{mlp\_paperspec\_exact\_50k\_result/}\\
 Extended runs (Table~\ref{tab:phase4}) & \texttt{phase4/epoch\_budget\_check/*/}\\
 Cross-domain fixes (Section~\ref{sec:phase2}) & \texttt{\_fixed/}, \texttt{\_probe/}, \texttt{benchmarks/sir\_fixed\_full/}\\
 Follow-on studies (Sections~\ref{sec:track-a}--\ref{sec:track-e}) & \texttt{phase3/*/}\\

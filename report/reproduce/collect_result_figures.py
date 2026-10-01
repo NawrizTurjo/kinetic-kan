@@ -27,8 +27,8 @@ HYB = RES / "phase3" / "hybrid_basis"
 MANIFEST = {
     # Section 2: KAN against MLP (collate_results.py). The loss-decay overlay
     # 03_kan_vs_mlp_convergence.png is not copied: s15_kan_vs_mlp_convergence.py
-    # redraws it with the paper-settings tanh run in place of the default one.
-    "ablation/07_extrapolation_t28.png": RES / "figures" / "07_extrapolation_t28.png",
+    # redraws it with the paper-settings tanh run in place of the default one;
+    # 07_extrapolation_t28.png likewise comes from s16_extrapolation_t28.py.
     # pendulum energy check (phase2_closeout.py, extended-window run)
     "phase2/pendulum_energy.png": RES / "figures" / "04_pendulum_energy.png",
     # hybrid basis on the pendulum: full 10k run and the 3000-epoch run (train.py)

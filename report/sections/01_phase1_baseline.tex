@@ -197,9 +197,8 @@ and~\ref{fig:kan-vs-mlp-t28} compare
 them with the KAN-ODE. A fourth column, added after auditing the paper's own
 code (Section~\ref{sec:audit}), retrains the identical literal baseline under
 the paper's own learning rate and initialization scale instead of this
-project's default; Figure~\ref{fig:kan-vs-mlp} plots that run in place of the
-default-setting tanh MLP; Figure~\ref{fig:kan-vs-mlp-t28} predates it and
-still shows the original three.
+project's default; Figures~\ref{fig:kan-vs-mlp} and~\ref{fig:kan-vs-mlp-t28} plot that run
+in place of the default-setting tanh MLP.
 
 \begin{table}[!ht]
 \centering
@@ -253,10 +252,11 @@ $10^{-2}$ at epoch 3461 but never $10^{-3}$ within $10^4$ epochs.}
 \includegraphics[width=0.92\textwidth]{figures/ablation/07_extrapolation_t28.png}
 \caption{Predicted against true populations out to $t=28$ for the three
 models, with no retraining. KAN-ODE and SiLU-MLP are visually
-indistinguishable from the truth. The tanh MLP (bottom) is the pre-fix run
-with default learning rate and initialization, not the paper-settings run of
-the fourth table column: it runs slow, falls behind by more than a quarter
-period, and never reproduces the predator peak.}
+indistinguishable from the truth. The paper's tanh MLP under its own
+learning rate and initialization (bottom, fourth column of
+Table~\ref{tab:kan-vs-mlp}) follows the training window and the first
+periods closely, then runs slightly slow and lags visibly by the far
+window $(14,28]$.}
 \label{fig:kan-vs-mlp-t28}
 \end{figure}
 
