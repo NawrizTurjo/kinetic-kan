@@ -6,7 +6,9 @@
 \begin{itemize}[leftmargin=*,itemsep=1pt,topsep=2pt]
 \item \textbf{Code.} The integrators, bases, models, training loop and
   analysis pipeline are in the repository linked in the abstract, together
-  with every checkpoint and training history the report uses.
+  with every checkpoint and training history the report uses. The analysis
+  pipeline lives in \texttt{report/reproduce/}; its README gives the single
+  command that reruns it and lists what each step reads and writes.
 \item \textbf{Software and hardware.} Python and PyTorch, CPU only, float32
   throughout. Runs were trained on two Windows~11 machines and on Linux cloud
   (Kaggle) CPUs, under PyTorch 2.5 to 2.13; each run records its full
