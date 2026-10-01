@@ -104,6 +104,13 @@ for his guidance throughout this project.
 \bibliography{references}
 
 \appendix
+% Label appendix sections "Appendix A" (subsections keep "A.1", ...).
+\makeatletter
+\def\kk@appendixprefix@section{Appendix~}% expandable: no \def inside the format
+\def\@seccntformat#1{%
+  \ifcsname kk@appendixprefix@#1\endcsname\csname kk@appendixprefix@#1\endcsname\fi
+  \csname the#1\endcsname\quad}
+\makeatother
 \input{sections/appendix}
 
 \end{document}
