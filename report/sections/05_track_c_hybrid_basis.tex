@@ -150,7 +150,38 @@ Capping training at the pre-overfit optimum (epoch 3000, chosen from the
 10,000-epoch run's own point of minimum monitor loss) shows hybrid
 \emph{ahead} of pure RBF at the same epoch count ($0.055$ vs.\ $0.081$
 full-horizon MSE) with extrapolation $R^2=+0.580$, approaching pure RBF's
-fully-converged number ($+0.647$).
+fully-converged number ($+0.647$). Figure~\ref{fig:hybrid-pendulum-runs} shows
+both runs side by side: the loss curves of the full run make the overfitting
+onset visible, and its phase portrait shows the extrapolation collapsing into
+a small wrong loop, while the 3000-epoch run still follows the decaying
+spiral.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[c]{0.56\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/pendulum_full_loss_curves.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.40\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/pendulum_full_phase_space.png}
+\end{minipage}\\[6pt]
+\begin{minipage}[c]{0.56\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/pendulum_3k_loss_curves.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.40\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/track_c/pendulum_3k_phase_space.png}
+\end{minipage}
+\caption{Hybrid basis on the pendulum. Top: the full 10{,}000-epoch
+run; training loss keeps falling while the extrapolation (monitor) loss
+bottoms out near epoch 2950 and climbs back to $\approx0.4$ (left), and the
+extrapolated orbit collapses into a small wrong loop (right). Bottom: the same
+recipe stopped at 3000 epochs; train and monitor loss fall together (left)
+and the extrapolation follows the decaying spiral (right).}
+\label{fig:hybrid-pendulum-runs}
+\end{figure}
 
 \begin{keypoint}[Verdict]
 The learnable hybrid basis never outperforms the better pure basis on either

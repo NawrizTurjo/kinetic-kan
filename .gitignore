@@ -160,3 +160,7 @@ report/README.md
 
 # Domain glossary (local only)
 CONTEXT.md
+
+# LaTeX scratch files rewritten on every build (tcolorbox listings, comment package)
+*.listing
+comment.cut

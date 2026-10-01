@@ -21,12 +21,21 @@ ABL = RES / "benchmarks"
 P4 = RES / "phase4" / "epoch_budget_check"
 EXACT10 = RES / "mlp_paperspec_exact_10k_result"
 EXACT50 = RES / "mlp_paperspec_exact_50k_result"
+HYB = RES / "phase3" / "hybrid_basis"
 
 # report/figures/<dest>  <-  implementation/results/<source>
 MANIFEST = {
-    # Section 2: KAN against MLP (collate_results.py)
-    "ablation/03_kan_vs_mlp_convergence.png": RES / "figures" / "03_kan_vs_mlp_convergence.png",
+    # Section 2: KAN against MLP (collate_results.py). The loss-decay overlay
+    # 03_kan_vs_mlp_convergence.png is not copied: s15_kan_vs_mlp_convergence.py
+    # redraws it with the paper-settings tanh run in place of the default one.
     "ablation/07_extrapolation_t28.png": RES / "figures" / "07_extrapolation_t28.png",
+    # pendulum energy check (phase2_closeout.py, extended-window run)
+    "phase2/pendulum_energy.png": RES / "figures" / "04_pendulum_energy.png",
+    # hybrid basis on the pendulum: full 10k run and the 3000-epoch run (train.py)
+    "track_c/pendulum_full_loss_curves.png": HYB / "pendulum_full" / "loss_curves.png",
+    "track_c/pendulum_full_phase_space.png": HYB / "pendulum_full" / "phase_space.png",
+    "track_c/pendulum_3k_loss_curves.png": HYB / "pendulum_3k" / "loss_curves.png",
+    "track_c/pendulum_3k_phase_space.png": HYB / "pendulum_3k" / "phase_space.png",
     # Section 3: solver and basis phase portraits (train.py, one per run)
     "ablation/solver_euler_phase.png": ABL / "ablation_solvers" / "solver_euler" / "phase_space.png",
     "ablation/solver_midpoint_phase.png": ABL / "ablation_solvers" / "solver_midpoint" / "phase_space.png",

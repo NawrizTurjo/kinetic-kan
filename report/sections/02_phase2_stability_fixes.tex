@@ -1003,7 +1003,7 @@ extended from four periods ($t\in(3.5,14]$) to eight periods
 \midrule
 \textbf{KAN-ODE} (RBF, 240 parameters) & $8.83\times10^{-5}$ & $8.92\times10^{-5}$ & $\mathbf{9.72\times10^{-5}}$ & $\mathbf{1.1\times}$\\
 MLP-ODE (SiLU, 252 parameters) & $9.50\times10^{-5}$ & $4.78\times10^{-4}$ & $3.95\times10^{-3}$ & $8.3\times$\\
-MLP-ODE (tanh, paper specification) & $1.08\times10^{0}$ & $1.69\times10^{0}$ & $4.03\times10^{0}$ & $2.4\times$\\
+MLP-ODE (tanh, default lr/init, pre-fix) & $1.08\times10^{0}$ & $1.69\times10^{0}$ & $4.03\times10^{0}$ & $2.4\times$\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1026,6 +1026,17 @@ is violated on 40 of 200 predicted steps. The model is under-damped:
 the true angular displacement decays to $0.004$ by $t=9.1$ while the
 predicted trajectory continues oscillating at $0.237$. This energy
 diagnostic is an independent confirmation of the under-damping, expressed
-as a violated conservation law rather than a trajectory RMSE.
+as a violated conservation law rather than a trajectory RMSE (Figure~\ref{fig:pendulum-energy}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/phase2/pendulum_energy.png}
+\caption{Fixed pendulum ($\mu=0.5$, $t_{\text{train}}=5$): phase portrait
+(left) and total mechanical energy $E(\theta,\omega)$ (right). Inside the
+training window the predicted energy follows the true curve closely; past the
+split at $t=5$ it stays above the truth and rises on 40 of 200 predicted
+steps, the under-damping described in the text.}
+\label{fig:pendulum-energy}
+\end{figure}
 
 \FloatBarrier

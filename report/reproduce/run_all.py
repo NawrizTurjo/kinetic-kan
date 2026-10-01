@@ -36,6 +36,7 @@ STEPS = [
     ("s12_pareto.py", "cost-accuracy Pareto front"),
     ("s13_noise_stepsize.py", "noise and step-size sweeps"),
     ("s14_error_vs_time.py", "error against time"),
+    ("s15_kan_vs_mlp_convergence.py", "KAN vs. MLP loss-decay overlay"),
     ("collect_result_figures.py", "copy the team's original result plots"),
     ("build_tikz.py", "compile the TikZ diagrams"),
 ]
