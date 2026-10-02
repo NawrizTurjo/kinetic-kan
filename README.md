@@ -9,7 +9,7 @@
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](./requirements.txt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-📄 **Final report (ACM format):** [`report-acm/A_08.pdf`](./report-acm/A_08.pdf) · **Extended report:** [`report/report.pdf`](./report/report.pdf)
+📄 **Final report (ACM format):** [`report/A_08.pdf`](./report/A_08.pdf)
 
 ---
 
@@ -86,12 +86,12 @@ kinetic-kan/
 │   ├── analyze_fixes.py            # Summarizes the cross-domain fix runs
 │   └── phase2_closeout.py          # Extrapolation and energy analysis
 │
-├── report/                         # Extended report (LaTeX)
+├── report/                         # Final course report, ACM sigconf format (A_08.pdf)
+│   ├── A_08.tex, kk-acm.sty        # LaTeX sources (acmart.cls, ACM bib style bundled)
+│   ├── sections/                   # Report sections
+│   ├── figures/                    # Report figures
 │   ├── reproduce/                  # Regenerates every derived figure, table and number
-│   ├── figures/                    # Figures shared by both reports
-│   ├── sections/, frontmatter/     # LaTeX sources
 │   └── tools/                      # Tectonic LaTeX engine
-├── report-acm/                     # Final course report in ACM sigconf format (A_08.pdf)
 │
 ├── tests/                          # PyTest suite (242 passed, 1 skipped)
 ├── .github/workflows/ci.yml        # Tests on Python 3.10-3.12
@@ -162,15 +162,15 @@ Or run the whole suite with `.\run_phase2.ps1 -Only all` (PowerShell, from `impl
 The trained runs are committed under `implementation/results/`, so no retraining is needed. From the repository root:
 
 ```bash
-python report/reproduce/run_all.py               # all steps, then build report/report.pdf
+python report/reproduce/run_all.py               # all steps, then build report/A_08.pdf
 python report/reproduce/run_all.py --no-report   # skip the LaTeX build
 ```
 
-This takes a few minutes on a laptop CPU. To build the ACM report:
+This takes a few minutes on a laptop CPU. To build only the report:
 
 ```bash
-cd report-acm
-../report/tools/tectonic.exe -k A_08.tex
+cd report
+tools/tectonic.exe -k A_08.tex
 ```
 
 See [Reproducibility](#-reproducibility) below for the full guide.
@@ -179,21 +179,20 @@ See [Reproducibility](#-reproducibility) below for the full guide.
 
 ## 🔁 Reproducibility
 
-Every figure, table and derived number in the reports can be regenerated from the committed runs without retraining. The full guide is [`report/reproduce/README.md`](./report/reproduce/README.md). It covers:
+Every figure, table and derived number in the report can be regenerated from the committed runs without retraining. The full guide is [`report/reproduce/README.md`](./report/reproduce/README.md). It covers:
 
 * **How to run it:** the one command that reruns the whole pipeline, how to run single steps, and how to check that the copied result plots are unchanged.
 * **What each step produces:** a table mapping every script to the report figure or table it makes, what it reads and what it writes.
 * **Where each result came from:** the run folder under `implementation/results/` behind each result, and the script or command that trained it.
 * **Caveats:** which tanh MLP run the report uses, why some checkpoints have no stored `dt`, and how closely cloud-trained checkpoints reproduce on a different CPU (within 0.62%).
 
-The run settings (software versions, seeding, data generation and checkpoint selection) are summarized in Appendix A of [`A_08.pdf`](./report-acm/A_08.pdf).
+The run settings (software versions, seeding, data generation and checkpoint selection) are summarized in Appendix A of [`A_08.pdf`](./report/A_08.pdf).
 
 ---
 
 ## 📚 Documentation
 
-* 📄 **Final report (ACM):** [`report-acm/A_08.pdf`](./report-acm/A_08.pdf)
-* 📘 **Extended report:** [`report/report.pdf`](./report/report.pdf)
+* 📄 **Final report (ACM):** [`report/A_08.pdf`](./report/A_08.pdf)
 * 🔁 **Reproduction guide:** [`report/reproduce/README.md`](./report/reproduce/README.md)
 * 📽️ **Proposal presentation:** [`docs/presentation/KAN-ODE.pdf`](./docs/presentation/KAN-ODE.pdf) ([LaTeX source](./docs/presentation/KAN-ODE.tex))
 * 📑 **Base paper:** [`docs/base_paper/2407.04192v3.pdf`](./docs/base_paper/2407.04192v3.pdf)

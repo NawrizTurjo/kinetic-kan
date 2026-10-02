@@ -11,7 +11,7 @@ From the repository root:
 
 ```bash
 pip install -r requirements.txt                    # repository root; covers everything here
-python report/reproduce/run_all.py                 # all steps, then build report/report.pdf
+python report/reproduce/run_all.py                 # all steps, then build report/A_08.pdf
 python report/reproduce/run_all.py --no-report     # all steps, skip the LaTeX build
 python report/reproduce/run_all.py s07 s09         # only the named steps (prefix match)
 python report/reproduce/collect_result_figures.py --check   # verify copied plots, copy nothing
@@ -19,15 +19,15 @@ python report/reproduce/collect_result_figures.py --check   # verify copied plot
 
 `run_all.py` runs each step in its own process, in order, and stops at the first
 failure. The whole pipeline takes a few minutes on a laptop CPU, plus about a minute
-for the report build. The ACM version is built separately:
+for the report build. To build only the report:
 
 ```bash
-cd report-acm
-../report/tools/tectonic.exe -k A_08.tex           # writes A_08.pdf
+cd report
+tools/tectonic.exe -k A_08.tex                     # writes A_08.pdf
 ```
 
-Both reports read their figures from `report/figures/` (the ACM build sets
-`\graphicspath{{../report/}}`), so one run of the pipeline updates both.
+The report reads its figures from `report/figures/`, so one run of the pipeline
+updates it.
 
 `requirements.txt` in this folder pins the versions the figures were generated with
 (Python 3.11.1, Windows 11, CPU only).

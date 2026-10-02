@@ -5,8 +5,8 @@ Runs each step in its own Python process, in order, and stops at the first failu
 Nothing is retrained: all inputs are the saved runs under implementation/results/.
 
 Usage (from the repository root):
-    python report/reproduce/run_all.py              # everything, then build report.pdf
-    python report/reproduce/run_all.py --no-report  # skip the LaTeX build of report.pdf
+    python report/reproduce/run_all.py              # everything, then build A_08.pdf
+    python report/reproduce/run_all.py --no-report  # skip the LaTeX build of A_08.pdf
     python report/reproduce/run_all.py s04 s09      # only the named steps (prefix match)
 
 Takes about 2.5 minutes on a laptop CPU, plus about a minute for the report build.
@@ -58,7 +58,7 @@ def main():
     for script, label in steps:
         run([sys.executable, str(HERE / script)], HERE, f"{script}: {label}")
     if not args and "--no-report" not in sys.argv:
-        run([str(REPORT / "tools" / "tectonic.exe"), "-k", "report.tex"], REPORT, "build report.pdf (tectonic)")
+        run([str(REPORT / "tools" / "tectonic.exe"), "-k", "A_08.tex"], REPORT, "build A_08.pdf (tectonic)")
 
 
 if __name__ == "__main__":
